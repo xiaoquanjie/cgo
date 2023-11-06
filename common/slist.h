@@ -1,0 +1,110 @@
+/*----------------------------------------------------------------
+// Copyright 2021
+// All rights reserved.
+//
+// author: 404558965@qq.com (xiaoquanjie)
+// github: https://github.com/xiaoquanjie/cgo
+// Created by xiaoqj on 2023/11/04
+//----------------------------------------------------------------*/
+
+#pragma once
+
+#include <stdlib.h>
+#include <functional>
+
+template<typename T>
+class slist {
+protected:
+    struct node {
+        T _val;
+        node* _next = 0;
+    };
+
+    node* _head = 0;
+    node* _tail = 0;
+    size_t _size = 0;
+
+public:
+    slist() {
+        _tail = _head = new node;
+    }
+
+    ~slist() {
+        clear();
+        delete _head;
+    }
+
+    bool empty() const {
+        return _size == 0;
+    }
+
+    size_t size() const {
+        return _size;
+    }
+
+    T& front() {
+        return _head->_next->_val;
+    }
+
+    void pop() {
+        if (_head->_next) {
+            auto n = _head->_next;
+            _head->_next = n->_next;
+            if (_tail == n) {
+                _tail = _head;
+            }
+            delete n;
+            _size -= 1;
+        }
+    }
+
+    void push(const T& val) {
+        auto n = new node;
+        n->_val = val;
+        _tail->_next = n;
+        _tail = n;
+        _size += 1;
+    }
+
+    void clear() {
+        auto n = _head->_next;
+        while (n) {
+            auto t = n;
+            n = n->_next;
+            delete t;
+        }
+        _head->_next = 0;
+        _tail = _head;
+        _size = 0;
+    }
+
+    // fn: return false and delete the element
+    void iterate(std::function<bool(T&)> fn, bool once = false) {
+        auto prev = _head;
+        auto cur = prev->_next;
+        while (cur) {
+            if (!fn(cur->_val)) {
+                prev->_next = cur->_next;
+                delete cur;
+                this->_size -= 1;
+                if (_tail == cur) {
+                    _tail = prev;
+                    break;
+                } else {
+                    cur = prev->_next;
+                }
+
+                if (once) {
+                    break;
+                }
+            } else {
+                prev = cur;
+                cur = cur->_next;
+            }
+        }
+    }
+
+protected:
+    slist(const slist&) = delete;
+    slist& operator=(const slist&) = delete;
+};
