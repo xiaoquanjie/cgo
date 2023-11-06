@@ -123,29 +123,32 @@ void cgo_test() {
 void timepool_test() {
     print_withtime("start\n");
 
-    time_pool p;
+    async_time_pool p;
 
-    p.add_timer(1000, []() {
+    p.async_add_timer(1000, []() {
         print_withtime("after 1000ms\n");
     });
 
-    p.add_timer(50, []() {
+    p.async_add_timer(50, []() {
         print_withtime("after 50ms\n");
     });
 
-    p.add_timer(60, []() {
+    auto id = p.async_add_timer(60, []() {
         print_withtime("after 60ms\n");
     });
 
-    p.add_timer(5000, []() {
+    p.async_cancel_timer(id);
+    //p.cancel_timer(id);
+
+    p.async_add_timer(5000, []() {
         print_withtime("after 5000ms\n");
     });
 
-    p.add_timer(1000*60, []() {
+    p.async_add_timer(1000*60, []() {
         print_withtime("after 1min\n");
     });
 
-    p.add_timer(1000*60*10, []() {
+    p.async_add_timer(1000*60*10, []() {
         print_withtime("after 10min\n");
     });
 

@@ -15,6 +15,7 @@ time_pool::time_pool(uint32_t max_interval) {
     if (max_interval != 0)  {
         _big_bucket = max_interval;
     }
+    this->_beg_time = std::chrono::steady_clock::now();
 }
 
 time_pool::~time_pool() {
@@ -90,19 +91,21 @@ bool time_pool::update() {
 }
 
 // @interval: ms
-uint64_t time_pool::add_timer(uint32_t interval, std::function<void()>func) {
-    if (interval <= 0 || interval > this->_big_bucket * 1000) {
+uint64_t time_pool::add_timer(uint32_t interval, std::function<void()> func) {
+    auto node = alloc_timer_node(interval, func);
+    if (node._timer_id == 0) {
         return 0;
     }
 
-    on_init();
-    auto now = std::chrono::steady_clock::now();
+    return timer_add(node);
+}
+
+uint64_t time_pool::timer_add(const timer_node& node) {
+    alloc_big_bucket();
+
     uint32_t big_bucket_loc = 0;
     uint32_t small_bucket_loc = 0;
-
-    if (!calc_bucket(now, interval, big_bucket_loc, small_bucket_loc)) {
-        return 0;
-    }
+    decode_timer_id(node._timer_id, big_bucket_loc, small_bucket_loc);
 
     void** bucket = (void**)this->_bucket[big_bucket_loc];
     if (!bucket) {
@@ -120,23 +123,22 @@ uint64_t time_pool::add_timer(uint32_t interval, std::function<void()>func) {
         this->_alloc_timer_id = 1;
     }
 
-    uint64_t timer_id = (big_bucket_loc * this->_small_bucket + small_bucket_loc);
-    timer_id = timer_id << 32;
-    timer_id += this->_alloc_timer_id++;
-
-    timer_node node;
-    node._cb = func;
-    node._expire = (std::chrono::duration_cast<std::chrono::milliseconds>(now - this->_beg_time)).count() + interval;
-    node._timer_id = timer_id;
     nl->push(node);
-
-    return timer_id;
+    return node._timer_id;
 }
 
 bool time_pool::cancel_timer(uint64_t timer_id) {
-    uint32_t high32Bit = (timer_id >> 32);
-    uint32_t big = high32Bit / this->_small_bucket;
-    uint32_t small = high32Bit % this->_small_bucket;
+    return timer_cancel(timer_id);
+}
+
+bool time_pool::timer_cancel(uint64_t timer_id) {
+    if (!this->_bucket) {
+        return false;
+    }
+
+    uint32_t big = 0;
+    uint32_t small = 0;
+    decode_timer_id(timer_id, big, small);
 
     if (big >= this->_big_bucket) {
         return false;
@@ -168,7 +170,28 @@ bool time_pool::cancel_timer(uint64_t timer_id) {
     return ret;
 }
 
-void time_pool::on_init() {
+time_pool::timer_node time_pool::alloc_timer_node(uint32_t interval, std::function<void()> func) {
+    timer_node node;
+    node._timer_id = 0;
+
+    if (interval <= 0 || interval > this->_big_bucket * 1000) {
+        return node;
+    }
+
+    auto now = std::chrono::steady_clock::now();
+    uint32_t big_bucket_loc = 0;
+    uint32_t small_bucket_loc = 0;
+    if (!calc_bucket(now, interval, big_bucket_loc, small_bucket_loc)) {
+        return node;
+    }
+
+    node._timer_id = alloc_timer_id(big_bucket_loc, small_bucket_loc);
+    node._expire = (std::chrono::duration_cast<std::chrono::milliseconds>(now - this->_beg_time)).count() + interval;
+    node._cb = func;
+    return node;
+}
+
+void time_pool::alloc_big_bucket() {
     if (this->_bucket) {
         return;
     }
@@ -177,8 +200,6 @@ void time_pool::on_init() {
     for (uint32_t idx = 0; idx < this->_big_bucket; ++idx) {
         this->_bucket[idx] = 0;
     }
-
-    this->_beg_time = std::chrono::steady_clock::now();
 }
 
 void** time_pool::alloc_small_bucket() {
@@ -200,4 +221,59 @@ bool time_pool::calc_bucket(time_point tp, uint32_t interval, uint32_t& big_buck
     big_bucket = future_sec % this->_big_bucket;
     small_bucket = (future_ms % 1000) / (1000 / this->_small_bucket);
     return true;
+}
+
+uint64_t time_pool::alloc_timer_id(uint32_t big_bucket, uint32_t small_bucket) {
+    uint64_t timer_id = (big_bucket * this->_small_bucket + small_bucket);
+    timer_id = timer_id << 32;
+    timer_id += this->_alloc_timer_id++;
+    return timer_id;
+}
+
+void time_pool::decode_timer_id(uint64_t timer_id, uint32_t& big_bucket, uint32_t& small_bucket) {
+    uint32_t high32Bit = (timer_id >> 32);
+    big_bucket = high32Bit / this->_small_bucket;
+    small_bucket = high32Bit % this->_small_bucket;
+}
+
+///////////////////////////////////////////////////////////
+
+bool async_time_pool::update() {
+    if (this->_flag.test_and_set()) {
+        return false;
+    }
+
+    slist<timer_node> tmp_wait_list;
+    _mu.lock();
+    tmp_wait_list.swap(this->_wait_list);
+    _mu.unlock();
+
+    tmp_wait_list.iterate([this](time_pool::timer_node& node)->bool {
+        if (node._cb) {
+            this->timer_add(node);
+        } else {
+            this->timer_cancel(node._timer_id);
+        }
+        return true;
+    });
+
+    auto ret = time_pool::update();
+    this->_flag.clear();
+    return ret;
+}
+
+uint64_t async_time_pool::async_add_timer(uint32_t interval, std::function<void()> func) {
+    auto node = alloc_timer_node(interval, func);
+    if (node._timer_id == 0) {
+        return 0;
+    }
+
+    std::unique_lock<std::mutex> lock(_mu);
+    _wait_list.push(node);
+    return node._timer_id;
+}
+
+void async_time_pool::async_cancel_timer(uint64_t timer_id) {
+    std::unique_lock<std::mutex> lock(_mu);
+    _wait_list.push(timer_node{timer_id, 0, nullptr});
 }

@@ -12,9 +12,12 @@
 #include "slist.h"
 #include <functional>
 #include <chrono>
+#include <mutex>
+#include <atomic>
 
+// thread-unsafety
 class time_pool {
-public:
+protected:
     struct timer_node {
         uint64_t _timer_id = 0;
         uint64_t _expire = 0;
@@ -33,22 +36,48 @@ public:
     uint64_t _alloc_timer_id = 0;
     time_point _beg_time;
 
+public:
     // one hour
     time_pool(uint32_t max_interval = 3600);
 
-    ~time_pool();
+    virtual ~time_pool();
 
-    bool update();
+    virtual bool update();
 
     // @interval: max interval is one hour
-    uint64_t add_timer(uint32_t interval, std::function<void()>func);
+    uint64_t add_timer(uint32_t interval, std::function<void()> func);
 
     bool cancel_timer(uint64_t timer_id);
 
 protected:
-    void on_init();
+    timer_node alloc_timer_node(uint32_t interval, std::function<void()> func);
+
+    void alloc_big_bucket();
+
+    uint64_t timer_add(const timer_node& node);
+
+    bool timer_cancel(uint64_t timer_id);
 
     void** alloc_small_bucket();
 
     bool calc_bucket(time_point tp, uint32_t interval, uint32_t& big_bucket, uint32_t& small_bucket);
+
+    uint64_t alloc_timer_id(uint32_t big_bucket, uint32_t small_bucket);
+
+    void decode_timer_id(uint64_t timer_id, uint32_t& big_bucket, uint32_t& small_bucket);
+};
+
+// thread-safety
+class async_time_pool : public time_pool {
+protected:
+    std::mutex _mu;
+    std::atomic_flag _flag;
+    slist<timer_node> _wait_list;
+
+public:
+    bool update() override;
+
+    uint64_t async_add_timer(uint32_t interval, std::function<void()> func);
+
+    void async_cancel_timer(uint64_t timer_id);
 };

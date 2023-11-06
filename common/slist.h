@@ -104,6 +104,20 @@ public:
         }
     }
 
+    void swap(slist<T>& other) {
+        auto tmp_ptr = this->_head;
+        this->_head = other._head;
+        other._head = tmp_ptr;
+
+        tmp_ptr = this->_tail;
+        this->_tail = other._tail;
+        other._tail = tmp_ptr;
+
+        auto tmp_size = this->_size;
+        this->_size = other._size;
+        other._size = tmp_size;
+    }
+
 protected:
     slist(const slist&) = delete;
     slist& operator=(const slist&) = delete;
