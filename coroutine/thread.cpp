@@ -10,6 +10,7 @@
 #include "thread.h"
 #include "task.h"
 #include "coroutine.h"
+#include "structure.h"
 #include <functional>
 
 namespace cgo {
@@ -52,10 +53,12 @@ namespace cgo {
         void _thread_st_::on_run() {
             int wait_time = 3;
             while (!_stop) {
+                gtimepool.update();
+
                 auto wait_task = gwaittask.pop(wait_time);
                 if (wait_task) {
                     _idle = false;
-                    run(wait_task->_routine);
+                    run(wait_task->_routine, wait_task->_file, wait_task->_line);
                     _idle = true;
                 }
 

@@ -14,15 +14,15 @@
 namespace cgo {
     namespace coroutine {
         // create one new coroutine
-        int64_t create(void(*routine)(void*), void* data);
-
-        int64_t create(std::function<void()> routine);
+        int64_t create(std::function<void()> routine, const char* file = 0, int line = 0);
 
         // resume a coroutine
         void resume(int64_t co_id);
 
         // yield
         void yield();
+
+        void wait(int wait_mil);
 
         int64_t curid();
 
@@ -32,6 +32,8 @@ namespace cgo {
 #ifdef M_PLATFORM_WIN
         int num_in_thread();
 #endif
+
+        void run(std::function<void()> routine, const char* file = 0, int line = 0);
 
         // create one new coroutine to run routine
         // when routine return, the coroutine will be destroyed

@@ -22,7 +22,10 @@ namespace cgo {
             _cgo_syntax_st_(const _cgo_syntax_st_&) = delete;
             _cgo_syntax_st_& operator=(const _cgo_syntax_st_&) = delete;
         };
+
+        void cgo_wait(int wait_mil);
     }
 }
 
 #define Cgo cgo::coroutine::_cgo_syntax_st_(__FILE__, __LINE__) <<
+#define CgoWait(wait_mil) cgo::coroutine::cgo_wait(wait_mil)

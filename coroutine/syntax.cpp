@@ -8,16 +8,20 @@
 //----------------------------------------------------------------*/
 
 #include "syntax.h"
-#include "task.h"
 
 namespace cgo {
     namespace coroutine {
         void schedule_task(const char* file, int line, std::function<void()> routine);
+        void wait(int wait_mil);
 
         _cgo_syntax_st_::_cgo_syntax_st_(const char* f, int l) : _file(f), _line(l) {}
 
         void _cgo_syntax_st_::operator <<(std::function<void()> routine) {
             schedule_task(_file, _line, routine);
+        }
+
+        void cgo_wait(int wait_mil) {
+            wait(wait_mil);
         }
     }
 }

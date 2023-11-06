@@ -1,14 +1,9 @@
 #include <iostream>
 #include <thread>
+#include <mutex>
 #include "cgo.h"
 #include "common/slist.h"
 #include "common/time_pool.h"
-
-void pause() {
-    int i = 0;
-    std::cout << "over\n";
-    std::cin >> i;
-}
 
 std::string get_date_time()
 {
@@ -34,7 +29,9 @@ std::string get_date_time()
 }
 
 void print_withtime(const char* msg) {
-    std::cout << get_date_time() << " " << msg;
+    static std::mutex mu;
+    std::unique_lock<std::mutex> lock(mu);
+    std::cout << get_date_time() << " " << std::this_thread::get_id() << " " << msg;
 }
 
 //void main_thread_test() {
@@ -111,12 +108,24 @@ void slist_test() {
 
 void cgo_test() {
     Cgo []() {
-        std::this_thread::sleep_for(std::chrono::seconds(3));
-        std::cout << "hello1\n";
+        while (true) {
+            print_withtime("hello1\n");
+            CgoWait(2000);
+        }
     };
 
     Cgo []() {
-        std::cout << "hello2\n";
+        while (true) {
+            print_withtime("hello2\n");
+            CgoWait(2000);
+        }
+    };
+
+    Cgo []() {
+        while (true) {
+            print_withtime("hello3\n");
+            CgoWait(2000);
+        }
     };
 }
 
@@ -158,11 +167,17 @@ void timepool_test() {
     }
 }
 
+void pause() {
+    int i = 0;
+    print_withtime("main thread pause\n");
+    std::cin >> i;
+}
+
 int main() {
     //sub_thread_test();
     //slist_test();
-    //cgo_test();
-    timepool_test();
+    cgo_test();
+    //timepool_test();
 
     pause();
     return 0;

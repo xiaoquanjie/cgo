@@ -11,22 +11,43 @@
 
 namespace cgo {
     namespace coroutine {
-        int64_t create(std::function<void()> routine);
+        int64_t create(std::function<void()> routine, const char* file, int line);
 
         void resume(int64_t co_id);
+        void yield();
 
         int64_t curid() {
             return gmainco._curno;
         }
 
-        int create(void(*routine)(void *), void *data) {
-            auto f = std::bind(routine, data);
-            return create(f);
+        void wait(int wait_mil) {
+            if (wait_mil <= 0) {
+                wait_mil = 1;
+            }
+
+            auto co_id = curid();
+            if (co_id == -1) {
+                return;
+            }
+
+            auto timer_id = gtimepool.async_add_timer((uint32_t)wait_mil, [co_id]() {
+                resume(co_id);
+            });
+
+            if (timer_id == 0) {
+                return;
+            }
+
+            yield();
+        }
+
+        void run(std::function<void()> routine, const char* file, int line) {
+            auto co_id = create(routine, file, line);
+            resume(co_id);
         }
 
         void run(std::function<void()> routine) {
-            auto co_id = create(routine);
-            resume(co_id);
+            run(routine, nullptr, 0);
         }
 
         int memory() {

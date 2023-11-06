@@ -49,7 +49,7 @@ namespace cgo {
             free(this->_co);
         }
 
-        _co_st_* _schedule_st_::alloc_co(std::function<void()> routine) {
+        _co_st_* _schedule_st_::alloc_co(std::function<void()> routine, const char* file, int line) {
 #ifndef M_PLATFORM_WIN
             std::unique_lock<std::mutex> lock(this->_mu);
 #endif
@@ -67,6 +67,8 @@ namespace cgo {
             co->_no = no;
             co->_status = COROUTINE_READY;
             co->_routine = routine;
+            co->_file = file;
+            co->_line = line;
             this->_co[no] = co;
             gmem.add(sizeof(_co_st_));
             return co;
@@ -136,5 +138,7 @@ namespace cgo {
         thread_local _main_co_st_ gmainco;
 
         _memory_st_ gmem;
+
+        async_time_pool gtimepool;
     }
 }

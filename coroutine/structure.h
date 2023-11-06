@@ -11,6 +11,7 @@
 
 #include "macro.h"
 #include "../common/squeue.hpp"
+#include "../common/time_pool.h"
 #include <functional>
 #include <atomic>
 
@@ -30,6 +31,9 @@ namespace cgo {
             int _status = 0;
             std::function<void()> _routine;
             _schedule_st_* _schedule = 0;
+            const char* _file = 0;
+            int _line = 0;
+
 #ifdef M_PLATFORM_WIN
             LPVOID _ctx = 0;
             LPVOID _mctx = 0;
@@ -57,7 +61,7 @@ namespace cgo {
 #endif
 
             ~_schedule_st_();
-            _co_st_* alloc_co(std::function<void()> routine);
+            _co_st_* alloc_co(std::function<void()> routine, const char* file, int line);
             void free_co(_co_st_* co);
             _co_st_* get_co(int64_t no);
         private:
@@ -102,5 +106,6 @@ namespace cgo {
         extern _co_count_st_ gcocount;
 #endif
 
+        extern async_time_pool gtimepool;
     }
 }
