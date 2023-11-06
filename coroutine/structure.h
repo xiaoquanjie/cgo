@@ -19,7 +19,7 @@
 #include <Windows.h>
 #else
 #include <ucontext.h>
-#include <mutex>
+#include <shared_mutex>
 #endif
 
 namespace cgo {
@@ -57,7 +57,7 @@ namespace cgo {
             _co_st_ **_co = 0;
             squeue<int> _freenos;
 #ifndef M_PLATFORM_WIN
-            std::mutex _mu;
+            std::shared_mutex _mu;
 #endif
 
             ~_schedule_st_();

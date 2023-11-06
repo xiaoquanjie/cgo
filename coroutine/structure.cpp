@@ -11,6 +11,7 @@
 #include "structure.h"
 #include <assert.h>
 #include <string.h>
+#include <shared_mutex>
 
 namespace cgo {
     namespace coroutine {
@@ -51,7 +52,7 @@ namespace cgo {
 
         _co_st_* _schedule_st_::alloc_co(std::function<void()> routine, const char* file, int line) {
 #ifndef M_PLATFORM_WIN
-            std::unique_lock<std::mutex> lock(this->_mu);
+            std::unique_lock<std::shared_mutex> lock(this->_mu);
 #endif
             int no = -1;
             if (this->_freenos.empty()) {
@@ -76,7 +77,7 @@ namespace cgo {
 
         void _schedule_st_::free_co(_co_st_* co) {
 #ifndef M_PLATFORM_WIN
-            std::unique_lock<std::mutex> lock(this->_mu);
+            std::unique_lock<std::shared_mutex> lock(this->_mu);
 #endif
             this->_co[co->_no] = 0;
             this->_freenos.push(co->_no);
@@ -108,6 +109,10 @@ namespace cgo {
         }
 
         _co_st_* _schedule_st_::get_co(int64_t no) {
+#ifndef M_PLATFORM_WIN
+            std::shared_lock<std::shared_mutex> lock(this->_mu);
+#endif
+
             int n = (int)no;
             if (n < 0 || n >= this->_no) {
                 return 0;
