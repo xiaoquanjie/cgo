@@ -48,25 +48,21 @@
 #endif
 
 // for linux public stack
-#ifndef M_LINUX_PUBLIC_STACK_SIZE
-#define M_LINUX_PUBLIC_STACK_SIZE  1*1024*1024
+#ifndef M_PUBLIC_STACK_SIZE
+#define M_PUBLIC_STACK_SIZE  1*1024*1024
 #endif
 
 // for windows stack
-#ifndef M_WIN_STACK_SIZE
-#define M_WIN_STACK_SIZE 8*1024
+#ifndef M_PRIVATE_STACK_SIZE
+#define M_PRIVATE_STACK_SIZE 1024*1024
 #endif
 
 // for linux private init stack
 #ifndef M_LINUX_STACK_SIZE
-#define M_LINUX_STACK_SIZE 1024
+#define M_LINUX_STACK_SIZE 1024*4
 #endif
 
 #ifndef GROWUP_COROUTINE
-#define GROWUP_COROUTINE (1024)
+#define GROWUP_COROUTINE (1024*100)
 #endif
 
-// max reserve coroutine count in coroutine task
-#ifndef M_MAX_RESERVE_TASK_COROUTINE
-#define M_MAX_RESERVE_TASK_COROUTINE (100)
-#endif

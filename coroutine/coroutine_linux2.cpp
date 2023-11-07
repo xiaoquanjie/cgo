@@ -4,7 +4,7 @@
 //
 // author: 404558965@qq.com (xiaoquanjie)
 // github: https://github.com/xiaoquanjie/cgo
-// Created by xiaoqj on 2023/10/31.
+// Created by xiaoqj on 2023/11/07.
 //----------------------------------------------------------------*/
 
 #include "macro.h"
@@ -15,8 +15,6 @@
 #include <assert.h>
 #include <string.h>
 
-/*
- * 暂时注释掉
 namespace cgo {
     namespace coroutine {
         void co_routine(_co_st_ *c) {
@@ -66,26 +64,6 @@ namespace cgo {
                 case COROUTINE_SUSPEND:
                 case COROUTINE_READY: {
                     co->_mctx = &gmainco._ctx;
-                    // copy private stack data to public stack
-                    memcpy(gmainco._stack + M_PUBLIC_STACK_SIZE - co->_ssize, co->_stack, co->_ssize);
-                    // modify context stack
-                    uint64_t use_stack = 0;
-                    uint64_t last_stack_size = 0;
-                    if (co->_status == COROUTINE_READY) {
-                        last_stack_size = co->_ssize;
-                    } else {
-                        last_stack_size = M_PUBLIC_STACK_SIZE;
-                    }
-#ifdef __CYGWIN__
-                    use_stack = (uint64_t)(co->_pstack + last_stack_size) - (uint64_t)(co->_ctx.uc_mcontext.rsp);
-                    co->_ctx.uc_mcontext.rsp = (uint64_t)(gmainco._stack + M_PUBLIC_STACK_SIZE - use_stack);
-#else
-                    use_stack = (uint64_t)(co->_pstack + last_stack_size) - (uint64_t)co->_ctx.uc_mcontext.gregs[REG_RSP];
-                    co->_ctx.uc_mcontext.gregs[REG_RSP] =(uint64_t)(gmainco._stack + M_PUBLIC_STACK_SIZE - use_stack);
-#endif
-                    co->_ctx.uc_stack.ss_size = M_PUBLIC_STACK_SIZE;
-                    co->_ctx.uc_stack.ss_sp = gmainco._stack;
-                    co->_pstack = (char*)co->_ctx.uc_stack.ss_sp;
                     co->_status = COROUTINE_RUNNING;
                     gmainco._curno = co_id;
                     swapcontext(co->_mctx, &co->_ctx);
@@ -110,7 +88,6 @@ namespace cgo {
 
             auto co = gschedule_st.get_co(gmainco._curno);
             auto mctx = co->_mctx;
-            save_stack(co, gmainco._stack + M_PUBLIC_STACK_SIZE);
             co->_status = COROUTINE_SUSPEND;
             co->_mctx = 0;
             swapcontext(&co->_ctx, mctx);
@@ -122,6 +99,4 @@ namespace cgo {
         }
     }
 }
-
-*/
 #endif

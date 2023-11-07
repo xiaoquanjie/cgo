@@ -9,6 +9,7 @@ add_executable(cgo
         coroutine/structure.cpp
         coroutine/coroutine.cpp
         coroutine/coroutine_linux.cpp
+        coroutine/coroutine_linux2.cpp
         coroutine/coroutine_win.cpp
         coroutine/syntax.cpp
         coroutine/thread.cpp

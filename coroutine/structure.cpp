@@ -18,11 +18,9 @@ namespace cgo {
         _co_st_* _co_st_::alloc() {
             auto co = new _co_st_;
             // init stack
-#ifndef M_PLATFORM_WIN
-            co->_ssize = co->_scap = M_LINUX_STACK_SIZE;
+            co->_ssize = co->_scap = M_PRIVATE_STACK_SIZE;
             co->_stack = (char*) malloc(co->_scap);
-            co->_pstack = co->_stack;
-#endif
+            //co->_pstack = co->_stack;
             assert(co != 0);
             return co;
         }

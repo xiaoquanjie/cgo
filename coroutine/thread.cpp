@@ -51,7 +51,7 @@ namespace cgo {
         }
 
         void _thread_st_::on_run() {
-            int wait_time = 3;
+            int wait_time = 100;
             while (!_stop) {
                 gtimepool.update();
 

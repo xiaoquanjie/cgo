@@ -22,7 +22,7 @@ namespace cgo {
             auto co = (_co_st_ *) p;
             co->_routine();
             co->_status = COROUTINE_DEAD;
-            gmem.dec(M_WIN_STACK_SIZE);
+            gmem.dec(M_PRIVATE_STACK_SIZE);
             gcocount._count -= 1;
             ::SwitchToFiber(co->_mctx);
         }
@@ -45,7 +45,7 @@ namespace cgo {
             win_init();
 
             auto co = gschedule_st.alloc_co(routine, file, line);
-            LPVOID ctx = ::CreateFiberEx(M_WIN_STACK_SIZE, 0, FIBER_FLAG_FLOAT_SWITCH, co_routine, co);
+            LPVOID ctx = ::CreateFiberEx(M_PRIVATE_STACK_SIZE, 0, FIBER_FLAG_FLOAT_SWITCH, co_routine, co);
             if (!ctx) {
                 M_CO_DEBUG_PRINT("windows create coroutine error:%d\n", ::GetLastError());
                 gschedule_st.free_co(co);
@@ -54,7 +54,7 @@ namespace cgo {
 
             co->_ctx = ctx;
             co->_mctx = gmainco._ctx;
-            gmem.add(M_WIN_STACK_SIZE);
+            gmem.add(M_PRIVATE_STACK_SIZE);
             gcocount._count += 1;
             return co->_no;
         }

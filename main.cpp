@@ -31,7 +31,7 @@ std::string get_date_time()
 void print_withtime(const char* msg) {
     static std::mutex mu;
     std::unique_lock<std::mutex> lock(mu);
-    std::cout << get_date_time() << " " << std::this_thread::get_id() << " " << msg;
+    std::cout << get_date_time() << " " << std::this_thread::get_id() << " " << msg << "\n";
 }
 
 //void main_thread_test() {
@@ -108,25 +108,31 @@ void slist_test() {
 
 void cgo_test() {
     Cgo []() {
+        std::string tmp = "this is a man from china:";
+        int i = 0;
         while (true) {
-            print_withtime("hello1\n");
+            auto msg = tmp + std::to_string(i++);
+            print_withtime(msg.c_str());
             CgoWait(2000);
         }
     };
 
     Cgo []() {
+        std::string tmp = "this is a man from hongkong:";
+        int i = 0;
         while (true) {
-            print_withtime("hello2\n");
+            auto msg = tmp + std::to_string(i++);
+            print_withtime(msg.c_str());
             CgoWait(2000);
         }
     };
-
-    Cgo []() {
-        while (true) {
-            print_withtime("hello3\n");
-            CgoWait(2000);
-        }
-    };
+//
+//    Cgo []() {
+//        while (true) {
+//            print_withtime("hello3\n");
+//            CgoWait(2000);
+//        }
+//    };
 }
 
 void timepool_test() {
@@ -169,7 +175,7 @@ void timepool_test() {
 
 void pause() {
     int i = 0;
-    print_withtime("main thread pause\n");
+    print_withtime("main thread pause");
     std::cin >> i;
 }
 

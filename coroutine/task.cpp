@@ -23,7 +23,10 @@ namespace cgo {
         wait_task_ptr _wait_task_list_st_::pop(int wait_time) {
             auto duration = std::chrono::microseconds(wait_time);
             std::unique_lock<std::mutex> lock(_mu);
-            _cond.wait_for(lock, duration);
+            if (_list.empty()) {
+                _cond.wait_for(lock, duration);
+            }
+
             if (_list.empty()) {
                 return nullptr;
             } else {
@@ -48,7 +51,10 @@ namespace cgo {
         co_task_ptr _co_task_list_st_::pop(int wait_time) {
             auto duration = std::chrono::microseconds(wait_time);
             std::unique_lock<std::mutex> lock(_mu);
-            _cond.wait_for(lock, duration);
+            if (_list.empty()) {
+                _cond.wait_for(lock, duration);
+            }
+
             if (_list.empty()) {
                 return nullptr;
             } else {

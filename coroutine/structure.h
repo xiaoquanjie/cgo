@@ -43,7 +43,7 @@ namespace cgo {
             char *_stack = 0;
             int _ssize = 0;
             int _scap = 0;
-            char *_pstack = 0;
+            //char *_pstack = 0;
 #endif
 
             static _co_st_* alloc();
@@ -79,7 +79,7 @@ namespace cgo {
             LPVOID _ctx = 0;
 #else
             ucontext_t _ctx;
-            char _stack[M_LINUX_PUBLIC_STACK_SIZE];
+            //char _stack[M_PUBLIC_STACK_SIZE];
 #endif
             // current coroutine no
             int64_t _curno = -1;

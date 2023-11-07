@@ -8,6 +8,7 @@
 //----------------------------------------------------------------*/
 
 #include "time_pool.h"
+#include "print.h"
 #include <string.h>
 #include <assert.h>
 
@@ -243,6 +244,7 @@ bool async_time_pool::update() {
         return false;
     }
 
+    //M_CO_DEBUG_PRINT("get lock\n");
     slist<timer_node> tmp_wait_list;
     _mu.lock();
     tmp_wait_list.swap(this->_wait_list);
@@ -258,6 +260,7 @@ bool async_time_pool::update() {
     });
 
     auto ret = time_pool::update();
+    //M_CO_DEBUG_PRINT("release lock\n");
     this->_flag.clear();
     return ret;
 }

@@ -8,6 +8,7 @@
 //----------------------------------------------------------------*/
 
 #include "structure.h"
+#include "task.h"
 
 namespace cgo {
     namespace coroutine {
@@ -31,7 +32,7 @@ namespace cgo {
             }
 
             auto timer_id = gtimepool.async_add_timer((uint32_t)wait_mil, [co_id]() {
-                resume(co_id);
+                gcotask.push(co_id);
             });
 
             if (timer_id == 0) {
