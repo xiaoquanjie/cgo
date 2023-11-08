@@ -12,19 +12,19 @@
 
 namespace cgo {
     namespace coroutine {
-        int64_t create(std::function<void()> routine, const char* file, int line);
+        int64_t create(std::function<void()> routine, int stack, const char* file, int line);
 
         int64_t curid() {
             return gmainco._curno;
         }
 
-        void run(std::function<void()> routine, const char* file, int line) {
-            auto co_id = create(routine, file, line);
+        void run(std::function<void()> routine, int stack, const char* file, int line) {
+            auto co_id = create(routine, stack, file, line);
             resume(co_id);
         }
 
         void run(std::function<void()> routine) {
-            run(routine, nullptr, 0);
+            run(routine, 0, nullptr, 0);
         }
 
         int memory() {

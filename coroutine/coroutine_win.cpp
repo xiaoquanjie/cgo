@@ -41,11 +41,11 @@ namespace cgo {
             }
         }
 
-        int64_t create(std::function<void()> routine, const char* file, int line) {
+        int64_t create(std::function<void()> routine, int stack, const char* file, int line) {
             win_init();
 
-            auto co = gschedule_st.alloc_co(routine, file, line);
-            LPVOID ctx = ::CreateFiberEx(M_PRIVATE_STACK_SIZE, 0, FIBER_FLAG_FLOAT_SWITCH, co_routine, co);
+            auto co = gschedule_st.alloc_co(routine, stack, file, line);
+            LPVOID ctx = ::CreateFiberEx(co->_ssize, 0, FIBER_FLAG_FLOAT_SWITCH, co_routine, co);
             if (!ctx) {
                 M_CO_DEBUG_PRINT("windows create coroutine error:%d\n", ::GetLastError());
                 gschedule_st.free_co(co);

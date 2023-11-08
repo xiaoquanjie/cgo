@@ -17,7 +17,7 @@
 
 namespace cgo {
     namespace coroutine {
-        void run(std::function<void()> routine, const char* file, int line);
+        void run(std::function<void()> routine, int stack, const char* file, int line);
         void resume(int64_t co_id);
         int64_t curid();
         void yield();
@@ -83,7 +83,7 @@ namespace cgo {
             int idle_time = 0;
             auto& scheduler = gscheduler;
             scheduler._idle_thr_cnt++;
-            M_CO_DEBUG_PRINT("start working thread:%d\n", work_id);
+            //M_CO_DEBUG_PRINT("start working thread:%d\n", work_id);
 
             while (true) {
                 std::chrono::milliseconds wait_t(10);
@@ -134,7 +134,7 @@ namespace cgo {
             }
 
             scheduler._idle_thr_cnt--;
-            M_CO_DEBUG_PRINT("quit working thread:%d\n", work_id);
+            //M_CO_DEBUG_PRINT("quit working thread:%d\n", work_id);
         }
 
         void start_thread() {
@@ -165,8 +165,8 @@ namespace cgo {
         }
 
         // thread-safety
-        void schedule_task(const char* file, int line, std::function<void()> routine) {
-            std::function<void()> f = std::bind(coroutine::run, routine, file, line);
+        void schedule_task(std::function<void()> routine, int stack, const char* file, int line) {
+            std::function<void()> f = std::bind(coroutine::run, routine, stack, file, line);
             schedule(std::move(f));
         }
 

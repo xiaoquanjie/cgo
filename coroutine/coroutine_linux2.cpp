@@ -40,8 +40,8 @@ namespace cgo {
         }
 
         // create one new coroutine
-        int64_t create(std::function<void()> routine, const char* file, int line) {
-            auto co = gschedule_st.alloc_co(routine, file, line);
+        int64_t create(std::function<void()> routine, int stack, const char* file, int line) {
+            auto co = gschedule_st.alloc_co(routine, stack, file, line);
             getcontext(&co->_ctx);
             //co->_ctx.uc_link = 0;
             co->_ctx.uc_stack.ss_size = co->_scap;

@@ -32,6 +32,7 @@ namespace cgo {
             _schedule_st_* _schedule = 0;
             const char* _file = 0;
             int _line = 0;
+            int _ssize = 0;
 
 #ifdef M_PLATFORM_WIN
             LPVOID _ctx = 0;
@@ -40,7 +41,6 @@ namespace cgo {
             ucontext_t _ctx;
             ucontext_t *_mctx = 0;
             char *_stack = 0;
-            int _ssize = 0;
             int _scap = 0;
             //char *_pstack = 0;
 #endif
@@ -60,7 +60,7 @@ namespace cgo {
 #endif
 
             ~_schedule_st_();
-            _co_st_* alloc_co(std::function<void()> routine, const char* file, int line);
+            _co_st_* alloc_co(std::function<void()> routine, int stack, const char* file, int line);
             void free_co(_co_st_* co);
             _co_st_* get_co(int64_t no);
         private:

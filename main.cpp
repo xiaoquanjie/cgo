@@ -106,8 +106,40 @@ void slist_test() {
     });
 }
 
+struct test_st {
+    int i = 0;
+    test_st(int i, std::function<void()> f) {
+
+    }
+    test_st(std::function<void()> f) {
+
+    }
+};
+
+struct test {
+    int i;
+    std::function<void()> f;
+
+    void operator <<(test_st) {
+
+    }
+
+    void operator<<(std::function<void()> f) {
+
+    }
+};
+
 void cgo_test() {
     bool* stop = new bool(false);
+
+
+    Cgo {
+        1024*500,
+        []() {
+            print_withtime("with self stack");
+        }
+    };
+
     Cgo [stop]() {
         std::string tmp = "this is a man from china:";
         int i = 0;

@@ -14,7 +14,7 @@
 namespace cgo {
     namespace coroutine {
         // create one new coroutine
-        int64_t create(std::function<void()> routine, const char* file = 0, int line = 0);
+        int64_t create(std::function<void()> routine, int stack = 0, const char* file = 0, int line = 0);
 
         // resume a coroutine
         void resume(int64_t co_id);
@@ -31,7 +31,7 @@ namespace cgo {
         int num_in_thread();
 #endif
 
-        void run(std::function<void()> routine, const char* file, int line);
+        void run(std::function<void()> routine, int stack, const char* file, int line);
 
         // create one new coroutine to run routine
         // when routine return, the coroutine will be destroyed
