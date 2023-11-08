@@ -12,20 +12,24 @@
 #include <functional>
 
 namespace cgo {
-    namespace coroutine {
-        struct _cgo_syntax_st_ {
-            const char* _file = 0;
-            int _line = 0;
-            _cgo_syntax_st_(const char* f, int l);
-            void operator <<(std::function<void()> routine);
-        private:
-            _cgo_syntax_st_(const _cgo_syntax_st_&) = delete;
-            _cgo_syntax_st_& operator=(const _cgo_syntax_st_&) = delete;
-        };
+    struct _cgo_syntax_st_ {
+        const char* _file = 0;
+        int _line = 0;
+        _cgo_syntax_st_(const char* f, int l);
+        void operator <<(std::function<void()> routine);
+    private:
+        _cgo_syntax_st_(const _cgo_syntax_st_&) = delete;
+        _cgo_syntax_st_& operator=(const _cgo_syntax_st_&) = delete;
+    };
 
-        void cgo_wait(int wait_mil);
-    }
+    void cgo_wait(int wait_mil);
+
+    void cgo_procs(int cnt);
+
+    void cgo_stop();
 }
 
-#define Cgo cgo::coroutine::_cgo_syntax_st_(__FILE__, __LINE__) <<
-#define CgoWait(wait_mil) cgo::coroutine::cgo_wait(wait_mil)
+#define Cgo cgo::_cgo_syntax_st_(__FILE__, __LINE__) <<
+#define CgoWait(wait_mil) cgo::cgo_wait(wait_mil)
+#define CgoProcs(cnt) cgo::cgo_procs(cnt)
+#define CgoStop cgo::cgo_stop

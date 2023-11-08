@@ -107,32 +107,34 @@ void slist_test() {
 }
 
 void cgo_test() {
-    Cgo []() {
+    bool* stop = new bool(false);
+    Cgo [stop]() {
         std::string tmp = "this is a man from china:";
         int i = 0;
-        while (true) {
+        while (*stop == false) {
             auto msg = tmp + std::to_string(i++);
             print_withtime(msg.c_str());
-            CgoWait(2000);
+            CgoWait(200);
         }
     };
 
-    Cgo []() {
+    Cgo [stop]() {
         std::string tmp = "this is a man from hongkong:";
         int i = 0;
-        while (true) {
+        while (*stop == false) {
             auto msg = tmp + std::to_string(i++);
             print_withtime(msg.c_str());
-            CgoWait(2000);
+            CgoWait(200);
         }
     };
-//
-//    Cgo []() {
-//        while (true) {
-//            print_withtime("hello3\n");
-//            CgoWait(2000);
-//        }
-//    };
+
+    Cgo [stop]() {
+        for (int i = 0; i < 20; i++) {
+            CgoWait(200);
+        }
+        *stop = true;
+    };
+
 }
 
 void timepool_test() {
@@ -179,7 +181,9 @@ void pause() {
     std::cin >> i;
 }
 
+
 int main() {
+
     //sub_thread_test();
     //slist_test();
     cgo_test();

@@ -12,8 +12,6 @@ add_executable(cgo
         coroutine/coroutine_linux2.cpp
         coroutine/coroutine_win.cpp
         coroutine/syntax.cpp
-        coroutine/thread.cpp
-        coroutine/task.cpp
         coroutine/scheduler.cpp
 
         common/time_pool.cpp

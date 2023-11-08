@@ -22,8 +22,6 @@ namespace cgo {
         // yield
         void yield();
 
-        void wait(int wait_mil);
-
         int64_t curid();
 
         // number of running coroutine
@@ -33,7 +31,7 @@ namespace cgo {
         int num_in_thread();
 #endif
 
-        void run(std::function<void()> routine, const char* file = 0, int line = 0);
+        void run(std::function<void()> routine, const char* file, int line);
 
         // create one new coroutine to run routine
         // when routine return, the coroutine will be destroyed

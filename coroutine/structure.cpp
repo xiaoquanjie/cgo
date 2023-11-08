@@ -11,16 +11,19 @@
 #include "structure.h"
 #include <assert.h>
 #include <string.h>
+#include <mutex>
 #include <shared_mutex>
 
 namespace cgo {
     namespace coroutine {
         _co_st_* _co_st_::alloc() {
             auto co = new _co_st_;
+#ifndef M_PLATFORM_WIN
             // init stack
             co->_ssize = co->_scap = M_PRIVATE_STACK_SIZE;
             co->_stack = (char*) malloc(co->_scap);
             //co->_pstack = co->_stack;
+#endif
             assert(co != 0);
             return co;
         }
@@ -141,7 +144,5 @@ namespace cgo {
         thread_local _main_co_st_ gmainco;
 
         _memory_st_ gmem;
-
-        async_time_pool gtimepool;
     }
 }

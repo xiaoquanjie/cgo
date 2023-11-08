@@ -8,38 +8,14 @@
 //----------------------------------------------------------------*/
 
 #include "structure.h"
-#include "task.h"
+#include "coroutine.h"
 
 namespace cgo {
     namespace coroutine {
         int64_t create(std::function<void()> routine, const char* file, int line);
 
-        void resume(int64_t co_id);
-        void yield();
-
         int64_t curid() {
             return gmainco._curno;
-        }
-
-        void wait(int wait_mil) {
-            if (wait_mil <= 0) {
-                wait_mil = 1;
-            }
-
-            auto co_id = curid();
-            if (co_id == -1) {
-                return;
-            }
-
-            auto timer_id = gtimepool.async_add_timer((uint32_t)wait_mil, [co_id]() {
-                gcotask.push(co_id);
-            });
-
-            if (timer_id == 0) {
-                return;
-            }
-
-            yield();
         }
 
         void run(std::function<void()> routine, const char* file, int line) {

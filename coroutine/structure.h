@@ -11,7 +11,6 @@
 
 #include "macro.h"
 #include "../common/squeue.hpp"
-#include "../common/time_pool.h"
 #include <functional>
 #include <atomic>
 
@@ -106,6 +105,5 @@ namespace cgo {
         extern _co_count_st_ gcocount;
 #endif
 
-        extern async_time_pool gtimepool;
     }
 }
