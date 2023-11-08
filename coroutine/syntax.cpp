@@ -11,7 +11,7 @@
 
 namespace cgo {
     namespace scheduler {
-        void schedule_task(std::function<void()> routine, int stack, const char* file, int line);
+        void schedule_task(const std::function<void()>& routine, int stack, const char* file, int line);
         void schedule_wait(int wait_mil);
         void set_cgo_procs(int cnt);
         void set_core_pool(int cnt);

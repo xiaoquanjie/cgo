@@ -165,7 +165,7 @@ namespace cgo {
         }
 
         // thread-safety
-        void schedule_task(std::function<void()> routine, int stack, const char* file, int line) {
+        void schedule_task(const std::function<void()>& routine, int stack, const char* file, int line) {
             std::function<void()> f = std::bind(coroutine::run, routine, stack, file, line);
             schedule(std::move(f));
         }
