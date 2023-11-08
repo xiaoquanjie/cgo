@@ -14,7 +14,7 @@
 namespace cgo {
     struct _cgo_stack_syntax_st_ {
         int _stack = 0;
-        std::function<void()> _routine;
+        const std::function<void()>& _routine;
 
         _cgo_stack_syntax_st_(int stack, const std::function<void()>& routine);
         _cgo_stack_syntax_st_(const std::function<void()>& routine);

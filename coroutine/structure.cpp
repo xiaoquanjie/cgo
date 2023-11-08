@@ -16,11 +16,11 @@
 
 namespace cgo {
     namespace coroutine {
-        _co_st_* _co_st_::alloc() {
+        _co_st_* _co_st_::alloc(int stack) {
             auto co = new _co_st_;
 #ifndef M_PLATFORM_WIN
             // init stack
-            co->_ssize = co->_scap = M_PRIVATE_STACK_SIZE;
+            co->_ssize = co->_scap = stack;
             co->_stack = (char*) malloc(co->_scap);
             //co->_pstack = co->_stack;
 #endif
@@ -64,12 +64,11 @@ namespace cgo {
                 this->_freenos.pop();
             }
 
-            auto co = _co_st_::alloc();
+            auto co = _co_st_::alloc(stack <= 0 ? M_PRIVATE_STACK_SIZE : stack);
             co->_schedule = this;
             co->_no = no;
             co->_status = COROUTINE_READY;
             co->_routine = routine;
-            co->_ssize = stack <= 0 ? M_PRIVATE_STACK_SIZE : stack;
             co->_file = file;
             co->_line = line;
             this->_co[no] = co;
