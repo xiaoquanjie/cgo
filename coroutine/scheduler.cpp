@@ -38,27 +38,15 @@ namespace cgo {
 
             std::atomic_bool _stop = false;
             std::atomic_int _max_thr_cnt = 0;
-            std::atomic_int _core_thr_cnt = 0;
+            std::atomic_int _core_thr_cnt = 1;
             std::atomic_int _idle_thr_cnt = 0;
 
             _scheduler_st_() {
-                set_thr();
+                _max_thr_cnt = std::thread::hardware_concurrency() + 1;
             }
 
             ~_scheduler_st_() {
                 stop();
-            }
-
-            void set_thr(int cnt = 0) {
-                if (cnt == 0) {
-                    cnt = std::thread::hardware_concurrency() + 1;
-                }
-
-                _max_thr_cnt = cnt;
-                _core_thr_cnt = (cnt / 2);
-                if (_core_thr_cnt == 0) {
-                    _core_thr_cnt = 1;
-                }
             }
 
             void stop() {
@@ -73,8 +61,12 @@ namespace cgo {
 
         _scheduler_st_ gscheduler;
 
-        void set_max_procs(int cnt) {
-            gscheduler.set_thr(cnt);
+        void set_cgo_procs(int cnt) {
+            gscheduler._max_thr_cnt = cnt;
+        }
+
+        void set_core_pool(int cnt) {
+            gscheduler._core_thr_cnt = cnt;
         }
 
         void stop() {
@@ -91,7 +83,7 @@ namespace cgo {
             int idle_time = 0;
             auto& scheduler = gscheduler;
             scheduler._idle_thr_cnt++;
-            //M_CO_DEBUG_PRINT("start working thread:%d\n", work_id);
+            M_CO_DEBUG_PRINT("start working thread:%d\n", work_id);
 
             while (true) {
                 std::chrono::milliseconds wait_t(10);
@@ -129,12 +121,13 @@ namespace cgo {
                     idle_time += wait_t.count();
                     if (idle_time >= 60 * 1000) {
                         // idle over one minute
-                        idle_time = 0;
                         std::unique_lock<std::mutex> lock(scheduler._thread_mu);
                         if (scheduler._threads.size() > scheduler._core_thr_cnt) {
                             scheduler._threads[work_id].detach();
                             scheduler._threads.erase(work_id);
                             break;
+                        } else {
+                            idle_time = 0;
                         }
                     }
                 }

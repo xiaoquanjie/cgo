@@ -26,10 +26,13 @@ namespace cgo {
 
     void cgo_procs(int cnt);
 
+    void cgo_core_pool(int cnt);
+
     void cgo_stop();
 }
 
 #define Cgo cgo::_cgo_syntax_st_(__FILE__, __LINE__) <<
-#define CgoWait(wait_mil) cgo::cgo_wait(wait_mil)
-#define CgoProcs(cnt) cgo::cgo_procs(cnt)
+#define CgoWait cgo::cgo_wait
+#define CgoProcs cgo::cgo_procs
+#define CgoCorePool cgo::cgo_core_pool
 #define CgoStop cgo::cgo_stop

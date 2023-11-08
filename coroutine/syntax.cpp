@@ -13,7 +13,8 @@ namespace cgo {
     namespace scheduler {
         void schedule_task(const char* file, int line, std::function<void()> routine);
         void schedule_wait(int wait_mil);
-        void set_max_procs(int cnt);
+        void set_cgo_procs(int cnt);
+        void set_core_pool(int cnt);
         void stop();
     }
 
@@ -28,10 +29,11 @@ namespace cgo {
     }
 
     void cgo_procs(int cnt) {
-        if (cnt < 1) {
-            cnt = 1;
-        }
-        scheduler::set_max_procs(cnt);
+        scheduler::set_cgo_procs(cnt > 0 ? cnt : 1);
+    }
+
+    void cgo_core_pool(int cnt) {
+        scheduler::set_core_pool(cnt > 0 ? cnt : 1);
     }
 
     void cgo_stop() {
