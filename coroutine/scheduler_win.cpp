@@ -72,7 +72,9 @@ namespace cgo {
                 std::function<void()> task;
                 {
                     std::unique_lock<std::mutex> task_lock(scheduler._task_mu);
-                    scheduler._task_cond.wait_for(task_lock, wait_t);
+					if (scheduler._tasks.empty()) {
+						scheduler._task_cond.wait_for(task_lock, wait_t);
+					}
 
                     if (scheduler._stop) {
                         break;
@@ -89,23 +91,24 @@ namespace cgo {
                     scheduler._idle_thr_cnt--;
                     task();
                     scheduler._idle_thr_cnt++;
-                } else {
-                    if (coroutine::num_in_thread() == 0) {
-                        idle_time += (int)wait_t.count();
-                        //M_CO_DEBUG_PRINT("wait:%d\n", wait_t.count());
-                        if (idle_time >= 60 * 1000) {
-                            // idle over one minute
-                            std::unique_lock<std::mutex> lock(scheduler._thread_mu);
-                            if (scheduler._threads.size() > scheduler._core_thr_cnt) {
-                                scheduler._threads[work_id].detach();
-                                scheduler._threads.erase(work_id);
-                                break;
-                            } else {
-                                idle_time = 0;
-                            }
-                        }
-                    }
-                }
+                } 
+
+				if (coroutine::num_in_thread() == 0) {
+					idle_time += (int)wait_t.count();
+					//M_CO_DEBUG_PRINT("wait:%d\n", wait_t.count());
+					if (idle_time >= 60 * 1000) {
+						// idle over one minute
+						std::unique_lock<std::mutex> lock(scheduler._thread_mu);
+						if ((int)scheduler._threads.size() > scheduler._core_thr_cnt) {
+							scheduler._threads[work_id].detach();
+							scheduler._threads.erase(work_id);
+							break;
+						}
+						else {
+							idle_time = 0;
+						}
+					}
+				}
             }
 
             scheduler._idle_thr_cnt--;

@@ -36,7 +36,9 @@ namespace cgo {
                 std::function<void()> task;
                 {
                     std::unique_lock<std::mutex> task_lock(scheduler._task_mu);
-                    scheduler._task_cond.wait_for(task_lock, wait_t);
+                    if (scheduler._tasks.empty()) {
+                        scheduler._task_cond.wait_for(task_lock, wait_t);
+                    }
 
                     if (scheduler._stop) {
                         break;

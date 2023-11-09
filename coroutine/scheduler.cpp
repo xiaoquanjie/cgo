@@ -51,12 +51,12 @@ namespace cgo {
 
         void start_thread() {
             auto& scheduler = gscheduler;
-            if (scheduler._tasks.size() <= scheduler._idle_thr_cnt) {
+            if ((int)scheduler._tasks.size() <= scheduler._idle_thr_cnt) {
                 return;
             }
 
             std::unique_lock<std::mutex> lock(scheduler._thread_mu);
-            if (scheduler._threads.size() >= scheduler._max_thr_cnt) {
+            if ((int)scheduler._threads.size() >= scheduler._max_thr_cnt) {
                 return;
             }
 
