@@ -62,12 +62,15 @@ namespace cgo {
 
             int task_cnt = (int)scheduler._tasks.size();
             int count = task_cnt - (int)scheduler._idle_thr_cnt;
+            scheduler._idle_thr_cnt += count;
 
             while (count > 0) {
                 auto work_id = scheduler.generate_work_id++;
                 std::function<void()> work = std::bind(working_thread, work_id);
                 scheduler._threads[work_id] = std::move(std::thread(work));
                 count--;
+
+                //M_CO_DEBUG_PRINT("start....\n");
             }
         }
 

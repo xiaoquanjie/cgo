@@ -36,7 +36,6 @@ namespace cgo {
 
             int idle_time = 0;
             auto& scheduler = gscheduler;
-            scheduler._idle_thr_cnt++;
             M_CO_DEBUG_PRINT("start working thread:%d\n", work_id);
 
             while (true) {

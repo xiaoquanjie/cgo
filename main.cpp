@@ -12,17 +12,33 @@ void print_withtime(const char* msg) {
 void cgo_test() {
     bool* stop = new bool(true);
    
+    Cgo[stop]() {
+        while (*stop) {
+            print_withtime("this is a coroutine1");
+            CgoWait(1000);
+        }
+        print_withtime("this is a coroutine1 over");
+    };
+
     Cgo [stop]() {
         while (*stop) {
             print_withtime("this is a coroutine2");
-            CgoWait(1000);
+            CgoWait(50);
         }
         print_withtime("this is a coroutine2 over");
     };
 
     Cgo[stop]() {
-        for (int i = 0; i < 3; i++) {
-            CgoWait(500);
+        while (*stop) {
+            print_withtime("this is a coroutine3");
+            CgoWait(50);
+        }
+        print_withtime("this is a coroutine3 over");
+    };
+
+    Cgo[stop]() {
+        for (int i = 0; i < 100; i++) {
+            CgoWait(5);
         }
         *stop = false;
     };
