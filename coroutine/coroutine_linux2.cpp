@@ -92,11 +92,6 @@ namespace cgo {
             co->_mctx = 0;
             swapcontext(&co->_ctx, mctx);
         }
-
-        int num() {
-            auto n = gschedule_st._no - gschedule_st._freenos.size();
-            return n;
-        }
     }
 }
 #endif

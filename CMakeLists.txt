@@ -13,6 +13,8 @@ add_executable(cgo
         coroutine/coroutine_win.cpp
         coroutine/syntax.cpp
         coroutine/scheduler.cpp
+        coroutine/scheduler_linux.cpp
+        coroutine/scheduler_win.cpp
 
         common/time_pool.cpp
         )

@@ -1,3 +1,7 @@
 .idea
 cmake-build-debug
 cmake-build-debug-cygwin
+cmake-build-debug-mingw
+cmake-build-debug-*
+out
+.vs

@@ -13,12 +13,12 @@
 #include "../common/squeue.hpp"
 #include <functional>
 #include <atomic>
+#include <shared_mutex>
 
 #ifdef M_PLATFORM_WIN
 #include <Windows.h>
 #else
 #include <ucontext.h>
-#include <shared_mutex>
 #endif
 
 namespace cgo {
@@ -55,9 +55,7 @@ namespace cgo {
             int _no = 0;
             _co_st_ **_co = 0;
             squeue<int> _freenos;
-#ifndef M_PLATFORM_WIN
             std::shared_mutex _mu;
-#endif
 
             ~_schedule_st_();
             _co_st_* alloc_co(std::function<void()> routine, int stack, const char* file, int line);
@@ -67,11 +65,7 @@ namespace cgo {
             void realloc_schedule();
         };
 
-#ifdef M_PLATFORM_WIN
-        extern thread_local _schedule_st_ gschedule_st;
-#else
         extern _schedule_st_ gschedule_st;
-#endif
 
         struct _main_co_st_ {
 #ifdef M_PLATFORM_WIN
@@ -82,6 +76,8 @@ namespace cgo {
 #endif
             // current coroutine no
             int64_t _curno = -1;
+
+            ~_main_co_st_();
         };
 
         extern thread_local _main_co_st_ gmainco;
@@ -98,11 +94,8 @@ namespace cgo {
         extern _memory_st_ gmem;
 
 #ifdef M_PLATFORM_WIN
-        struct _co_count_st_ {
-            std::atomic_int _count;
-        };
-
-        extern _co_count_st_ gcocount;
+        extern thread_local std::atomic_int gwincocount;
+        extern thread_local std::atomic_int gworkid;
 #endif
 
     }

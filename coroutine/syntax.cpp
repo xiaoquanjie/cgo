@@ -8,16 +8,9 @@
 //----------------------------------------------------------------*/
 
 #include "syntax.h"
+#include "scheduler.h"
 
 namespace cgo {
-    namespace scheduler {
-        void schedule_task(const std::function<void()>& routine, int stack, const char* file, int line);
-        void schedule_wait(int wait_mil);
-        void set_cgo_procs(int cnt);
-        void set_core_pool(int cnt);
-        void stop();
-    }
-
     _cgo_stack_syntax_st_::_cgo_stack_syntax_st_(int stack, const std::function<void()>& routine)
         : _stack(stack), _routine(routine) {}
 
@@ -31,6 +24,9 @@ namespace cgo {
     }
 
     void cgo_wait(int wait_mil) {
+        if (wait_mil <= 0) {
+            return;
+        }
         scheduler::schedule_wait(wait_mil);
     }
 

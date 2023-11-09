@@ -23,7 +23,7 @@ namespace cgo {
             co->_routine();
             co->_status = COROUTINE_DEAD;
             gmem.dec(M_PRIVATE_STACK_SIZE);
-            gcocount._count -= 1;
+            gwincocount -= 1;
             ::SwitchToFiber(co->_mctx);
         }
 
@@ -55,7 +55,7 @@ namespace cgo {
             co->_ctx = ctx;
             co->_mctx = gmainco._ctx;
             gmem.add(M_PRIVATE_STACK_SIZE);
-            gcocount._count += 1;
+            gwincocount += 1;
             return co->_no;
         }
 
@@ -96,13 +96,8 @@ namespace cgo {
             ::SwitchToFiber(co->_mctx);
         }
 
-        int num() {
-            return gcocount._count;
-        }
-
         int num_in_thread() {
-            auto n = gschedule_st._no - gschedule_st._freenos.size();
-            return n;
+            return gwincocount;
         }
     }
 }

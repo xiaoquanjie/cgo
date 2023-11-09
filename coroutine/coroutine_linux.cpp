@@ -16,7 +16,7 @@
 #include <string.h>
 
 /*
- * 暂时注释掉
+ *
 namespace cgo {
     namespace coroutine {
         void co_routine(_co_st_ *c) {
@@ -114,11 +114,6 @@ namespace cgo {
             co->_status = COROUTINE_SUSPEND;
             co->_mctx = 0;
             swapcontext(&co->_ctx, mctx);
-        }
-
-        int num() {
-            auto n = gschedule_st._no - gschedule_st._freenos.size();
-            return n;
         }
     }
 }

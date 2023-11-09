@@ -27,10 +27,6 @@ namespace cgo {
         // number of running coroutine
         int num();
 
-#ifdef M_PLATFORM_WIN
-        int num_in_thread();
-#endif
-
         void run(std::function<void()> routine, int stack, const char* file, int line);
 
         // create one new coroutine to run routine
