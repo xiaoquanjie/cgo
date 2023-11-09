@@ -61,7 +61,7 @@ bool time_pool::update() {
 
     bool busy = false;
     auto cmp = [expire, &busy](timer_node& node) -> bool {
-        if (node._expire <= expire) {
+        if (node._expire <= (uint64_t)expire) {
             node._cb();
             busy = true;
             return false;
@@ -198,6 +198,11 @@ void time_pool::alloc_big_bucket() {
     }
 
     this->_bucket = (void**) malloc(sizeof(void*)*this->_big_bucket);
+    if (!this->_bucket) {
+        assert(this->_bucket);
+        return;
+    }
+
     for (uint32_t idx = 0; idx < this->_big_bucket; ++idx) {
         this->_bucket[idx] = 0;
     }
@@ -205,6 +210,7 @@ void time_pool::alloc_big_bucket() {
 
 void** time_pool::alloc_small_bucket() {
     void** small = (void**) malloc(sizeof(void*)*this->_small_bucket);
+    assert(small);
     memset(small, 0, sizeof(void*)*this->_small_bucket);
     return small;
 }

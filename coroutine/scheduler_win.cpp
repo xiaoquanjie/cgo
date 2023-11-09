@@ -92,8 +92,8 @@ namespace cgo {
                     scheduler._idle_thr_cnt++;
                 } else {
                     if (coroutine::num_in_thread() == 0) {
-                        idle_time += wait_t.count();
-
+                        idle_time += (int)wait_t.count();
+                        //M_CO_DEBUG_PRINT("wait:%d\n", wait_t.count());
                         if (idle_time >= 60 * 1000) {
                             // idle over one minute
                             std::unique_lock<std::mutex> lock(scheduler._thread_mu);

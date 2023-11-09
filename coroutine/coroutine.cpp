@@ -22,7 +22,7 @@ namespace cgo {
 
 #ifdef M_PLATFORM_WIN
             int64_t workid = gworkid;
-            id = workid << 32 + id;
+            id = (workid << 32) + id;
 #endif
             return id;
         }
@@ -40,7 +40,7 @@ namespace cgo {
 
         int num() {
             auto n = gschedule_st._no - gschedule_st._freenos.size();
-            return n;
+            return (int)n;
         }
 
         void run(std::function<void()> routine, int stack, const char* file, int line) {

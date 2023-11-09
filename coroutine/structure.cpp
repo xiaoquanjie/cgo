@@ -92,8 +92,11 @@ namespace cgo {
             int old_mem = sizeof (_co_st_*) * this->_cap;
             int grow = 0;
             if (this->_co) {
-                grow = GROWUP_COROUTINE * 1.5f;
-                this->_co = (_co_st_ **) realloc(this->_co, (grow + this->_cap) * sizeof(_co_st_*));
+                grow = (int)(GROWUP_COROUTINE * 1.5f);
+                auto co = (_co_st_ **) realloc(this->_co, (grow + this->_cap) * sizeof(_co_st_*));
+                assert(_co);
+                return;
+                this->_co = co;
             } else {
                 grow = GROWUP_COROUTINE;
                 this->_co = (_co_st_ **) malloc(sizeof(_co_st_*) * grow);
@@ -121,14 +124,14 @@ namespace cgo {
 #ifndef M_PLATFORM_WIN
             std::unique_lock<std::mutex> lock(this->_mu);
 #endif
-            this->_mem += s;
+            this->_mem += (int)s;
         }
 
         void _memory_st_::dec(size_t s) {
 #ifndef M_PLATFORM_WIN
             std::unique_lock<std::mutex> lock(this->_mu);
 #endif
-            this->_mem -= s;
+            this->_mem -= (int)s;
         }
 
         _schedule_st_ gschedule_st;

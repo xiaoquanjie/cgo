@@ -10,6 +10,7 @@
 #pragma once
 
 #include <stdlib.h>
+#include <assert.h>
 
 template<typename T>
 class squeue {
@@ -71,6 +72,8 @@ public:
 		if (_size >= _cap) {
 			this->_cap = this->_cap * 2;
 			this->_head = (T*)realloc(this->_head, sizeof(T)*this->_cap);
+			assert(this->_head);
+			return;
 		}
 		T* p = &(_head[_size++]);
 		new(p)T(t);

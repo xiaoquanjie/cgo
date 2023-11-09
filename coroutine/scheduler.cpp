@@ -11,8 +11,6 @@
 #include "structure.h"
 #include "macro.h"
 #include <memory>
-#include <unordered_map>
-
 
 namespace cgo {
     namespace scheduler {
@@ -62,7 +60,7 @@ namespace cgo {
                 return;
             }
 
-            int task_cnt = scheduler._tasks.size();
+            int task_cnt = (int)scheduler._tasks.size();
             int count = task_cnt - (int)scheduler._idle_thr_cnt;
 
             while (count > 0) {
