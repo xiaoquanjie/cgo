@@ -5,6 +5,12 @@
 #include <string>
 #include "cgo.h"
 
+void pause() {
+    std::cout << "pause\n";
+    int i = 0;
+    std::cin >> i;
+}
+
 void print_withtime(const char* msg) {
     static std::mutex mu;
     std::unique_lock<std::mutex> lock(mu);
@@ -120,12 +126,44 @@ void time_test() {
     }
 }
 
+void lock_test() {
+    // deadlock test
+
+    goprocs(1);
+    std::mutex mu;
+    go [&mu]() {
+        while (true) {
+            std::unique_lock<std::mutex> lock(mu);
+            print_withtime("lock1");
+            gowait(2000);
+        }
+    };
+
+    go [&mu]() {
+        while (true) {
+            std::unique_lock<std::mutex> lock(mu);
+            print_withtime("lock2");
+            gowait(2000);
+        }
+    };
+
+    pause();
+}
+
+void chan_test() {
+    cgo::chan<int> ch;
+    ch = makechan<int>(0);
+    ch >> 4;
+    int i = 0;
+    ch << i;
+}
+
 int main()
 {
+    chan_test();
+    //lock_test();
     //time_test();
     //cond_test();
-    cgo_test();
-    std::cout << "Hello World!\n";
-    int i = 0;
-    std::cin >> i;
+    //cgo_test();
+    pause();
 }

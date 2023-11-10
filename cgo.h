@@ -10,3 +10,4 @@
 #pragma once
 
 #include "coroutine/syntax.h"
+#include "sync/channel.h"

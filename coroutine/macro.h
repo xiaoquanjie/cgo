@@ -42,11 +42,6 @@
 #define M_INVALID_COROUTINE_ID (-1)
 #endif
 
-// main coroutine id
-#ifndef M_MAIN_COROUTINE_ID
-#define M_MAIN_COROUTINE_ID (0)
-#endif
-
 // for linux public stack
 #ifndef M_PUBLIC_STACK_SIZE
 #define M_PUBLIC_STACK_SIZE  1*1024*1024

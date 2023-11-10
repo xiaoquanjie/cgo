@@ -20,6 +20,7 @@ add_executable(cgo
         coroutine/scheduler_win.cpp
 
         common/time_pool.cpp
+        sync/channel.cpp
         )
 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
