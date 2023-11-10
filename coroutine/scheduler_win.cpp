@@ -34,7 +34,8 @@ namespace cgo {
             glocal_tasks = std::make_shared<slist<std::function<void()>>>();
             glocal_task_mu = std::make_shared<std::mutex>();
 
-            int idle_time = 0;
+            std::chrono::time_point<std::chrono::steady_clock> last_idle_time;
+            std::chrono::seconds idle_add_time(0);
             auto& scheduler = gscheduler;
             M_CO_DEBUG_PRINT("start working thread:%d\n", work_id);
 
@@ -65,7 +66,6 @@ namespace cgo {
                 }
 
                 if (coroutine::num_in_thread() > 0) {
-                    idle_time = 0;
                     wait_t = std::chrono::milliseconds(10);
                 }
 
@@ -87,25 +87,30 @@ namespace cgo {
                 }
 
                 if (task) {
-                    idle_time = 0;
+                    idle_add_time = std::chrono::seconds(0);
                     scheduler._idle_thr_cnt--;
                     task();
                     scheduler._idle_thr_cnt++;
                 } 
 
 				if (coroutine::num_in_thread() == 0) {
-					idle_time += (int)wait_t.count();
+                    auto now = std::chrono::steady_clock::now();
+                    if (idle_add_time == std::chrono::seconds(0)) {
+                        idle_add_time = std::chrono::seconds(1);
+                    }
+                    else {
+                        idle_add_time += std::chrono::duration_cast<std::chrono::seconds>(now - last_idle_time);
+                    }
+                    last_idle_time = now;
+
 					//M_CO_DEBUG_PRINT("wait:%d\n", wait_t.count());
-					if (idle_time >= 60 * 1000) {
+                    if (idle_add_time >= std::chrono::seconds(M_CO_IDLE_TIME)) {
 						// idle over one minute
 						std::unique_lock<std::mutex> lock(scheduler._thread_mu);
 						if ((int)scheduler._threads.size() > scheduler._core_thr_cnt) {
 							scheduler._threads[work_id].detach();
 							scheduler._threads.erase(work_id);
 							break;
-						}
-						else {
-							idle_time = 0;
 						}
 					}
 				}

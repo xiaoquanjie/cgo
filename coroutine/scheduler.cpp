@@ -15,7 +15,8 @@
 namespace cgo {
     namespace scheduler {
         _base_scheduler_st_::_base_scheduler_st_() {
-            _max_thr_cnt = std::thread::hardware_concurrency() + 1;
+            _max_thr_cnt = (int)(std::thread::hardware_concurrency() * M_MAX_PROCS_FACTOR);
+            _core_thr_cnt = (int)(_max_thr_cnt * M_CORE_POOL_FACTOR);
         }
 
         _base_scheduler_st_::~_base_scheduler_st_() {

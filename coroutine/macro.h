@@ -61,3 +61,14 @@
 #define GROWUP_COROUTINE (1024*100)
 #endif
 
+#ifndef M_CO_IDLE_TIME
+#define M_CO_IDLE_TIME (5*60)
+#endif
+
+#ifndef M_CORE_POOL_FACTOR
+#define M_CORE_POOL_FACTOR (0.3)
+#endif
+
+#ifndef M_MAX_PROCS_FACTOR
+#define M_MAX_PROCS_FACTOR (1.5)
+#endif
