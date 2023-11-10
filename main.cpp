@@ -13,48 +13,60 @@ void print_withtime(const char* msg) {
 
 void cgo_test() {
     bool* stop = new bool(true);
+    goprocs(100);
    
-    Cgo[stop]() {
+    go [stop]() {
         while (*stop) {
             print_withtime("this is a coroutine1");
-            CgoWait(1000);
+            gowait(1000);
         }
         print_withtime("this is a coroutine1 over");
     };
 
-    Cgo [stop]() {
+    go [stop]() {
         while (*stop) {
             print_withtime("this is a coroutine2");
-            CgoWait(50);
+            gowait(50);
         }
         print_withtime("this is a coroutine2 over");
     };
 
-    Cgo[stop]() {
+    go [stop]() {
         while (*stop) {
             print_withtime("this is a coroutine3");
-            CgoWait(50);
+            gowait(50);
         }
         print_withtime("this is a coroutine3 over");
     };
 
-    Cgo[stop]() {
+    go[stop]() {
         for (int i = 0; i < 100; i++) {
-            CgoWait(5);
+            gowait(5);
         }
         *stop = false;
 
-        Cgo[]() {
+        go[]() {
             print_withtime("create in sub coroutine");
         };
     };
+
+    go gostack(1024*8) []() {
+        print_withtime("self stack 8192");
+    };
+
+    /*Cgo {
+        1024,
+        []() {
+
+        }
+    };*/
 
     while (true) {
         int input = 0;
         std::cout << "input count:\n";
         std::cin >> input;
         for (int i = 0; i < input; i++) {
-            Cgo[i]() {
+            go[i]() {
                 print_withtime((std::string("coroutine no:") + std::to_string(i)).c_str());
             };
         }

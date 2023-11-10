@@ -11,16 +11,13 @@
 #include "scheduler.h"
 
 namespace cgo {
-    _cgo_stack_syntax_st_::_cgo_stack_syntax_st_(int stack, const std::function<void()>& routine)
-        : _stack(stack), _routine(routine) {}
+    void _cgo_syntax_st_::operator >>(const std::function<void()>& routine) {
+        scheduler::schedule_task(routine, _stack, _file, _line);
+    }
 
-    _cgo_stack_syntax_st_::_cgo_stack_syntax_st_(const std::function<void()>& routine)
-        : _routine(routine), _stack(0) {}
-
-    _cgo_syntax_st_::_cgo_syntax_st_(const char* f, int l) : _file(f), _line(l) {}
-
-    void _cgo_syntax_st_::operator <<(const _cgo_stack_syntax_st_& st) {
-        scheduler::schedule_task(st._routine, st._stack, _file, _line);
+    _cgo_syntax_st_& _cgo_syntax_st_::operator >>(const _cgo_stack_st_& stack) {
+        this->_stack = stack._stack;
+        return *this;
     }
 
     void cgo_wait(int wait_mil) {

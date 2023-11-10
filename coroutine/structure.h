@@ -83,10 +83,7 @@ namespace cgo {
         extern thread_local _main_co_st_ gmainco;
 
         struct _memory_st_ {
-            int _mem = 0;
-#ifndef M_PLATFORM_WIN
-            std::mutex _mu;
-#endif
+            std::atomic_int _mem = 0;
             void add(size_t s);
             void dec(size_t s);
         };

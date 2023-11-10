@@ -18,10 +18,12 @@ namespace cgo {
     namespace coroutine {
         _co_st_* _co_st_::alloc(int stack) {
             auto co = new _co_st_;
+            co->_ssize = stack;
 #ifndef M_PLATFORM_WIN
             // init stack
-            co->_ssize = co->_scap = stack;
+            co->_scap = stack;
             co->_stack = (char*) malloc(co->_scap);
+            gmem.add(co->_scap);
             //co->_pstack = co->_stack;
 #endif
             assert(co != 0);
@@ -33,6 +35,7 @@ namespace cgo {
             if (co->_stack) {
                 // call global free
                 ::free(co->_stack);
+                gmem.dec(co->_scap);
             }
 #endif
             assert(co != 0);
@@ -121,16 +124,10 @@ namespace cgo {
         }
 
         void _memory_st_::add(size_t s) {
-#ifndef M_PLATFORM_WIN
-            std::unique_lock<std::mutex> lock(this->_mu);
-#endif
             this->_mem += (int)s;
         }
 
         void _memory_st_::dec(size_t s) {
-#ifndef M_PLATFORM_WIN
-            std::unique_lock<std::mutex> lock(this->_mu);
-#endif
             this->_mem -= (int)s;
         }
 

@@ -121,6 +121,7 @@ namespace cgo {
         }
 
         void schedule_co(int64_t co_id) {
+            assert(false);
             int32_t work_id = -1;
             int64_t real_co_id = -1;
             coroutine::decode_coid(co_id, work_id, real_co_id);

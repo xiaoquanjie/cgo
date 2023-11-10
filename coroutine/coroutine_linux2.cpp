@@ -29,12 +29,10 @@ namespace cgo {
             c->_ssize = top - &dummy;
             assert(c->_ssize <= M_PUBLIC_STACK_SIZE && c->_ssize > 0);
             if (c->_scap < c->_ssize || (c->_scap - c->_ssize > 1024)) {
-                gmem.dec(c->_scap);
                 free(c->_stack);
 
                 c->_scap = c->_ssize;
                 c->_stack = (char *) malloc(c->_scap);
-                gmem.add(c->_scap);
             }
             memcpy(c->_stack, &dummy, c->_ssize);
         }

@@ -22,7 +22,7 @@ namespace cgo {
             auto co = (_co_st_ *) p;
             co->_routine();
             co->_status = COROUTINE_DEAD;
-            gmem.dec(M_PRIVATE_STACK_SIZE);
+            gmem.dec(co->_ssize);
             gwincocount -= 1;
             ::SwitchToFiber(co->_mctx);
         }
@@ -54,7 +54,7 @@ namespace cgo {
 
             co->_ctx = ctx;
             co->_mctx = gmainco._ctx;
-            gmem.add(M_PRIVATE_STACK_SIZE);
+            gmem.add(co->_ssize);
             gwincocount += 1;
             return co->_no;
         }
