@@ -33,7 +33,7 @@ protected:
     void** _bucket = 0;
     uint32_t _big_iter = 0;
     uint32_t _small_iter = 0;
-    uint64_t _alloc_timer_id = 0;
+    uint64_t _alloc_timer_id = 1;
     time_point _beg_time;
 
 public:
@@ -65,6 +65,10 @@ protected:
     uint64_t alloc_timer_id(uint32_t big_bucket, uint32_t small_bucket);
 
     void decode_timer_id(uint64_t timer_id, uint32_t& big_bucket, uint32_t& small_bucket);
+
+    uint32_t calc_iter(uint32_t big_bucket, int32_t small_bucket);
+
+    uint32_t calc_iter(const timer_node& node);
 };
 
 // thread-safety
@@ -80,4 +84,6 @@ public:
     uint64_t async_add_timer(uint32_t interval, std::function<void()> func);
 
     void async_cancel_timer(uint64_t timer_id);
+
+    bool is_prev_time_node(const timer_node& node);
 };
