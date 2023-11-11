@@ -46,12 +46,13 @@ namespace cgo {
             for (int i = 0; i < this->_no; ++i) {
                 auto co = this->_co[i];
                 if (co) {
-                    _co_st_::free(co);
-                    gmem.dec(sizeof (_co_st_));
+					co->_status = COROUTINE_DEAD;
+                    //_co_st_::free(co);
+                    //gmem.dec(sizeof (_co_st_));
                 }
             }
-            gmem.dec(this->_cap*sizeof(_co_st_*));
-            free(this->_co);
+            //gmem.dec(this->_cap*sizeof(_co_st_*));
+            //free(this->_co);
         }
 
         _co_st_* _schedule_st_::alloc_co(std::function<void()> routine, int stack, const char* file, int line) {
@@ -115,7 +116,6 @@ namespace cgo {
 
         _co_st_* _schedule_st_::get_co(int64_t no) {
             std::shared_lock<std::shared_mutex> lock(this->_mu);
-
             int n = (int)no;
             if (n < 0 || n >= this->_no) {
                 return 0;

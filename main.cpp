@@ -6,9 +6,11 @@
 #include "cgo.h"
 
 void pause() {
-    std::cout << "pause\n";
-    int i = 0;
-    std::cin >> i;
+	while (true) {
+		std::this_thread::sleep_for(std::chrono::seconds(10));
+		break;
+	}
+	gostop();
 }
 
 void print_withtime(const char* msg) {
@@ -150,20 +152,80 @@ void lock_test() {
     pause();
 }
 
+#include "common/circle_queue.h"
+void cqueue_test() {
+    struct info {
+        int i = 0;
+    };
+
+    cqueue<info> q(3);
+    q.push(info{10});
+    q.push(info{20});
+    q.push(info{30});
+    q.push(info{40});
+    info i2;
+    q.pop(i2);
+    q.push(info{50});
+    q.pop(i2);
+    q.pop(i2);
+    q.push(info{60});
+    q.push(info{70});
+    q.push(info{80});
+    std::cout << q.empty() << "\n";
+    std::cout << q.full() << "\n";
+    while (q.size()) {
+        q.pop(i2);
+        std::cout << i2.i << "\n";
+    }
+}
+
 void chan_test() {
     cgo::chan<int> ch;
     ch = makechan<int>(0);
-    ch >> 4;
-    int i = 0;
-    ch << i;
+	std::cout << "ref:" << ch.use_count() << "\n";
+	
+	go [ch]() {
+        while (true) {
+            int i;
+            auto ok = ch << i;
+			if (!ok) {
+				break;
+			}
+            print_withtime(("co1:" + std::to_string(i)).c_str());
+        }
+    };
+
+	go[ch]() {
+		while (true) {
+			int i;
+			auto ok = ch << i;
+			if (!ok) {
+				break;
+			}
+			print_withtime(("co2:" + std::to_string(i)).c_str());
+		}
+	};
+
+	go[ch]() {
+		std::cout << "ref:" << ch.use_count() << "\n";
+		
+		for (int i = 0; i < 100; i++) {
+			ch >> i;
+		}
+
+		//closechan(ch);
+	};
 }
 
 int main()
 {
     chan_test();
+    //cqueue_test();
     //lock_test();
     //time_test();
     //cond_test();
     //cgo_test();
     pause();
+	std::cout << "finish\n";
+	return 0;
 }

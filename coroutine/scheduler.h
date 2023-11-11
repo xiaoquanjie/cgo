@@ -19,12 +19,13 @@
 namespace cgo {
     namespace coroutine {
         void run(std::function<void()> routine, int stack, const char* file, int line);
-        void resume(int64_t co_id);
+        void resume(int64_t co_id, void* data);
         int64_t curid();
         int64_t real_curid();
         void yield();
+        void yield(void** data);
 #ifdef M_PLATFORM_WIN
-        void decode_coid(int64_t co_id, int32_t& work_id, int64_t real_id);
+        void decode_coid(int64_t co_id, int32_t& work_id, int64_t& real_id);
         int num_in_thread();
 #endif
     }
@@ -53,9 +54,18 @@ namespace cgo {
 
             void stop();
         };
-
-        struct _scheduler_st_ : public _base_scheduler_st_ {
-        };
+		
+#ifdef M_PLATFORM_WIN
+		struct _local_task_st_ {
+			slist<std::function<void()>> _tasks;
+			std::mutex _task_mu;
+		};
+		struct _scheduler_st_ : public _base_scheduler_st_ {
+			std::unordered_map<int, std::shared_ptr<_local_task_st_>> _thr_tasks;
+		};
+#else
+		struct _scheduler_st_ : public _base_scheduler_st_ {};
+#endif
 
         extern _scheduler_st_ gscheduler;
 
@@ -63,7 +73,7 @@ namespace cgo {
         void working_thread(int work_id);
         void schedule_task(const std::function<void()>& routine, int stack, const char* file, int line);
         void schedule_wait(int wait_mil);
-        void schedule_co(int64_t co_id);
+        void schedule_co(int64_t co_id, void*);
         void set_cgo_procs(int cnt);
         void set_core_pool(int cnt);
         void stop();

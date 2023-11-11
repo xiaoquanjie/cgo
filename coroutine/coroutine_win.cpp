@@ -59,7 +59,7 @@ namespace cgo {
             return co->_no;
         }
 
-        void resume(int64_t co_id) {
+        void resume(int64_t co_id, void* data) {
             if (gmainco._curno != -1) {
                 return;
             }
@@ -71,9 +71,11 @@ namespace cgo {
             switch (co->_status) {
                 case COROUTINE_READY:
                 case COROUTINE_SUSPEND: {
+                    co->_data = data;
                     co->_status = COROUTINE_RUNNING;
                     gmainco._curno = co_id;
                     ::SwitchToFiber(co->_ctx);
+                    co->_data = 0;
                     if (co->_status == COROUTINE_DEAD) {
                         gschedule_st.free_co(co);
                     }
@@ -86,14 +88,23 @@ namespace cgo {
             }
         }
 
-        void yield() {
-            if (gmainco._curno == -1) {
-                return;
-            }
+		void yield(void** data) {
+			if (gmainco._curno == -1) {
+				return;
+			}
 
-            auto co = gschedule_st.get_co(gmainco._curno);
-            co->_status = COROUTINE_SUSPEND;
-            ::SwitchToFiber(co->_mctx);
+			auto co = gschedule_st.get_co(gmainco._curno);
+			co->_status = COROUTINE_SUSPEND;
+			::SwitchToFiber(co->_mctx);
+
+			if (data) {
+				*data = co->_data;
+				co->_data = 0;
+			}
+		}
+
+        void yield() {
+			yield(0);
         }
 
         int num_in_thread() {

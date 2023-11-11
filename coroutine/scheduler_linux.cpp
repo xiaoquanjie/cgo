@@ -82,8 +82,8 @@ namespace cgo {
         }
 
         // thread-safety
-        void schedule_co(int64_t co_id) {
-            std::function<void()> f = std::bind(coroutine::resume, co_id);
+        void schedule_co(int64_t co_id, void* data) {
+            std::function<void()> f = std::bind(coroutine::resume, co_id, data);
             add_global_task(std::move(f));
             start_thread();
         }
@@ -94,7 +94,7 @@ namespace cgo {
                 return;
             }
 
-            std::function<void()> f = std::bind(scheduler::schedule_co, co_id);
+            std::function<void()> f = std::bind(scheduler::schedule_co, co_id, (void*)NULL);
             gscheduler._time_pool.async_add_timer(wait_mil, f);
             start_thread();
 

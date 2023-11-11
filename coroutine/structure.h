@@ -30,6 +30,7 @@ namespace cgo {
             int _status = 0;
             std::function<void()> _routine;
             _schedule_st_* _schedule = 0;
+            void* _data = 0;
             const char* _file = 0;
             int _line = 0;
             int _ssize = 0;

@@ -28,7 +28,7 @@ namespace cgo {
         }
 
 #ifdef M_PLATFORM_WIN
-        void decode_coid(int64_t co_id, int32_t& work_id, int64_t real_id) {
+        void decode_coid(int64_t co_id, int32_t& work_id, int64_t& real_id) {
             work_id = co_id >> 32;
             real_id = co_id & 0xFFFFFFFF;
         }
@@ -36,6 +36,16 @@ namespace cgo {
 #endif
         int64_t real_curid() {
             return gmainco._curno;
+        }
+
+        bool suspend_wait(int64_t co_id) {
+            auto co = gschedule_st.get_co(co_id);
+            if (!co) {
+                assert(false);
+                return false;
+            }
+            while (co->_status != COROUTINE_SUSPEND && co->_status == COROUTINE_DEAD) {}
+            return true;
         }
 
         int num() {

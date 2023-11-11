@@ -49,7 +49,7 @@ namespace cgo {
         }
 
         // resume a coroutine
-        void resume(int64_t co_id) {
+        void resume(int64_t co_id, void* data) {
             if (gmainco._curno != -1) {
                 return;
             }
@@ -61,10 +61,12 @@ namespace cgo {
             switch (co->_status) {
                 case COROUTINE_SUSPEND:
                 case COROUTINE_READY: {
+                    co->_data = data;
                     co->_mctx = &gmainco._ctx;
                     co->_status = COROUTINE_RUNNING;
                     gmainco._curno = co_id;
                     swapcontext(co->_mctx, &co->_ctx);
+                    co->_data = 0;
                     if (co->_status == COROUTINE_DEAD) {
                         gschedule_st.free_co(co);
                     }
@@ -78,8 +80,7 @@ namespace cgo {
 
         }
 
-        // yield
-        void yield() {
+        void yield(void** data) {
             if (gmainco._curno == -1) {
                 return;
             }
@@ -89,6 +90,16 @@ namespace cgo {
             co->_status = COROUTINE_SUSPEND;
             co->_mctx = 0;
             swapcontext(&co->_ctx, mctx);
+
+            if (data) {
+                *data = co->_data;
+                co->_data = 0;
+            }
+        }
+
+        // yield
+        void yield() {
+            yield(0);
         }
     }
 }

@@ -11,61 +11,117 @@
 
 #include <stdint.h>
 #include <memory>
+#include <functional>
 #include <assert.h>
 
 namespace cgo {
     namespace channel {
         struct _i_chan_st_ {
             virtual ~_i_chan_st_() {}
-            virtual bool read(std::shared_ptr<void>& v) = 0;
-            virtual bool write(std::shared_ptr<void>& v) = 0;
+            virtual bool read(void*& v) = 0;
+            virtual bool write(void* v) = 0;
+            virtual void close() = 0;
         };
 
-        std::shared_ptr<_i_chan_st_> make_chan(int);
+        std::shared_ptr<_i_chan_st_> make_chan(int, const std::function<void(void*)>&);
 
         // make sync data simple
         template<typename T>
         struct chan {
             template<class A>
-            friend chan<A> makechan(int);
+            friend chan<A> makeChan(int);
+
+            template<typename A>
+            friend void closeChan(const chan<A>&);
 
             // not allow to call in non-coroutine
-            inline void operator << (T& v) {
+            inline bool operator << (T& v) {
+                return read(v);
+            }
+
+            inline bool operator << (T& v) const {
+                return read(v);
+            }
+
+            // not allow to call in non-coroutine
+            inline bool operator >> (const T& v) {
+                return write(v);
+            }
+
+            inline bool operator >> (const T& v) const {
+                return write(v);
+            }
+
+			inline size_t use_count() const {
+				if (_ch) {
+					return _ch.use_count();
+				}
+				return 0;
+			}
+
+			inline size_t use_count() {
+				if (_ch) {
+					return _ch.use_count();
+				}
+				return 0;
+			}
+        protected:
+            inline bool read(T& v) const {
                 if (!_ch) {
                     assert(0==1 && ("chan is nil"));
-                    return;
+                    return false;
                 }
 
-                std::shared_ptr<void> pv;
+                void* pv = 0;
                 if (_ch->read(pv)) {
-                    auto tv = std::static_pointer_cast<T>(pv);
-                    v = *tv.get();
+                    v = *(T*)pv;
+                    _destructor(pv);
+                    return true;
                 }
+                return false;
             }
 
-            // not allow to call in non-coroutine
-            inline void operator >> (const T& v) {
+            inline bool write(const T& v) const {
                 if (!_ch) {
                     assert(0==1 && ("chan is nil"));
-                    return;
+                    return false;
                 }
-
-                auto pv = std::make_shared<T>(v);
-                _ch->write((std::shared_ptr<void>&)pv);
+                auto pv = new T(v);
+                if (!_ch->write(pv)) {
+                    _destructor(pv);
+                    return false;
+                }
+                return true;
             }
+
         private:
             std::shared_ptr<_i_chan_st_> _ch;
+            static std::function<void(void*)> _destructor;
         };
 
         template<typename T>
-        inline chan<T> makechan(int cap = 0) {
+        std::function<void(void*)> chan<T>::_destructor = [](void*t) {
+            T* p = (T*)t;
+            delete p;
+        };
+
+        template<typename T>
+        inline chan<T> makeChan(int cap = 0) {
             chan<T> ch;
-            ch._ch = make_chan(cap);
+            ch._ch = make_chan(cap, ch._destructor);
             return ch;
+        }
+
+        template<typename T>
+        void closeChan(const chan<T>& c) {
+            if (c._ch) {
+                c._ch->close();
+            }
         }
     }
 
     using channel::chan;
 }
 
-#define makechan cgo::channel::makechan
+#define makechan cgo::channel::makeChan
+#define closechan cgo::channel::closeChan

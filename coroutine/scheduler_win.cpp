@@ -22,18 +22,20 @@ namespace cgo {
     }
 
     namespace scheduler {
-        using local_task_list_ptr = std::shared_ptr<slist<std::function<void()>>>;
-        thread_local local_task_list_ptr glocal_tasks;
-        using local_task_mutext_ptr = std::shared_ptr<std::mutex>;
-        thread_local local_task_mutext_ptr glocal_task_mu;
+		thread_local std::shared_ptr<_local_task_st_> glocal_tasks;
 
         _scheduler_st_ gscheduler;
 
-        void working_thread(int work_id) {
-            coroutine::gworkid = work_id;
-            glocal_tasks = std::make_shared<slist<std::function<void()>>>();
-            glocal_task_mu = std::make_shared<std::mutex>();
+		void init_local_task(int work_id) {
+			glocal_tasks = std::make_shared<_local_task_st_>();
+			std::unique_lock<std::mutex> lock(gscheduler._thread_mu);
+			gscheduler._thr_tasks[work_id] = glocal_tasks;
+		}
 
+        void working_thread(int work_id) {
+			init_local_task(work_id);
+			coroutine::gworkid = work_id;
+			
             std::chrono::time_point<std::chrono::steady_clock> last_idle_time;
             std::chrono::seconds idle_add_time(0);
             auto& scheduler = gscheduler;
@@ -43,8 +45,8 @@ namespace cgo {
                 // local task first
                 slist<std::function<void()>> local_task;
                 {
-                    std::unique_lock<std::mutex> lock(*glocal_task_mu.get());
-                    glocal_tasks->swap(local_task);
+                    std::unique_lock<std::mutex> lock(glocal_tasks->_task_mu);
+					glocal_tasks->_tasks.swap(local_task);
                 }
 
                 if (local_task.size()) {
@@ -110,6 +112,7 @@ namespace cgo {
 						if ((int)scheduler._threads.size() > scheduler._core_thr_cnt) {
 							scheduler._threads[work_id].detach();
 							scheduler._threads.erase(work_id);
+							scheduler._thr_tasks.erase(work_id);
 							break;
 						}
 					}
@@ -120,14 +123,22 @@ namespace cgo {
             M_CO_DEBUG_PRINT("quit working thread:%d\n", work_id);
         }
 
-        void schedule_co(int64_t co_id) {
-            assert(false);
+        void schedule_co(int64_t co_id, void* data) {
             int32_t work_id = -1;
             int64_t real_co_id = -1;
             coroutine::decode_coid(co_id, work_id, real_co_id);
             assert(work_id != -1 && real_co_id != -1);
 
-            //std::function<void()> f = std::bind(coroutine::resume, real_co_id);
+			std::unique_lock<std::mutex> lock(gscheduler._thread_mu);
+			auto iter = gscheduler._thr_tasks.find(work_id);
+			if (iter != gscheduler._thr_tasks.end()) {
+				auto local_task = iter->second;
+				assert(local_task);
+				std::unique_lock<std::mutex> lock2(local_task->_task_mu);
+				local_task->_tasks.push([real_co_id, data]() {
+					coroutine::resume(real_co_id, data);
+				});
+			}
         }
 
         void schedule_wait(int wait_mil) {
@@ -136,13 +147,11 @@ namespace cgo {
                 return;
             }
 
-            local_task_list_ptr local_task = glocal_tasks;
-            local_task_mutext_ptr local_task_mu = glocal_task_mu;
-
-            gscheduler._time_pool.async_add_timer(wait_mil, [co_id, local_task, local_task_mu]() {
-                std::unique_lock<std::mutex> lock(*local_task_mu.get());
-                local_task->push([co_id]() {
-                    coroutine::resume(co_id);
+			auto local_task = glocal_tasks;
+            gscheduler._time_pool.async_add_timer(wait_mil, [co_id, local_task]() {
+                std::unique_lock<std::mutex> lock(local_task->_task_mu);
+                local_task->_tasks.push([co_id]() {
+                    coroutine::resume(co_id, 0);
                 });
             });
 
