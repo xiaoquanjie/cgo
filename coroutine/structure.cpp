@@ -23,6 +23,7 @@ namespace cgo {
             // init stack
             co->_scap = stack;
             co->_stack = (char*) malloc(co->_scap);
+            memset(co->_stack, 0, 8);
             gmem.add(co->_scap);
             //co->_pstack = co->_stack;
 #endif
@@ -42,6 +43,15 @@ namespace cgo {
             delete co;
         }
 
+        bool _co_st_::memory_check(_co_st_* co) {
+#ifndef M_PLATFORM_WIN
+            assert(co->_stack);
+            uint64_t* d = (uint64_t*)co->_stack;
+            assert(*d == 0);
+            return true;
+#endif
+        }
+
         _schedule_st_::~_schedule_st_() {
             for (int i = 0; i < this->_no; ++i) {
                 auto co = this->_co[i];
@@ -56,15 +66,18 @@ namespace cgo {
         }
 
         _co_st_* _schedule_st_::alloc_co(std::function<void()> routine, int stack, const char* file, int line) {
-            std::unique_lock<std::shared_mutex> lock(this->_mu);
-
             int no = -1;
-            if (this->_freenos.empty()) {
-                this->realloc_schedule();
-                no = this->_no++;
-            } else {
-                no = this->_freenos.back();
-                this->_freenos.pop();
+            {
+                std::unique_lock<std::shared_mutex> lock(this->_mu);
+                if (this->_freenos.empty()) {
+                    this->realloc_schedule();
+                    if (this->_no < this->_cap) {
+                        no = this->_no++;
+                    }
+                } else {
+                    no = this->_freenos.back();
+                    this->_freenos.pop();
+                }
             }
 
             auto co = _co_st_::alloc(stack <= 0 ? M_PRIVATE_STACK_SIZE : stack);
@@ -80,12 +93,13 @@ namespace cgo {
         }
 
         void _schedule_st_::free_co(_co_st_* co) {
-            std::unique_lock<std::shared_mutex> lock(this->_mu);
-
-            this->_co[co->_no] = 0;
-            this->_freenos.push(co->_no);
+            auto no = co->_no;
             _co_st_::free(co);
             gmem.dec(sizeof(_co_st_));
+
+            std::unique_lock<std::shared_mutex> lock(this->_mu);
+            this->_co[no] = 0;
+            this->_freenos.push(no);
         }
 
         void _schedule_st_::realloc_schedule() {
@@ -95,20 +109,24 @@ namespace cgo {
 
             int old_mem = sizeof (_co_st_*) * this->_cap;
             int grow = 0;
-            if (this->_co) {
-                grow = (int)(GROWUP_COROUTINE * 1.5f);
-                auto co = (_co_st_ **) realloc(this->_co, (grow + this->_cap) * sizeof(_co_st_*));
-                assert(_co);
-                return;
-                this->_co = co;
-            } else {
+            _co_st_ ** co = 0;
+
+            if (this->_cap == 0) {
                 grow = GROWUP_COROUTINE;
-                this->_co = (_co_st_ **) malloc(sizeof(_co_st_*) * grow);
+                co = (_co_st_ **) malloc(sizeof(_co_st_*) * grow);
+            } else {
+                grow = (int)(GROWUP_COROUTINE * 1.5f);
+                co = (_co_st_ **) realloc(this->_co, sizeof(_co_st_*) * (grow + this->_cap));
             }
 
-            assert(this->_co);
-            //memset(this->_co + this->_cap, 0, grow * sizeof(_co_st_*));
+            if (co == 0) {
+                assert(false);
+                return;
+            }
+
+            this->_co = co;
             this->_cap += grow;
+
             gmem.dec(old_mem);
             gmem.add(sizeof (_co_st_*) * grow);
             //M_CO_DEBUG_PRINT("schedule_st mem:%d\n", this->_cap * sizeof (_co_st_*));

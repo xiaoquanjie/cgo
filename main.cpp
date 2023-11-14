@@ -10,7 +10,7 @@ void pause() {
 		std::this_thread::sleep_for(std::chrono::seconds(10));
 		break;
 	}
-	gostop();
+	cgostop();
 }
 
 void print_withtime(const char* msg) {
@@ -21,7 +21,7 @@ void print_withtime(const char* msg) {
 
 void cgo_test() {
     bool* stop = new bool(true);
-    goprocs(100);
+    cgoprocs(100);
    
     go [stop]() {
         while (*stop) {
@@ -131,7 +131,7 @@ void time_test() {
 void lock_test() {
     // deadlock test
 
-    goprocs(1);
+    cgoprocs(1);
     std::mutex mu;
     go [&mu]() {
         while (true) {
@@ -217,14 +217,72 @@ void chan_test() {
 	};
 }
 
+void performance_test() {
+    cgoprocs(1);
+    for (int j = 0; j < 2; j++) {
+        std::atomic_int count = 0;
+        const int total_count = 1;
+
+        auto beg = std::chrono::steady_clock::now();
+        for (int i = 0; i < total_count; i++) {
+            go [&count] {
+                count++;
+            };
+        }
+
+        while (count != total_count) {
+        }
+
+        auto end = std::chrono::steady_clock::now();
+        std::cout << (std::chrono::duration_cast<std::chrono::nanoseconds>(end - beg)).count() << "\n";
+        std::cout << "==============\n";
+        std:std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
+}
+
+void test(std::atomic_int& c) {
+    c++;
+}
+
+#include "coroutine/coroutine.h"
+void performance_test2() {
+    //cgoprocs(1);
+    for (int j = 0; j < 3; j++) {
+        std::atomic_int count = 0;
+        auto beg = std::chrono::steady_clock::now();
+        const int total_count = 1000000;
+
+        for (int i = 0; i < total_count; i++) {
+            go [&count]() {
+                count++;
+            };
+        }
+
+        while (count != total_count) {
+        }
+
+        auto end = std::chrono::steady_clock::now();
+        std::cout << (std::chrono::duration_cast<std::chrono::milliseconds>(end - beg)).count() << "\n";
+        std::cout << "==============\n";
+    }
+}
+
+void atomic_test() {
+    std::atomic_int i;
+    i += 1;
+    i.fetch_add(10);
+}
+
 int main()
 {
-    chan_test();
+    //atomic_test();
+    //performance_test2();
+    //chan_test();
     //cqueue_test();
     //lock_test();
     //time_test();
     //cond_test();
-    //cgo_test();
+    cgo_test();
     pause();
 	std::cout << "finish\n";
 	return 0;

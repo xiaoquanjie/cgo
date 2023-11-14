@@ -49,7 +49,7 @@
 
 // for windows stack
 #ifndef M_PRIVATE_STACK_SIZE
-#define M_PRIVATE_STACK_SIZE 1024*1024
+#define M_PRIVATE_STACK_SIZE 1024*8
 #endif
 
 #ifndef GROWUP_COROUTINE

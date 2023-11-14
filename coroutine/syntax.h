@@ -41,6 +41,6 @@ namespace cgo {
 #define go cgo::_cgo_syntax_st_(__FILE__, __LINE__) >>
 #define gostack(size) cgo::_cgo_stack_st_{size} >>
 #define gowait(mil) cgo::cgo_wait(mil)
-#define goprocs(cnt) cgo::cgo_procs(cnt)
-#define gocore(cnt) cgo::cgo_core_pool(cnt)
-#define gostop() cgo::cgo_stop()
+#define cgoprocs(cnt) cgo::cgo_procs(cnt)
+#define cgocore(cnt) cgo::cgo_core_pool(cnt)
+#define cgostop() cgo::cgo_stop()

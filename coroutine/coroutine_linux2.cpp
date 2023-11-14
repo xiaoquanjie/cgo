@@ -89,6 +89,7 @@ namespace cgo {
             auto mctx = co->_mctx;
             co->_status = COROUTINE_SUSPEND;
             co->_mctx = 0;
+            co->memory_check(co);
             swapcontext(&co->_ctx, mctx);
 
             if (data) {

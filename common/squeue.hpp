@@ -71,8 +71,12 @@ public:
 	void push(const T& t) {
 		if (_size >= _cap) {
 			this->_cap = this->_cap * 2;
-			this->_head = (T*)realloc(this->_head, sizeof(T)*this->_cap);
-			assert(this->_head);
+            auto head = (T*)realloc(this->_head, sizeof(T)*this->_cap);
+            if (!head) {
+                assert(false);
+                throw "memory realloc error";
+            }
+			this->_head = head;
 			return;
 		}
 		T* p = &(_head[_size++]);

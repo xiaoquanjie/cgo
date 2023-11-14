@@ -48,6 +48,7 @@ namespace cgo {
 
             static _co_st_* alloc(int stack);
             static void free(_co_st_* co);
+            static bool memory_check(_co_st_* co);
         };
 
         struct _schedule_st_ {
