@@ -11,6 +11,7 @@
 
 #include "macro.h"
 #include "../common/squeue.hpp"
+#include "../common/concurrentqueue.h"
 #include <functional>
 #include <atomic>
 #include <shared_mutex>
@@ -26,14 +27,13 @@ namespace cgo {
         struct _schedule_st_;
 
         struct _co_st_ {
-            int _no = -1;
-            int _status = 0;
+            volatile int _no = -1;
+            volatile int _status = 0;
             std::function<void()> _routine;
-            _schedule_st_* _schedule = 0;
             void* _data = 0;
+            int _ssize = 0;
             const char* _file = 0;
             int _line = 0;
-            int _ssize = 0;
 
 #ifdef M_PLATFORM_WIN
             LPVOID _ctx = 0;
@@ -42,8 +42,6 @@ namespace cgo {
             ucontext_t _ctx;
             ucontext_t *_mctx = 0;
             char *_stack = 0;
-            int _scap = 0;
-            //char *_pstack = 0;
 #endif
 
             static _co_st_* alloc(int stack);
@@ -53,18 +51,19 @@ namespace cgo {
 
         struct _schedule_st_ {
             // capicity
-            int _cap = 0;
-            int _no = 0;
+            std::atomic_int _cap = 0;
+            std::atomic_int _no = 0;
             _co_st_ **_co = 0;
-            squeue<int> _freenos;
             std::shared_mutex _mu;
+            moodycamel::ConcurrentQueue<int> _freenos;
 
             ~_schedule_st_();
             _co_st_* alloc_co(std::function<void()> routine, int stack, const char* file, int line);
             void free_co(_co_st_* co);
             _co_st_* get_co(int64_t no);
         private:
-            void realloc_schedule();
+            int alloc_no();
+            bool realloc_schedule();
         };
 
         extern _schedule_st_ gschedule_st;

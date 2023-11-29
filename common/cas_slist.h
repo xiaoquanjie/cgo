@@ -52,13 +52,11 @@ public:
         return c;
     }
 
-    // todo: 存在aba问题需要解决
     void push(const T& val) {
         auto n = new node;
         n->_val = val;
 
         while (true) {
-            // 先抢尾指针
             node* last = _tail.load(std::memory_order_relaxed);
             if (!last) {
                 continue;
@@ -67,11 +65,9 @@ public:
                 continue;
             }
 
-            // 尾指针的尾部设置指向
             last->_next.store(n, std::memory_order_relaxed);
             _size.fetch_add(1);
 
-            // 设置尾指针
             node* expected = nullptr;
             _tail.compare_exchange_weak(expected, n);
             break;
@@ -80,7 +76,6 @@ public:
 
     bool pop(T& val) {
         while (true) {
-            // 先抢头指针
             auto first = _head.load(std::memory_order_relaxed);
             auto next = first->_next;
 
@@ -88,13 +83,11 @@ public:
                 continue;
             }
 
-
-
             if (_head.compare_exchange_weak(first, nullptr)) {
                 continue;
             }
 
-
+            break;
         }
 
         return false;

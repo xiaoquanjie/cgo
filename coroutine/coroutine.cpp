@@ -49,7 +49,7 @@ namespace cgo {
         }
 
         int num() {
-            auto n = gschedule_st._no - gschedule_st._freenos.size();
+            auto n = gschedule_st._no - gschedule_st._freenos.size_approx();
             return (int)n;
         }
 

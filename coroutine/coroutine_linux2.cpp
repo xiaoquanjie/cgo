@@ -24,25 +24,12 @@ namespace cgo {
             swapcontext(&c->_ctx, c->_mctx);
         }
 
-        void save_stack(_co_st_ *c, char *top) {
-            char dummy = 0;
-            c->_ssize = top - &dummy;
-            assert(c->_ssize <= M_PUBLIC_STACK_SIZE && c->_ssize > 0);
-            if (c->_scap < c->_ssize || (c->_scap - c->_ssize > 1024)) {
-                free(c->_stack);
-
-                c->_scap = c->_ssize;
-                c->_stack = (char *) malloc(c->_scap);
-            }
-            memcpy(c->_stack, &dummy, c->_ssize);
-        }
-
         // create one new coroutine
         int64_t create(std::function<void()> routine, int stack, const char* file, int line) {
             auto co = gschedule_st.alloc_co(routine, stack, file, line);
             getcontext(&co->_ctx);
             //co->_ctx.uc_link = 0;
-            co->_ctx.uc_stack.ss_size = co->_scap;
+            co->_ctx.uc_stack.ss_size = co->_ssize;
             co->_ctx.uc_stack.ss_sp = co->_stack;
             makecontext(&co->_ctx, (void(*)(void))co_routine, 1, co);
             return co->_no;

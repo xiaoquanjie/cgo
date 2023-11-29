@@ -3,6 +3,7 @@
 #include <condition_variable>
 #include <thread>
 #include <string>
+#include <vector>
 #include "cgo.h"
 
 void pause() {
@@ -236,7 +237,7 @@ void performance_test() {
         auto end = std::chrono::steady_clock::now();
         std::cout << (std::chrono::duration_cast<std::chrono::nanoseconds>(end - beg)).count() << "\n";
         std::cout << "==============\n";
-        std:std::this_thread::sleep_for(std::chrono::seconds(1));
+        std::this_thread::sleep_for(std::chrono::seconds(1));
     }
 }
 

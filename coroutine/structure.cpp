@@ -21,10 +21,9 @@ namespace cgo {
             co->_ssize = stack;
 #ifndef M_PLATFORM_WIN
             // init stack
-            co->_scap = stack;
-            co->_stack = (char*) malloc(co->_scap);
+            co->_stack = (char*) malloc(co->_ssize);
             memset(co->_stack, 0, 8);
-            gmem.add(co->_scap);
+            gmem.add(co->_ssize);
             //co->_pstack = co->_stack;
 #endif
             assert(co != 0);
@@ -36,7 +35,7 @@ namespace cgo {
             if (co->_stack) {
                 // call global free
                 ::free(co->_stack);
-                gmem.dec(co->_scap);
+                gmem.dec(co->_ssize);
             }
 #endif
             assert(co != 0);
@@ -49,6 +48,8 @@ namespace cgo {
             uint64_t* d = (uint64_t*)co->_stack;
             assert(*d == 0);
             return true;
+#else
+            return true;
 #endif
         }
 
@@ -57,31 +58,13 @@ namespace cgo {
                 auto co = this->_co[i];
                 if (co) {
 					co->_status = COROUTINE_DEAD;
-                    //_co_st_::free(co);
-                    //gmem.dec(sizeof (_co_st_));
                 }
             }
-            //gmem.dec(this->_cap*sizeof(_co_st_*));
-            //free(this->_co);
         }
 
         _co_st_* _schedule_st_::alloc_co(std::function<void()> routine, int stack, const char* file, int line) {
-            int no = -1;
-            {
-                std::unique_lock<std::shared_mutex> lock(this->_mu);
-                if (this->_freenos.empty()) {
-                    this->realloc_schedule();
-                    if (this->_no < this->_cap) {
-                        no = this->_no++;
-                    }
-                } else {
-                    no = this->_freenos.back();
-                    this->_freenos.pop();
-                }
-            }
-
+            auto no = this->alloc_no();
             auto co = _co_st_::alloc(stack <= 0 ? M_PRIVATE_STACK_SIZE : stack);
-            co->_schedule = this;
             co->_no = no;
             co->_status = COROUTINE_READY;
             co->_routine = routine;
@@ -97,17 +80,29 @@ namespace cgo {
             _co_st_::free(co);
             gmem.dec(sizeof(_co_st_));
 
-            std::unique_lock<std::shared_mutex> lock(this->_mu);
+            this->_freenos.enqueue(no);
             this->_co[no] = 0;
-            this->_freenos.push(no);
         }
 
-        void _schedule_st_::realloc_schedule() {
-            if (this->_no < this->_cap) {
-                return;
+        int _schedule_st_::alloc_no() {
+            int no = -1;
+            if (!this->_freenos.try_dequeue(no)) {
+                no = this->_no.fetch_add(1);
+                if (no < this->_cap) {
+                    return no;
+                }
+
+                // need to alloc
+                std::unique_lock<std::shared_mutex> lock(this->_mu);
+                if (no >= this->_cap) {
+                    realloc_schedule();
+                }
             }
 
-            int old_mem = sizeof (_co_st_*) * this->_cap;
+            return no;
+        }
+
+        bool _schedule_st_::realloc_schedule() {
             int grow = 0;
             _co_st_ ** co = 0;
 
@@ -120,24 +115,19 @@ namespace cgo {
             }
 
             if (co == 0) {
-                assert(false);
-                return;
+                throw "alloc more coroutine error";
             }
 
             this->_co = co;
             this->_cap += grow;
 
-            gmem.dec(old_mem);
             gmem.add(sizeof (_co_st_*) * grow);
             //M_CO_DEBUG_PRINT("schedule_st mem:%d\n", this->_cap * sizeof (_co_st_*));
+            return true;
         }
 
         _co_st_* _schedule_st_::get_co(int64_t no) {
-            std::shared_lock<std::shared_mutex> lock(this->_mu);
             int n = (int)no;
-            if (n < 0 || n >= this->_no) {
-                return 0;
-            }
             return this->_co[n];
         }
 
