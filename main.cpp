@@ -268,13 +268,205 @@ void performance_test2() {
 }
 
 void atomic_test() {
-    std::atomic_int i;
-    i += 1;
-    i.fetch_add(10);
+    struct test_s {
+        volatile int i = 0;
+        std::string j;
+    };
+
+    struct test_s2 {
+        int i = 0;
+        std::string j;
+    };
+
+    void* m = malloc(sizeof(test_s));
+    auto p = new(m)test_s;
+    p->i= 2132;
+    p->j = "fdfsfsdfs";
+    print_withtime(p->j.c_str());
+    p->~test_s();
+    std::cout << sizeof(test_s) << std::endl;
+    std::cout << sizeof(test_s2) << std::endl;
+
+    std::this_thread::yield();
 }
+
+#include "common/cas_slist.h"
+void caslist_test() {
+    cas_slist<int> s;
+    s.push(1);
+    s.push(2);
+}
+
+#include "common/concurrentqueue.h"
+void concurrentqueue_test() {
+    moodycamel::ConcurrentQueue<int> q;
+    std::vector<std::thread> thrs;
+    std::atomic_int produce_count = 0;
+    std::atomic_int real_produce_count = 0;
+    std::atomic_int consume_count = 0;
+    std::atomic_int total_count = 1000000 * 3;
+
+    auto producer = [&thrs, &q, &produce_count, &total_count, &real_produce_count]() {
+        thrs.emplace_back(std::thread([&q, &produce_count, &total_count, &real_produce_count]() {
+            while (produce_count.fetch_add(1) < total_count) {
+                q.enqueue(produce_count);
+                real_produce_count++;
+            }
+        }));
+    };
+
+    auto consumer = [&thrs, &q, &consume_count, &total_count]() {
+        thrs.emplace_back(std::thread([&q, &consume_count, &total_count]() {
+            while (true) {
+                if (consume_count == total_count) {
+                    break;
+                }
+
+                int v;
+                if (q.try_dequeue(v)) {
+                    consume_count++;
+                }
+            }
+        }));
+    };
+
+    auto now = std::chrono::steady_clock::now();
+    producer();
+    producer();
+    producer();
+    producer();
+    producer();
+    producer();
+    producer();
+    producer();
+    consumer();
+    consumer();
+    consumer();
+    consumer();
+    consumer();
+    consumer();
+    consumer();
+    consumer();
+
+    for (auto& thr : thrs) {
+        thr.join();
+    }
+
+    auto end = std::chrono::steady_clock::now();
+    std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(end - now).count() << "\n";
+    std::cout << produce_count << " " << real_produce_count << " " << consume_count << "\n";
+}
+
+void slist_test() {
+    slist<int> q;
+    std::vector<std::thread> thrs;
+    std::atomic_int produce_count = 0;
+    std::atomic_int real_produce_count = 0;
+    std::atomic_int consume_count = 0;
+    std::atomic_int total_count = 1000000 * 3;
+
+    auto producer = [&q, &produce_count, &total_count, &real_produce_count]() {
+        while (produce_count.fetch_add(1) < total_count) {
+            q.push(produce_count);
+            real_produce_count++;
+        }
+    };
+
+    auto consumer = [&q, &consume_count, &total_count]() {
+        while (true) {
+            if (consume_count == total_count) {
+                break;
+            }
+
+            if (!q.empty()) {
+                q.pop();
+                consume_count++;
+            }
+        }
+    };
+
+    auto now = std::chrono::steady_clock::now();
+    producer();
+    consumer();
+
+    auto end = std::chrono::steady_clock::now();
+    std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(end - now).count() << "\n";
+    std::cout << produce_count << " " << real_produce_count << " " << consume_count << "\n";
+}
+
+void mutex_slist_test() {
+    slist<int> q;
+    std::mutex mu;
+    std::vector<std::thread> thrs;
+    std::atomic_int produce_count = 0;
+    std::atomic_int real_produce_count = 0;
+    std::atomic_int consume_count = 0;
+    std::atomic_int total_count = 1000000 * 3;
+
+    auto producer = [&thrs, &q, &produce_count, &total_count, &real_produce_count, &mu]() {
+        thrs.emplace_back(std::thread([&q, &produce_count, &total_count, &real_produce_count, &mu]() {
+            while (produce_count.fetch_add(1) < total_count) {
+                mu.lock();
+                q.push(produce_count);
+                mu.unlock();
+                real_produce_count++;
+            }
+        }));
+    };
+
+    auto consumer = [&thrs, &q, &consume_count, &total_count, &mu]() {
+        thrs.emplace_back(std::thread([&q, &consume_count, &total_count, &mu]() {
+            while (true) {
+                if (consume_count == total_count) {
+                    break;
+                }
+
+                mu.lock();
+                if (!q.empty()) {
+                    q.pop();
+                    mu.unlock();
+                    consume_count++;
+                } else {
+                    mu.unlock();
+                }
+            }
+        }));
+    };
+
+    auto now = std::chrono::steady_clock::now();
+    producer();
+    producer();
+    producer();
+    producer();
+    producer();
+    producer();
+    producer();
+    producer();
+    consumer();
+    consumer();
+    consumer();
+    consumer();
+    consumer();
+    consumer();
+    consumer();
+    consumer();
+
+    for (auto& thr : thrs) {
+        thr.join();
+    }
+
+    auto end = std::chrono::steady_clock::now();
+    std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(end - now).count() << "\n";
+    std::cout << produce_count << " " << real_produce_count << " " << consume_count << "\n";
+}
+
 
 int main()
 {
+    concurrentqueue_test();
+    slist_test();
+    mutex_slist_test();
+    //caslist_test();
     //atomic_test();
     //performance_test2();
     //chan_test();
@@ -282,7 +474,7 @@ int main()
     //lock_test();
     //time_test();
     //cond_test();
-    cgo_test();
+    //cgo_test();
     pause();
 	std::cout << "finish\n";
 	return 0;
