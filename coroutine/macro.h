@@ -21,49 +21,41 @@
 #endif
 #endif
 
-#ifndef COROUTINE_READY
+#undef COROUTINE_READY
 #define COROUTINE_READY   (1)
-#endif
 
-#ifndef COROUTINE_RUNNING
+#undef COROUTINE_RUNNING
 #define COROUTINE_RUNNING (2)
-#endif
 
-#ifndef COROUTINE_SUSPEND
+#undef COROUTINE_SUSPEND
 #define COROUTINE_SUSPEND (3)
-#endif
 
-#ifndef COROUTINE_DEAD
+#undef COROUTINE_DEAD
 #define COROUTINE_DEAD	  (4)
-#endif
 
 // invalid coroutine id
-#ifndef M_INVALID_COROUTINE_ID
+#undef M_INVALID_COROUTINE_ID
 #define M_INVALID_COROUTINE_ID (-1)
-#endif
 
 // for linux public stack
-#ifndef M_PUBLIC_STACK_SIZE
+#undef M_PUBLIC_STACK_SIZE
 #define M_PUBLIC_STACK_SIZE  1*1024*1024
-#endif
 
 // for windows stack
-#ifndef M_PRIVATE_STACK_SIZE
+#undef M_PRIVATE_STACK_SIZE
 #define M_PRIVATE_STACK_SIZE 1024*8
-#endif
 
-#ifndef GROWUP_COROUTINE
+#undef GROWUP_COROUTINE
 #define GROWUP_COROUTINE (1024*100)
-#endif
 
-#ifndef M_CO_IDLE_TIME
+#undef M_CO_IDLE_TIME
 #define M_CO_IDLE_TIME (5*60)
-#endif
 
-#ifndef M_CORE_POOL_FACTOR
+#undef M_CORE_POOL_FACTOR
 #define M_CORE_POOL_FACTOR (0.3)
-#endif
 
-#ifndef M_MAX_PROCS_FACTOR
+#undef M_MAX_PROCS_FACTOR
 #define M_MAX_PROCS_FACTOR (1.5)
-#endif
+
+#undef M_MAX_LOCAL_TASK_QUEUE
+#define M_MAX_LOCAL_TASK_QUEUE (256)

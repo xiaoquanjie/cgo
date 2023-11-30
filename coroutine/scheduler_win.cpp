@@ -24,8 +24,6 @@ namespace cgo {
     namespace scheduler {
 		thread_local std::shared_ptr<_local_task_st_> glocal_tasks;
 
-        _scheduler_st_ gscheduler;
-
 		void init_local_task(int work_id) {
 			glocal_tasks = std::make_shared<_local_task_st_>();
 			std::unique_lock<std::mutex> lock(gscheduler._thread_mu);
