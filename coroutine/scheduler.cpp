@@ -130,9 +130,9 @@ namespace cgo {
         }
 
         _scheduler_st_ gscheduler;
-        _schedule_task_queue_st_* global_task_queue = &gscheduler._global_tasks;
-        thread_local _schedule_task_queue_st_* gcur_task_queue = global_task_queue;
-        thread_local _schedule_task_queue_st_* gnosteal_task_queue = nullptr;
+        _schedule_base_queue_st_* global_task_queue = &gscheduler._global_tasks;
+        thread_local _schedule_base_queue_st_* glocal_task_queue = global_task_queue;
+        thread_local _schedule_base_queue_st_* gnosteal_local_task_queue = nullptr;
 
         void set_cgo_procs(int cnt) {
             gscheduler._max_thr_cnt = cnt;
@@ -147,22 +147,22 @@ namespace cgo {
         }
 
         void add_global_task(std::function<void()>&& f) {
-            if (gcur_task_queue == global_task_queue) {
-                gcur_task_queue->enqueue(f);
+            if (glocal_task_queue == global_task_queue) {
+                glocal_task_queue->enqueue(f);
             } else {
-                if (gcur_task_queue->size() > M_MAX_LOCAL_TASK_QUEUE) {
+                if (glocal_task_queue->size() >= M_MAX_LOCAL_TASK_QUEUE) {
                     global_task_queue->enqueue(f);
                 } else {
-                    gcur_task_queue->enqueue(f);
+                    glocal_task_queue->enqueue(f);
                 }
             }
         }
 
         void add_local_task(std::function<void()>&& f) {
-            if (gcur_task_queue == global_task_queue) {
+            if (glocal_task_queue == global_task_queue) {
                 assert(false);
             } else {
-                gcur_task_queue->enqueue(f);
+                glocal_task_queue->enqueue(f);
             }
         }
 

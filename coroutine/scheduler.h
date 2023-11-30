@@ -75,26 +75,11 @@ namespace cgo {
             void steal(int32_t count, _schedule_base_queue_st_* to) override;
         };
 
-        struct _schedule_task_queue_st_ {
-        private:
-            concurrent_task_queue_type _queue;
-        public:
-            inline std::size_t size() {
-                return _queue.size_approx();
-            }
-            inline void enqueue(const std::function<void()>& f) {
-                _queue.enqueue(f);
-            }
-            inline bool try_enqueue(std::function<void()>& f) {
-                return _queue.try_dequeue(f);
-            }
-        };
-
         struct _schedule_thread_st_ {
             int _work_id = 0;
             std::thread* _thr = 0;
-            _schedule_task_queue_st_ _local_tasks;
-            _schedule_task_queue_st_ _nosteal_local_tasks;
+            _schedule_base_queue_st_* _local_task = 0;
+            _schedule_base_queue_st_* _nosteal_local_task = 0;
             ~_schedule_thread_st_();
             _schedule_thread_st_(const _schedule_thread_st_&) = delete;
             _schedule_thread_st_& operator=(const _schedule_thread_st_&) = delete;
@@ -109,7 +94,7 @@ namespace cgo {
             async_time_pool _time_pool;
             std::atomic_flag _time_pool_flag;
 
-            _schedule_task_queue_st_ _global_tasks;
+            _schedule_global_queue_st_ _global_tasks;
             std::unordered_map<int, _schedule_thread_st_*> _work_threads;
 
             slist<std::function<void()>> _tasks;
@@ -135,9 +120,9 @@ namespace cgo {
         };
 
         extern _scheduler_st_ gscheduler;
-        extern thread_local _schedule_task_queue_st_* gcur_task_queue;
-        extern _schedule_task_queue_st_* global_task_queue;
-        extern thread_local _schedule_task_queue_st_* gnosteal_task_queue; // for windows
+        extern _schedule_base_queue_st_* global_task_queue;
+        extern thread_local _schedule_base_queue_st_* glocal_task_queue;
+        extern thread_local _schedule_base_queue_st_* gnosteal_local_task_queue; // for windows
 
         void add_global_task(std::function<void()>&& f);
         void add_local_task(std::function<void()>&& f);
