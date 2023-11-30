@@ -9,21 +9,118 @@
 
 #include "scheduler.h"
 #include "structure.h"
-#include "macro.h"
 #include <memory>
 
 namespace cgo {
     namespace scheduler {
-        _base_scheduler_st_::_base_scheduler_st_() {
+        _schedule_local_queue_st_::_schedule_local_queue_st_() {
+            _queue = new wsq_task_queue_type(M_MAX_LOCAL_TASK_QUEUE);
+        }
+
+        _schedule_local_queue_st_::~_schedule_local_queue_st_() {
+            while (true) {
+                auto opt = _queue->pop();
+                if (opt == std::nullopt) {
+                    break;
+                }
+                delete opt.value();
+            }
+            delete _queue;
+        }
+
+        std::size_t _schedule_local_queue_st_::size() {
+            return _queue->size();
+        }
+
+        void _schedule_local_queue_st_::enqueue(const std::function<void()>& f) {
+            task_type* task = new task_type(f);
+            _queue->push(task);
+        }
+
+        void _schedule_local_queue_st_::enqueue(task_type* f, bool& forward) {
+            _queue->push(f);
+            forward = true;
+        }
+
+        bool _schedule_local_queue_st_::try_dequeue(std::function<void()>& f) {
+            auto opt = _queue->pop();
+            if (opt == std::nullopt) {
+                return false;
+            }
+
+            f = *opt.value();
+            delete opt.value();
+            return true;
+        }
+
+        void _schedule_local_queue_st_::steal(int32_t count, _schedule_base_queue_st_* to) {
+            while (count > 0) {
+                count--;
+                auto opt = _queue->steal();
+                if (opt == std::nullopt) {
+                    break;
+                }
+
+                bool forward = false;
+                to->enqueue(opt.value(), forward);
+                if (!forward) {
+                    delete opt.value();
+                }
+            }
+        }
+
+        _schedule_global_queue_st_::_schedule_global_queue_st_() {
+            _queue = new concurrent_task_queue_type;
+        }
+
+        _schedule_global_queue_st_::~_schedule_global_queue_st_() {
+            delete _queue;
+        }
+
+        std::size_t _schedule_global_queue_st_::size() {
+            return _queue->size_approx();
+        }
+
+        void _schedule_global_queue_st_::enqueue(const task_type& f) {
+            _queue->enqueue(f);
+        }
+
+        void _schedule_global_queue_st_::enqueue(task_type* f, bool& forward) {
+            _queue->enqueue(*f);
+            forward = false;
+        }
+
+        bool _schedule_global_queue_st_::try_dequeue(task_type& f) {
+            return _queue->try_dequeue(f);
+        }
+
+        void _schedule_global_queue_st_::steal(int32_t count, _schedule_base_queue_st_* to) {
+            while (count > 0) {
+                count--;
+                task_type f;
+                if (!_queue->try_dequeue(f)) {
+                    break;
+                }
+                to->enqueue(f);
+            }
+        }
+
+        _schedule_thread_st_::~_schedule_thread_st_() {
+            if (_thr) {
+                delete _thr;
+            }
+        }
+
+        _scheduler_st_::_scheduler_st_() {
             _max_thr_cnt = (int)(std::thread::hardware_concurrency() * M_MAX_PROCS_FACTOR);
             _core_thr_cnt = (int)(_max_thr_cnt * M_CORE_POOL_FACTOR);
         }
 
-        _base_scheduler_st_::~_base_scheduler_st_() {
+        _scheduler_st_::~_scheduler_st_() {
             this->stop();
         }
 
-        void _base_scheduler_st_::stop() {
+        void _scheduler_st_::stop() {
             std::unique_lock<std::mutex> lock(this->_thread_mu);
             this->_stop = true;
             for (auto& kv : this->_threads) {
@@ -31,6 +128,11 @@ namespace cgo {
             }
             this->_threads.clear();
         }
+
+        _scheduler_st_ gscheduler;
+        _schedule_task_queue_st_* global_task_queue = &gscheduler._global_tasks;
+        thread_local _schedule_task_queue_st_* gcur_task_queue = global_task_queue;
+        thread_local _schedule_task_queue_st_* gnosteal_task_queue = nullptr;
 
         void set_cgo_procs(int cnt) {
             gscheduler._max_thr_cnt = cnt;
@@ -45,9 +147,23 @@ namespace cgo {
         }
 
         void add_global_task(std::function<void()>&& f) {
-            std::unique_lock<std::mutex> lock(gscheduler._task_mu);
-            gscheduler._tasks.push(f);
-            gscheduler._task_cond.notify_one();
+            if (gcur_task_queue == global_task_queue) {
+                gcur_task_queue->enqueue(f);
+            } else {
+                if (gcur_task_queue->size() > M_MAX_LOCAL_TASK_QUEUE) {
+                    global_task_queue->enqueue(f);
+                } else {
+                    gcur_task_queue->enqueue(f);
+                }
+            }
+        }
+
+        void add_local_task(std::function<void()>&& f) {
+            if (gcur_task_queue == global_task_queue) {
+                assert(false);
+            } else {
+                gcur_task_queue->enqueue(f);
+            }
         }
 
         void start_thread() {

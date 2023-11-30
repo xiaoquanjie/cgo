@@ -16,8 +16,6 @@
 
 namespace cgo {
     namespace scheduler {
-        _scheduler_st_ gscheduler;
-
         void working_thread(int work_id) {
             std::chrono::time_point<std::chrono::steady_clock> last_idle_time;
             std::chrono::seconds idle_add_time(0);

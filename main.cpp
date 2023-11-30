@@ -552,17 +552,43 @@ void time_pool_test() {
     print_withtime(std::string("end count:") + std::to_string(count));
 }
 
+#include "common/work_steal_queue.hpp"
+void work_steal_queue_test() {
+    WorkStealingQueue<int> q(8);
+    while (true) {
+        if (!q.try_push(1)) {
+            break;
+        }
+    }
+    std::cout << q.size() << "\n";
+}
 
 int main()
 {
+    enum test_type {
+        t_work_steal_queue_test = 0,
+        t_performance_base_test,
+        t_performance_test2,
+    };
+
+    switch (t_performance_base_test) {
+        case t_work_steal_queue_test:
+            work_steal_queue_test();
+            break;
+        case t_performance_base_test:
+        case t_performance_test2:
+            performance_test2();
+            break;
+        default:
+            break;
+    }
+
     //time_pool_test();
     //concurrentqueue_test();
     //slist_test();
     //mutex_slist_test();
     //caslist_test();
     //atomic_test();
-    performance_base_test();
-    performance_test2();
     //chan_test();
     //cqueue_test();
     //lock_test();

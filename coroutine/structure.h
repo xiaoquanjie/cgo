@@ -22,6 +22,8 @@
 #endif
 
 namespace cgo {
+    using co_no_queue_type = moodycamel::ConcurrentQueue<int>;
+
     namespace coroutine {
         struct _schedule_st_;
 
@@ -54,7 +56,7 @@ namespace cgo {
             std::atomic_int _no = 0;
             _co_st_ **_co = 0;
             std::shared_mutex _mu;
-            moodycamel::ConcurrentQueue<int> _freenos;
+            co_no_queue_type _freenos;
 
             ~_schedule_st_();
             _co_st_* alloc_co(std::function<void()> routine, int stack, const char* file, int line);

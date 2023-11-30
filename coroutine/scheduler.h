@@ -12,6 +12,8 @@
 #include "macro.h"
 #include "../common/time_pool.h"
 #include "../common/print.h"
+#include "../common/concurrentqueue.h"
+#include "../common/work_steal_queue.hpp"
 #include <thread>
 #include <condition_variable>
 #include <unordered_map>
@@ -31,9 +33,84 @@ namespace cgo {
     }
 
     namespace scheduler {
-        struct _base_scheduler_st_ {
+        using task_type = std::function<void()>;
+        using concurrent_task_queue_type = moodycamel::ConcurrentQueue<task_type>;
+        using wsq_task_queue_type = WorkStealingQueue<task_type*>;
+
+        struct _schedule_base_queue_st_ {
+            virtual ~_schedule_base_queue_st_() {}
+            virtual std::size_t size() = 0;
+            virtual void enqueue(const task_type& f) = 0;
+            virtual void enqueue(task_type* f, bool&) = 0;
+            virtual bool try_dequeue(task_type& f) = 0;
+            virtual void steal(int32_t count, _schedule_base_queue_st_* to) = 0;
+        };
+
+        struct _schedule_local_queue_st_ : public _schedule_base_queue_st_ {
+        private:
+            wsq_task_queue_type* _queue;
+        public:
+            _schedule_local_queue_st_();
+            ~_schedule_local_queue_st_();
+            std::size_t size() override;
+            void enqueue(const task_type& f) override;
+            void enqueue(task_type* f, bool&) override;
+            bool try_dequeue(task_type& f) override;
+            void steal(int32_t count, _schedule_base_queue_st_* to) override;
+
+            _schedule_local_queue_st_(const _schedule_local_queue_st_&) = delete;
+            _schedule_local_queue_st_& operator=(const _schedule_local_queue_st_&) = delete;
+        };
+
+        struct _schedule_global_queue_st_ : public _schedule_base_queue_st_ {
+        private:
+            concurrent_task_queue_type* _queue;
+        public:
+            _schedule_global_queue_st_();
+            ~_schedule_global_queue_st_();
+            std::size_t size() override;
+            void enqueue(const task_type& f) override;
+            void enqueue(task_type* f, bool&) override;
+            bool try_dequeue(task_type& f) override;
+            void steal(int32_t count, _schedule_base_queue_st_* to) override;
+        };
+
+        struct _schedule_task_queue_st_ {
+        private:
+            concurrent_task_queue_type _queue;
+        public:
+            inline std::size_t size() {
+                return _queue.size_approx();
+            }
+            inline void enqueue(const std::function<void()>& f) {
+                _queue.enqueue(f);
+            }
+            inline bool try_enqueue(std::function<void()>& f) {
+                return _queue.try_dequeue(f);
+            }
+        };
+
+        struct _schedule_thread_st_ {
+            int _work_id = 0;
+            std::thread* _thr = 0;
+            _schedule_task_queue_st_ _local_tasks;
+            _schedule_task_queue_st_ _nosteal_local_tasks;
+            ~_schedule_thread_st_();
+            _schedule_thread_st_(const _schedule_thread_st_&) = delete;
+            _schedule_thread_st_& operator=(const _schedule_thread_st_&) = delete;
+        };
+
+        struct _local_task_st_ {
+            slist<std::function<void()>> _tasks;
+            std::mutex _task_mu;
+        };
+
+        struct _scheduler_st_ {
             async_time_pool _time_pool;
             std::atomic_flag _time_pool_flag;
+
+            _schedule_task_queue_st_ _global_tasks;
+            std::unordered_map<int, _schedule_thread_st_*> _work_threads;
 
             slist<std::function<void()>> _tasks;
             std::mutex _task_mu;
@@ -48,28 +125,22 @@ namespace cgo {
             std::unordered_map<int, std::thread> _threads;
             std::mutex _thread_mu;
 
-            _base_scheduler_st_();
+            std::unordered_map<int, std::shared_ptr<_local_task_st_>> _thr_tasks;
 
-            ~_base_scheduler_st_();
+            _scheduler_st_();
+
+            ~_scheduler_st_();
 
             void stop();
         };
-		
-#ifdef M_PLATFORM_WIN
-		struct _local_task_st_ {
-			slist<std::function<void()>> _tasks;
-			std::mutex _task_mu;
-		};
-		struct _scheduler_st_ : public _base_scheduler_st_ {
-			std::unordered_map<int, std::shared_ptr<_local_task_st_>> _thr_tasks;
-		};
-#else
-		struct _scheduler_st_ : public _base_scheduler_st_ {};
-#endif
 
         extern _scheduler_st_ gscheduler;
+        extern thread_local _schedule_task_queue_st_* gcur_task_queue;
+        extern _schedule_task_queue_st_* global_task_queue;
+        extern thread_local _schedule_task_queue_st_* gnosteal_task_queue; // for windows
 
         void add_global_task(std::function<void()>&& f);
+        void add_local_task(std::function<void()>&& f);
         void working_thread(int work_id);
         void schedule_task(const std::function<void()>& routine, int stack, const char* file, int line);
         void schedule_wait(int wait_mil);
