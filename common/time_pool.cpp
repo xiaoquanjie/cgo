@@ -261,13 +261,8 @@ bool async_time_pool::update() {
         return false;
     }
 
-    //M_CO_DEBUG_PRINT("get lock\n");
-    slist<timer_node> tmp_wait_list;
-    _mu.lock();
-    tmp_wait_list.swap(this->_wait_list);
-    _mu.unlock();
-
-    tmp_wait_list.iterate([this](time_pool::timer_node& node)->bool {
+    timer_node node;
+    while (_wait_list.try_dequeue(node)) {
         if (node._cb) {
             if (is_prev_time_node(node)) {
                 node._cb();
@@ -277,8 +272,7 @@ bool async_time_pool::update() {
         } else {
             this->timer_cancel(node._timer_id);
         }
-        return true;
-    });
+    }
 
     auto ret = time_pool::update();
     //M_CO_DEBUG_PRINT("release lock\n");
@@ -292,14 +286,12 @@ uint64_t async_time_pool::async_add_timer(uint32_t interval, std::function<void(
         return 0;
     }
 
-    std::unique_lock<std::mutex> lock(_mu);
-    _wait_list.push(node);
+    _wait_list.enqueue(node);
     return node._timer_id;
 }
 
 void async_time_pool::async_cancel_timer(uint64_t timer_id) {
-    std::unique_lock<std::mutex> lock(_mu);
-    _wait_list.push(timer_node{timer_id, 0, nullptr});
+    _wait_list.enqueue(timer_node{timer_id, 0, nullptr});
 }
 
 bool async_time_pool::is_prev_time_node(const timer_node& node) {

@@ -88,17 +88,17 @@ namespace cgo {
             int no = -1;
             if (!this->_freenos.try_dequeue(no)) {
                 no = this->_no.fetch_add(1);
-                if (no < this->_cap) {
-                    return no;
-                }
-
                 // need to alloc
-                std::unique_lock<std::shared_mutex> lock(this->_mu);
                 if (no >= this->_cap) {
-                    realloc_schedule();
+                    std::unique_lock<std::shared_mutex> lock(this->_mu);
+                    // double check
+                    if (no >= this->_cap) {
+                        realloc_schedule();
+                    }
                 }
             }
 
+            //M_CO_DEBUG_PRINT("alloc no:%d\n", no);
             return no;
         }
 
@@ -122,7 +122,7 @@ namespace cgo {
             this->_cap += grow;
 
             gmem.add(sizeof (_co_st_*) * grow);
-            //M_CO_DEBUG_PRINT("schedule_st mem:%d\n", this->_cap * sizeof (_co_st_*));
+            //M_CO_DEBUG_PRINT("schedule_st cap:%d no:%d\n", this->_cap.load(), this->_no.load());
             return true;
         }
 

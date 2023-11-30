@@ -10,6 +10,7 @@
 #pragma once
 
 #include "slist.h"
+#include "concurrentqueue.h"
 #include <functional>
 #include <chrono>
 #include <mutex>
@@ -74,9 +75,8 @@ protected:
 // thread-safety
 class async_time_pool : public time_pool {
 protected:
-    std::mutex _mu;
     std::atomic_flag _flag;
-    slist<timer_node> _wait_list;
+    moodycamel::ConcurrentQueue<timer_node> _wait_list;
 
 public:
     bool update() override;

@@ -10,7 +10,6 @@
 #pragma once
 
 #include "macro.h"
-#include "../common/squeue.hpp"
 #include "../common/concurrentqueue.h"
 #include <functional>
 #include <atomic>
@@ -30,7 +29,7 @@ namespace cgo {
             volatile int _no = -1;
             volatile int _status = 0;
             std::function<void()> _routine;
-            void* _data = 0;
+            void* volatile _data = 0;
             int _ssize = 0;
             const char* _file = 0;
             int _line = 0;
@@ -73,7 +72,6 @@ namespace cgo {
             LPVOID _ctx = 0;
 #else
             ucontext_t _ctx;
-            //char _stack[M_PUBLIC_STACK_SIZE];
 #endif
             // current coroutine no
             int64_t _curno = -1;

@@ -4,6 +4,7 @@
 #include <thread>
 #include <string>
 #include <vector>
+#include <iomanip>
 #include "cgo.h"
 
 void pause() {
@@ -17,13 +18,27 @@ void pause() {
 void print_withtime(const char* msg) {
     static std::mutex mu;
     std::unique_lock<std::mutex> lock(mu);
-    std::cout << std::chrono::system_clock::now().time_since_epoch().count()/1000 << " " << std::this_thread::get_id() << " " << msg << "\n";
+
+    std::chrono::system_clock::time_point now = std::chrono::system_clock::now();
+    std::time_t now_c = std::chrono::system_clock::to_time_t(now);
+    std::tm* timeinfo = std::localtime(&now_c);
+
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
+
+    char buffer[80];
+    std::strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", timeinfo);
+
+    std::cout << buffer << '.' << std::setfill('0') << std::setw(3) << ms.count() << " ";
+    std::cout << std::this_thread::get_id() << " " << msg << "\n";
+}
+
+void print_withtime(const std::string& msg) {
+    print_withtime(msg.c_str());
 }
 
 void cgo_test() {
     bool* stop = new bool(true);
-    cgoprocs(100);
-   
+
     go [stop]() {
         while (*stop) {
             print_withtime("this is a coroutine1");
@@ -49,8 +64,8 @@ void cgo_test() {
     };
 
     go[stop]() {
-        for (int i = 0; i < 100; i++) {
-            gowait(5);
+        for (int i = 0; i < 1000; i++) {
+            gowait(10);
         }
         *stop = false;
 
@@ -246,9 +261,44 @@ void test(std::atomic_int& c) {
 }
 
 #include "coroutine/coroutine.h"
-void performance_test2() {
-    //cgoprocs(1);
+void performance_base_test() {
     for (int j = 0; j < 3; j++) {
+        print_withtime("base test begin");
+        std::atomic_int count = 0;
+        auto beg = std::chrono::steady_clock::now();
+        const int total_count = 1000000;
+
+        for (int i = 0; i < total_count; i++) {
+            cgo::coroutine::run([&count]() {
+                count++;
+            });
+        }
+
+        while (count != total_count) {
+        }
+
+        print_withtime("base test end");
+        std::cout << "==============\n";
+    }
+}
+
+void performance_test2() {
+    /*
+     * 基准测试结果：
+     *  800ms
+     * 协程池基准测试结果：
+     *  700ms
+     * golang测试结果:
+     *  200ms
+     * 测试结果：
+     *  优化前：
+     *      自由线程：需要30~35秒
+     *      单线程：2秒
+     * */
+
+    cgoprocs(1);
+    for (int j = 0; j < 3; j++) {
+        print_withtime("begin");
         std::atomic_int count = 0;
         auto beg = std::chrono::steady_clock::now();
         const int total_count = 1000000;
@@ -262,8 +312,7 @@ void performance_test2() {
         while (count != total_count) {
         }
 
-        auto end = std::chrono::steady_clock::now();
-        std::cout << (std::chrono::duration_cast<std::chrono::milliseconds>(end - beg)).count() << "\n";
+        print_withtime("end");
         std::cout << "==============\n";
     }
 }
@@ -461,15 +510,59 @@ void mutex_slist_test() {
     std::cout << produce_count << " " << real_produce_count << " " << consume_count << "\n";
 }
 
+void time_pool_test() {
+    print_withtime("begin");
+
+    async_time_pool p;
+    std::atomic_int count = 0;
+
+    std::thread thr0([&p, &count]() {
+        for (int i = 0; i < 1000000; i++) {
+            p.async_add_timer(10, [&count]() {
+                count++;
+            });
+        }
+    });
+
+    std::thread thr([&p, &count]() {
+       for (int i = 0; i < 1000000; i++) {
+           p.async_add_timer(10, [&count]() {
+               count++;
+           });
+       }
+    });
+
+    std::thread thr2([&p, &count]() {
+        for (int i = 0; i < 1000000; i++) {
+            p.async_add_timer(10, [&count]() {
+                count++;
+            });
+        }
+    });
+
+    std::thread thr3([&p, &count]() {
+        p.update();
+    });
+
+    thr0.join();
+    thr.join();
+    thr2.join();
+    thr3.join();
+
+    print_withtime(std::string("end count:") + std::to_string(count));
+}
+
 
 int main()
 {
-    concurrentqueue_test();
-    slist_test();
-    mutex_slist_test();
+    //time_pool_test();
+    //concurrentqueue_test();
+    //slist_test();
+    //mutex_slist_test();
     //caslist_test();
     //atomic_test();
-    //performance_test2();
+    performance_base_test();
+    performance_test2();
     //chan_test();
     //cqueue_test();
     //lock_test();
