@@ -157,6 +157,7 @@ namespace cgo {
             for (auto& thr : work_threads) {
                 thr->_thr->join();
             }
+            work_threads.clear();
         }
 
 #ifndef M_PLATFORM_WIN
@@ -164,6 +165,11 @@ namespace cgo {
             if (!_time_pool_flag.test_and_set()) {
                 _time_pool.update();
                 _time_pool_flag.clear();
+
+                if (_dead_threads.size()) {
+                    std::unique_lock<std::mutex> scoped_lock(_thread_mu);
+                    _dead_threads.clear();
+                }
                 return true;
             }
             return false;
@@ -208,16 +214,15 @@ namespace cgo {
             return ret;
         }
 
-        void _scheduler_st_::dead_thread(_schedule_thread_st_* st, bool idle_quit) {
+        void _scheduler_st_::dead_thread(_schedule_thread_st_* st) {
             _idle_thr_cnt--;
-            if (!idle_quit) {
-                _thr_cnt--;
-            }
+            _thr_cnt--;
 
             std::unique_lock<std::mutex> scoped_lock(_thread_mu);
-            st->_thr->detach();
             for (auto iter = _work_threads.begin(); iter != _work_threads.end(); ++iter) {
                 if (iter->get() == st) {
+                    st->_thr->detach();
+                    _dead_threads.push(*iter);
                     _work_threads.erase(iter);
                     break;
                 }

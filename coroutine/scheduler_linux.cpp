@@ -54,6 +54,7 @@ namespace cgo {
                                     std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
                         }
                         st->_scheduler->wait(wait_t);
+                        //M_CO_DEBUG_PRINT("work:%d queue:%d\n", work_id, glocal_task_queue->size());
                     }
                 }
 
@@ -75,7 +76,10 @@ namespace cgo {
             }
 
             glocal_task_queue = nullptr;
-            st->_scheduler->dead_thread(st, idle_quit);
+
+            if (idle_quit) {
+                st->_scheduler->dead_thread(st);
+            }
             M_CO_DEBUG_PRINT("quit cgo working thread:%d\n", work_id);
         }
 

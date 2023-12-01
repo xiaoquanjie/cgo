@@ -36,7 +36,6 @@ namespace cgo {
         using task_type = std::function<void()>;
         using concurrent_task_queue_type = moodycamel::ConcurrentQueue<task_type>;
         using wsq_task_queue_type = WorkStealingQueue<task_type*>;
-
         struct _scheduler_st_;
 
         struct _schedule_base_queue_st_ {
@@ -96,9 +95,13 @@ namespace cgo {
             _schedule_thread_st_& operator=(const _schedule_thread_st_&) = delete;
         };
 
+        using schedule_thread_st_type = std::shared_ptr<_schedule_thread_st_>;
+        using dead_thread_queue_type = slist<schedule_thread_st_type>;
+
         struct _scheduler_st_ {
             _schedule_global_queue_st_ _global_tasks;
-            std::vector<std::shared_ptr<_schedule_thread_st_>> _work_threads;
+            dead_thread_queue_type _dead_threads;
+            std::vector<schedule_thread_st_type> _work_threads;
             int generate_work_id = 1;
             std::mutex _thread_mu;
 
@@ -128,7 +131,7 @@ namespace cgo {
 
             bool try_dead_thread();
 
-            void dead_thread(_schedule_thread_st_* st, bool idle_quit);
+            void dead_thread(_schedule_thread_st_* st);
 
             void steal_task(_schedule_thread_st_* st);
 

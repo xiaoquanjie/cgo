@@ -7,14 +7,6 @@
 #include <iomanip>
 #include "cgo.h"
 
-void pause() {
-	while (true) {
-		std::this_thread::sleep_for(std::chrono::seconds(10));
-		break;
-	}
-	cgostop();
-}
-
 void print_withtime(const char* msg) {
     static std::mutex mu;
     std::unique_lock<std::mutex> lock(mu);
@@ -34,6 +26,16 @@ void print_withtime(const char* msg) {
 
 void print_withtime(const std::string& msg) {
     print_withtime(msg.c_str());
+}
+
+void pause() {
+    while (true) {
+        std::this_thread::sleep_for(std::chrono::seconds(10));
+        break;
+    }
+
+    print_withtime("try to stop");
+    cgostop();
 }
 
 void cgo_test() {
@@ -297,7 +299,7 @@ void performance_test2() {
      *      单线程：2秒
      * */
 
-    //cgoprocs(2);
+    cgoprocs(3);
     for (int j = 0; j < 3; j++) {
         print_withtime("begin");
         std::atomic_int count = 0;
@@ -311,9 +313,13 @@ void performance_test2() {
         }
 
         while (count != total_count) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            //std::cout << count << "\n";
         }
 
-        print_withtime("end");
+        auto end = std::chrono::steady_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - beg);
+        print_withtime(std::string("end: ") + std::to_string(elapsed.count()));
         std::cout << "==============\n";
     }
 }

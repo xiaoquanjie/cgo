@@ -49,7 +49,7 @@
 #define GROWUP_COROUTINE (1024*100)
 
 #undef M_CO_IDLE_TIME
-#define M_CO_IDLE_TIME (5*60)
+#define M_CO_IDLE_TIME (2*60)
 
 #undef M_CORE_POOL_FACTOR
 #define M_CORE_POOL_FACTOR (0.3)
