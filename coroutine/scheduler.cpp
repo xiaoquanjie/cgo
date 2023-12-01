@@ -105,10 +105,33 @@ namespace cgo {
             }
         }
 
+        //////////////////////////////////////////////////////////////
+
         _schedule_thread_st_::~_schedule_thread_st_() {
             if (_thr) {
                 delete _thr;
             }
+
+            _schedule_base_queue_st_* task = _local_task.load();
+            if (task) {
+                if (!_scheduler->_stop) {
+                    if (task->size() > 0) {
+                        assert(false);
+                    }
+                }
+                delete task;
+            }
+
+#ifdef M_PLATFORM_WIN
+            if (_nosteal_local_task) {
+                if (!_scheduler->_stop) {
+                    if (_nosteal_local_task->size() > 0) {
+                        assert(false);
+                    }
+                }
+                delete _nosteal_local_task;
+            }
+#endif
         }
 
         _scheduler_st_::_scheduler_st_() {
@@ -121,24 +144,165 @@ namespace cgo {
         }
 
         void _scheduler_st_::stop() {
-            std::unique_lock<std::mutex> lock(this->_thread_mu);
-            this->_stop = true;
-            for (auto& kv : this->_threads) {
-                kv.second.join();
+            std::vector<std::shared_ptr<_schedule_thread_st_>> work_threads;
+            {
+                std::unique_lock<std::mutex> scoped_lock(_thread_mu);
+                this->_stop = true;
+                work_threads = _work_threads;
+                this->_work_threads.clear();
+                _thr_cnt = 0;
+                _idle_thr_cnt = 0;
             }
-            this->_threads.clear();
+
+            for (auto& thr : work_threads) {
+                thr->_thr->join();
+            }
+        }
+
+#ifndef M_PLATFORM_WIN
+        bool _scheduler_st_::run() {
+            if (!_time_pool_flag.test_and_set()) {
+                _time_pool.update();
+                _time_pool_flag.clear();
+                return true;
+            }
+            return false;
+        }
+#endif
+
+        void _scheduler_st_::start_thread() {
+            auto task_size = _global_tasks.size();
+            if (_thr_cnt >= _max_thr_cnt
+                || (_idle_thr_cnt != 0 && task_size > M_MAX_LOCAL_TASK_QUEUE)) {
+                return;
+            }
+
+            std::unique_lock<std::mutex> scoped_lock(_thread_mu);
+
+            // double check
+            task_size = _global_tasks.size();
+            if (_thr_cnt >= _max_thr_cnt
+                || (_idle_thr_cnt != 0 && task_size > M_MAX_LOCAL_TASK_QUEUE)) {
+                return;
+            }
+
+            _idle_thr_cnt++;
+            _thr_cnt++;
+            auto work_id = generate_work_id++;
+
+            auto st = std::make_shared<_schedule_thread_st_>();
+            st->_work_id = work_id;
+            st->_scheduler = this;
+            _work_threads.emplace_back(st);
+            std::function<void()> work = std::bind(thread_func, work_id, st.get());
+            st->_thr = new std::thread(work);
+        }
+
+        bool _scheduler_st_::try_dead_thread() {
+            auto old = _thr_cnt.load(std::memory_order_relaxed);
+            if (old <= _core_thr_cnt) {
+                return false;
+            }
+
+            auto ret = _thr_cnt.compare_exchange_weak(old, old - 1);
+            return ret;
+        }
+
+        void _scheduler_st_::dead_thread(_schedule_thread_st_* st, bool idle_quit) {
+            _idle_thr_cnt--;
+            if (!idle_quit) {
+                _thr_cnt--;
+            }
+
+            std::unique_lock<std::mutex> scoped_lock(_thread_mu);
+            st->_thr->detach();
+            for (auto iter = _work_threads.begin(); iter != _work_threads.end(); ++iter) {
+                if (iter->get() == st) {
+                    _work_threads.erase(iter);
+                    break;
+                }
+            }
+        }
+
+        void _scheduler_st_::steal_task(_schedule_thread_st_* st) {
+            // steal from global first
+            // max local task queue: M_MAX_LOCAL_TASK_QUEUE
+            this->_global_tasks.steal(M_MAX_LOCAL_TASK_QUEUE, st->_local_task);
+
+            _schedule_base_queue_st_* to_local_task = st->_local_task;
+            if (_thr_cnt <= 1 || to_local_task->size() > 0) {
+                // can't steal from self
+                return;
+            }
+
+            // steal from other queue
+            _thread_mu.lock();
+            std::vector<std::shared_ptr<_schedule_thread_st_>> tmp_work_threads;
+            tmp_work_threads = _work_threads;
+            _thread_mu.unlock();
+
+            uint64_t full = tmp_work_threads.size();
+            uint64_t rn = (uint64_t)(&tmp_work_threads);
+            rn %= full;
+            rn = (uint64_t)tmp_work_threads[rn].get();
+            rn %= full;
+
+            while (full > 0) {
+                full--;
+                auto i = (rn++) % tmp_work_threads.size();
+                if (tmp_work_threads[i].get() == st) {
+                    continue;
+                }
+
+                auto local_task = tmp_work_threads[i]->_local_task.load();
+                if (!local_task) {
+                    continue;
+                }
+
+                auto has = local_task->size();
+                if (has <= 0) {
+                    continue;
+                }
+
+                int32_t need = M_MAX_LOCAL_TASK_QUEUE - local_task->size();
+                need = std::min(need, (int32_t)(has / 2));
+
+                local_task->steal(need, to_local_task);
+                if (to_local_task->size() > 0) {
+                    break;
+                }
+            }
+        }
+
+        void _scheduler_st_::wait(int32_t mill) {
+            std::chrono::milliseconds wait_t(mill);
+            std::unique_lock<std::mutex> task_lock(_task_mu);
+            if (_global_tasks.size() == 0) {
+                this->_task_cond.wait_for(task_lock, wait_t);
+            }
+        }
+
+        void _scheduler_st_::notify_one() {
+            this->_task_cond.notify_one();
         }
 
         _scheduler_st_ gscheduler;
-        _schedule_task_queue_st_* global_task_queue = &gscheduler._global_tasks;
-        thread_local _schedule_task_queue_st_* gcur_task_queue = global_task_queue;
-        thread_local _schedule_task_queue_st_* gnosteal_task_queue = nullptr;
+        _schedule_base_queue_st_* gglobal_task_queue = &gscheduler._global_tasks;
+        thread_local _schedule_base_queue_st_* glocal_task_queue = gglobal_task_queue;
+        thread_local _schedule_base_queue_st_* gnosteal_local_task_queue = nullptr;
+        thread_local time_pool* glocal_time_pool = nullptr;
 
         void set_cgo_procs(int cnt) {
+            if (cnt < 1) {
+                cnt = 1;
+            }
             gscheduler._max_thr_cnt = cnt;
         }
 
         void set_core_pool(int cnt) {
+            if (cnt < 1) {
+                cnt = 1;
+            }
             gscheduler._core_thr_cnt = cnt;
         }
 
@@ -147,47 +311,24 @@ namespace cgo {
         }
 
         void add_global_task(std::function<void()>&& f) {
-            if (gcur_task_queue == global_task_queue) {
-                gcur_task_queue->enqueue(f);
+            if (glocal_task_queue == gglobal_task_queue) {
+                glocal_task_queue->enqueue(f);
             } else {
-                if (gcur_task_queue->size() > M_MAX_LOCAL_TASK_QUEUE) {
-                    global_task_queue->enqueue(f);
+                if (glocal_task_queue->size() >= M_MAX_LOCAL_TASK_QUEUE) {
+                    gglobal_task_queue->enqueue(f);
                 } else {
-                    gcur_task_queue->enqueue(f);
+                    glocal_task_queue->enqueue(f);
                 }
             }
+            trigger_new_thread();
         }
 
         void add_local_task(std::function<void()>&& f) {
-            if (gcur_task_queue == global_task_queue) {
+            if (glocal_task_queue == gglobal_task_queue) {
                 assert(false);
             } else {
-                gcur_task_queue->enqueue(f);
-            }
-        }
-
-        void start_thread() {
-            auto& scheduler = gscheduler;
-            if ((int)scheduler._tasks.size() <= scheduler._idle_thr_cnt) {
-                return;
-            }
-
-            std::unique_lock<std::mutex> lock(scheduler._thread_mu);
-            if ((int)scheduler._threads.size() >= scheduler._max_thr_cnt) {
-                return;
-            }
-
-            int task_cnt = (int)scheduler._tasks.size();
-            int count = task_cnt - (int)scheduler._idle_thr_cnt;
-            scheduler._idle_thr_cnt += count;
-
-            while (count > 0) {
-                auto work_id = scheduler.generate_work_id++;
-                std::function<void()> work = std::bind(working_thread, work_id);
-                scheduler._threads[work_id] = std::move(std::thread(work));
-                count--;
-
-                //M_CO_DEBUG_PRINT("start....\n");
+                glocal_task_queue->enqueue(f);
+                trigger_new_thread();
             }
         }
 
@@ -195,7 +336,10 @@ namespace cgo {
         void schedule_task(const std::function<void()>& routine, int stack, const char* file, int line) {
             std::function<void()> f = std::bind(coroutine::run, routine, stack, file, line);
             add_global_task(std::move(f));
-            start_thread();
+        }
+
+        void trigger_new_thread() {
+            gscheduler.start_thread();
         }
     }
 }

@@ -37,6 +37,7 @@ protected:
     uint64_t _alloc_timer_id = 1;
     time_point _beg_time;
 
+    uint32_t _timer_count = 0;
 public:
     // one hour
     time_pool(uint32_t max_interval = 3600);
@@ -44,6 +45,8 @@ public:
     virtual ~time_pool();
 
     virtual bool update();
+
+    uint32_t timer_count() const;
 
     // @interval: max interval is one hour
     uint64_t add_timer(uint32_t interval, std::function<void()> func);

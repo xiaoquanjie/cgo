@@ -16,7 +16,7 @@
 #include "../common/work_steal_queue.hpp"
 #include <thread>
 #include <condition_variable>
-#include <unordered_map>
+#include <vector>
 
 namespace cgo {
     namespace coroutine {
@@ -36,6 +36,8 @@ namespace cgo {
         using task_type = std::function<void()>;
         using concurrent_task_queue_type = moodycamel::ConcurrentQueue<task_type>;
         using wsq_task_queue_type = WorkStealingQueue<task_type*>;
+
+        struct _scheduler_st_;
 
         struct _schedule_base_queue_st_ {
             virtual ~_schedule_base_queue_st_() {}
@@ -75,79 +77,83 @@ namespace cgo {
             void steal(int32_t count, _schedule_base_queue_st_* to) override;
         };
 
-        struct _schedule_task_queue_st_ {
-        private:
-            concurrent_task_queue_type _queue;
-        public:
-            inline std::size_t size() {
-                return _queue.size_approx();
-            }
-            inline void enqueue(const std::function<void()>& f) {
-                _queue.enqueue(f);
-            }
-            inline bool try_enqueue(std::function<void()>& f) {
-                return _queue.try_dequeue(f);
-            }
-        };
-
         struct _schedule_thread_st_ {
             int _work_id = 0;
             std::thread* _thr = 0;
-            _schedule_task_queue_st_ _local_tasks;
-            _schedule_task_queue_st_ _nosteal_local_tasks;
+            _scheduler_st_* _scheduler = 0;
+            std::atomic<_schedule_base_queue_st_*> _local_task;
+#ifdef M_PLATFORM_WIN
+            _schedule_base_queue_st_* _nosteal_local_task = 0;  // for windows
+            time_pool _time_pool;
+            _schedule_thread_st_() : _time_pool(M_MAX_CO_WAIT_TIME){}
+#else
+            _schedule_thread_st_() {
+                _local_task.store(0);
+            }
+#endif
             ~_schedule_thread_st_();
             _schedule_thread_st_(const _schedule_thread_st_&) = delete;
             _schedule_thread_st_& operator=(const _schedule_thread_st_&) = delete;
         };
 
-        struct _local_task_st_ {
-            slist<std::function<void()>> _tasks;
-            std::mutex _task_mu;
-        };
-
         struct _scheduler_st_ {
-            async_time_pool _time_pool;
-            std::atomic_flag _time_pool_flag;
-
-            _schedule_task_queue_st_ _global_tasks;
-            std::unordered_map<int, _schedule_thread_st_*> _work_threads;
-
-            slist<std::function<void()>> _tasks;
-            std::mutex _task_mu;
-            std::condition_variable _task_cond;
-
-            std::atomic_bool _stop = false;
-            std::atomic_int _max_thr_cnt = 0;
-            std::atomic_int _core_thr_cnt = 1;
-            std::atomic_int _idle_thr_cnt = 0;
-
+            _schedule_global_queue_st_ _global_tasks;
+            std::vector<std::shared_ptr<_schedule_thread_st_>> _work_threads;
             int generate_work_id = 1;
-            std::unordered_map<int, std::thread> _threads;
             std::mutex _thread_mu;
 
-            std::unordered_map<int, std::shared_ptr<_local_task_st_>> _thr_tasks;
+            std::atomic_bool _stop = false;
+            std::atomic_int _max_thr_cnt = 0;   // max thread count
+            std::atomic_int _core_thr_cnt = 1;  // core thread count
+            std::atomic_int _idle_thr_cnt = 0;  // idle thread count
+            std::atomic_int _thr_cnt = 0;       // current thread count
+
+            std::mutex _task_mu;
+            std::condition_variable _task_cond;
 
             _scheduler_st_();
 
             ~_scheduler_st_();
 
             void stop();
+
+#ifndef M_PLATFORM_WIN
+            async_time_pool _time_pool;
+            std::atomic_flag _time_pool_flag;
+
+            bool run();
+#endif
+
+            void start_thread();
+
+            bool try_dead_thread();
+
+            void dead_thread(_schedule_thread_st_* st, bool idle_quit);
+
+            void steal_task(_schedule_thread_st_* st);
+
+            void wait(int32_t mill);
+
+            void notify_one();
         };
 
         extern _scheduler_st_ gscheduler;
-        extern thread_local _schedule_task_queue_st_* gcur_task_queue;
-        extern _schedule_task_queue_st_* global_task_queue;
-        extern thread_local _schedule_task_queue_st_* gnosteal_task_queue; // for windows
+        extern _schedule_base_queue_st_* gglobal_task_queue;
+        extern thread_local _schedule_base_queue_st_* glocal_task_queue;
+        extern thread_local _schedule_base_queue_st_* gnosteal_local_task_queue; // for windows
+        extern thread_local time_pool* glocal_time_pool;
 
         void add_global_task(std::function<void()>&& f);
         void add_local_task(std::function<void()>&& f);
-        void working_thread(int work_id);
         void schedule_task(const std::function<void()>& routine, int stack, const char* file, int line);
         void schedule_wait(int wait_mil);
+        void schedule_yield(void** data);
         void schedule_co(int64_t co_id, void*);
         void set_cgo_procs(int cnt);
         void set_core_pool(int cnt);
         void stop();
-        void start_thread();
+        // try to start a new thread
+        void trigger_new_thread();
+        void thread_func(int work_id, _schedule_thread_st_* st);
     }
 }

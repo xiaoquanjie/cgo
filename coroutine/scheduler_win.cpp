@@ -30,7 +30,7 @@ namespace cgo {
 			gscheduler._thr_tasks[work_id] = glocal_tasks;
 		}
 
-        void working_thread(int work_id) {
+        void thread_func(int work_id) {
 			init_local_task(work_id);
 			coroutine::gworkid = work_id;
 			
@@ -140,6 +140,7 @@ namespace cgo {
         }
 
         void schedule_wait(int wait_mil) {
+            assert(wait_mil <= M_MAX_CO_WAIT_TIME * 1000);
             auto co_id = coroutine::real_curid();
             if (co_id == M_INVALID_COROUTINE_ID) {
                 return;

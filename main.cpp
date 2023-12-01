@@ -37,6 +37,7 @@ void print_withtime(const std::string& msg) {
 }
 
 void cgo_test() {
+    //cgoprocs(1);
     bool* stop = new bool(true);
 
     go [stop]() {
@@ -296,7 +297,7 @@ void performance_test2() {
      *      单线程：2秒
      * */
 
-    cgoprocs(1);
+    //cgoprocs(2);
     for (int j = 0; j < 3; j++) {
         print_withtime("begin");
         std::atomic_int count = 0;
@@ -544,12 +545,15 @@ void time_pool_test() {
         p.update();
     });
 
+    print_withtime(std::string("beg count:") + std::to_string(p.timer_count()));
+
     thr0.join();
     thr.join();
     thr2.join();
     thr3.join();
 
     print_withtime(std::string("end count:") + std::to_string(count));
+    print_withtime(std::string("end count:") + std::to_string(p.timer_count()));
 }
 
 #include "common/work_steal_queue.hpp"
@@ -569,6 +573,8 @@ int main()
         t_work_steal_queue_test = 0,
         t_performance_base_test,
         t_performance_test2,
+        t_time_pool_test,
+        t_cgo_test,
     };
 
     switch (t_performance_base_test) {
@@ -579,11 +585,17 @@ int main()
         case t_performance_test2:
             performance_test2();
             break;
+        case t_time_pool_test:
+            time_pool_test();
+            break;
+        case t_cgo_test:
+            cgo_test();
+            break;
+
         default:
             break;
     }
 
-    //time_pool_test();
     //concurrentqueue_test();
     //slist_test();
     //mutex_slist_test();
@@ -594,7 +606,6 @@ int main()
     //lock_test();
     //time_test();
     //cond_test();
-    //cgo_test();
     pause();
 	std::cout << "finish\n";
 	return 0;

@@ -28,11 +28,11 @@ namespace cgo {
     }
 
     void cgo_procs(int cnt) {
-        scheduler::set_cgo_procs(cnt > 0 ? cnt : 1);
+        scheduler::set_cgo_procs(cnt);
     }
 
     void cgo_core_pool(int cnt) {
-        scheduler::set_core_pool(cnt > 0 ? cnt : 1);
+        scheduler::set_core_pool(cnt);
     }
 
     void cgo_stop() {

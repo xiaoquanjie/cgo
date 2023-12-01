@@ -60,8 +60,9 @@ bool time_pool::update() {
     uint32_t end_iter = calc_iter(big_bucket_loc, small_bucket_loc);
 
     bool busy = false;
-    auto cmp = [expire, &busy](timer_node& node) -> bool {
+    auto cmp = [expire, &busy, this](timer_node& node) -> bool {
         if (node._expire <= (uint64_t)expire) {
+            this->_timer_count--;
             node._cb();
             busy = true;
             return false;
@@ -89,6 +90,10 @@ bool time_pool::update() {
     this->_big_iter = big_bucket_loc;
     this->_small_iter = small_bucket_loc;
     return busy;
+}
+
+uint32_t time_pool::timer_count() const {
+    return this->_timer_count;
 }
 
 // @interval: ms
@@ -121,6 +126,7 @@ uint64_t time_pool::timer_add(const timer_node& node) {
     }
 
     nl->push(node);
+    this->_timer_count++;
     return node._timer_id;
 }
 
