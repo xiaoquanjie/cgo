@@ -82,11 +82,11 @@ namespace cgo {
         }
 
         void _schedule_global_queue_st_::enqueue(const task_type& f) {
-            _queue->enqueue(f);
+            assert(_queue->enqueue(f));
         }
 
         void _schedule_global_queue_st_::enqueue(task_type* f, bool& forward) {
-            _queue->enqueue(*f);
+            assert(_queue->enqueue(*f));
             forward = false;
         }
 
