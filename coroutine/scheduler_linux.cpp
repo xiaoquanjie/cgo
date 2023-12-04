@@ -38,6 +38,7 @@ namespace cgo {
                     idle_beg_time = 0;
                     st->_scheduler->_idle_thr_cnt--;
                     task();
+                    st->_scheduler->_task_op_cnt++;
                     st->_scheduler->_idle_thr_cnt++;
                     if (st->_scheduler->_stop) {
                         break;

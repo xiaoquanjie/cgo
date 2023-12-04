@@ -8,9 +8,17 @@
 //----------------------------------------------------------------*/
 
 #include "syntax.h"
-#include "scheduler.h"
 
 namespace cgo {
+    namespace scheduler {
+        void schedule_task(const std::function<void()>& routine, int stack, const char* file, int line);
+        void schedule_wait(int wait_mil);
+        void set_cgo_procs(int cnt);
+        void set_cgo_core(int cnt);
+        void stop();
+        void print_debug_info();
+    }
+
     void _cgo_syntax_st_::operator >>(const std::function<void()>& routine) {
         scheduler::schedule_task(routine, _stack, _file, _line);
     }
@@ -31,11 +39,15 @@ namespace cgo {
         scheduler::set_cgo_procs(cnt);
     }
 
-    void cgo_core_pool(int cnt) {
-        scheduler::set_core_pool(cnt);
+    void cgo_core(int cnt) {
+        scheduler::set_cgo_core(cnt);
     }
 
     void cgo_stop() {
         scheduler::stop();
+    }
+
+    void cgo_print_debug_info() {
+        scheduler::print_debug_info();
     }
 }

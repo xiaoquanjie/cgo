@@ -291,6 +291,23 @@ namespace cgo {
             this->_task_cond.notify_one();
         }
 
+        void _scheduler_st_::print_debug_info() {
+            _thread_mu.lock();
+            std::vector<std::shared_ptr<_schedule_thread_st_>> tmp_work_threads;
+            tmp_work_threads = _work_threads;
+            _thread_mu.unlock();
+
+
+            std::string output = "queue info:\n";
+            output += std::string("task operation count:") + std::to_string(this->_task_op_cnt) + "\n";
+            output += std::string("global queue count:") + std::to_string(this->_global_tasks.size()) + "\n";
+            for (auto thr : tmp_work_threads) {
+                auto local_task = thr->_local_task.load();
+                output += std::string("work id:") + std::to_string(thr->_work_id) + std::string(" local queue count:") + std::to_string(local_task->size()) + std::string("\n");
+            }
+            M_CO_DEBUG_PRINT("%s\n", output.c_str());
+        }
+
         _scheduler_st_ gscheduler;
         _schedule_base_queue_st_* gglobal_task_queue = &gscheduler._global_tasks;
         thread_local _schedule_base_queue_st_* glocal_task_queue = gglobal_task_queue;
@@ -304,7 +321,7 @@ namespace cgo {
             gscheduler._max_thr_cnt = cnt;
         }
 
-        void set_core_pool(int cnt) {
+        void set_cgo_core(int cnt) {
             if (cnt < 1) {
                 cnt = 1;
             }
@@ -313,6 +330,10 @@ namespace cgo {
 
         void stop() {
             gscheduler.stop();
+        }
+
+        void print_debug_info() {
+            gscheduler.print_debug_info();
         }
 
         void add_global_task(std::function<void()>&& f) {

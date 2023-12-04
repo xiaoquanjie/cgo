@@ -110,6 +110,7 @@ namespace cgo {
             std::atomic_int _core_thr_cnt = 1;  // core thread count
             std::atomic_int _idle_thr_cnt = 0;  // idle thread count
             std::atomic_int _thr_cnt = 0;       // current thread count
+            std::atomic_int _task_op_cnt = 0;
 
             std::mutex _task_mu;
             std::condition_variable _task_cond;
@@ -138,6 +139,8 @@ namespace cgo {
             void wait(int32_t mill);
 
             void notify_one();
+
+            void print_debug_info();
         };
 
         extern _scheduler_st_ gscheduler;
@@ -153,8 +156,9 @@ namespace cgo {
         void schedule_yield(void** data);
         void schedule_co(int64_t co_id, void*);
         void set_cgo_procs(int cnt);
-        void set_core_pool(int cnt);
+        void set_cgo_core(int cnt);
         void stop();
+        void print_debug_info();
         // try to start a new thread
         void trigger_new_thread();
         void thread_func(int work_id, _schedule_thread_st_* st);
