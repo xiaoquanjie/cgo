@@ -35,7 +35,7 @@
 
 // invalid coroutine id
 #undef M_INVALID_COROUTINE_ID
-#define M_INVALID_COROUTINE_ID (-1)
+#define M_INVALID_COROUTINE_ID (uint64_t)(-1)
 
 // for linux public stack
 #undef M_PUBLIC_STACK_SIZE

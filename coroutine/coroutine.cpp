@@ -12,18 +12,13 @@
 
 namespace cgo {
     namespace coroutine {
-        int64_t create(std::function<void()> routine, int stack, const char* file, int line);
+        uint64_t create(std::function<void()> routine, int stack, const char* file, int line);
 
-        int64_t curid() {
-            int64_t id = gmainco._curno;
-            if (id == -1) {
+        uint64_t curid() {
+            uint64_t id = gmainco._curno;
+            if (id == M_INVALID_COROUTINE_ID) {
                 return id;
             }
-
-#ifdef M_PLATFORM_WIN
-            int64_t workid = gworkid;
-            id = (workid << 32) + id;
-#endif
             return id;
         }
 
@@ -34,12 +29,12 @@ namespace cgo {
         }
 
 #endif
-        int64_t real_curid() {
+        uint64_t real_curid() {
             return gmainco._curno;
         }
 
-        bool suspend_wait(int64_t co_id) {
-            auto co = gschedule_st.get_co(co_id);
+        bool suspend_wait(uint64_t co_id) {
+            auto co = _co_st_::get_co(co_id);
             if (!co) {
                 assert(false);
                 return false;
@@ -49,8 +44,7 @@ namespace cgo {
         }
 
         int num() {
-            auto n = gschedule_st._no - gschedule_st._freenos.size_approx();
-            return (int)n;
+            return 0;
         }
 
         void run(std::function<void()> routine, int stack, const char* file, int line) {

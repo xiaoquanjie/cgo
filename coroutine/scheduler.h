@@ -21,9 +21,9 @@
 namespace cgo {
     namespace coroutine {
         void run(std::function<void()> routine, int stack, const char* file, int line);
-        void resume(int64_t co_id, void* data);
-        int64_t curid();
-        int64_t real_curid();
+        void resume(uint64_t co_id, void* data);
+        uint64_t curid();
+        uint64_t real_curid();
         void yield();
         void yield(void** data);
 #ifdef M_PLATFORM_WIN
@@ -81,6 +81,7 @@ namespace cgo {
             std::thread* _thr = 0;
             _scheduler_st_* _scheduler = 0;
             std::atomic<_schedule_base_queue_st_*> _local_task;
+            std::atomic_uint64_t _task_op_cnt = 0;
 #ifdef M_PLATFORM_WIN
             _schedule_base_queue_st_* _nosteal_local_task = 0;  // for windows
             time_pool _time_pool;
@@ -110,10 +111,7 @@ namespace cgo {
             std::atomic_int _core_thr_cnt = 1;  // core thread count
             std::atomic_int _idle_thr_cnt = 0;  // idle thread count
             std::atomic_int _thr_cnt = 0;       // current thread count
-            std::atomic_int _task_op_cnt = 0;
-
-            std::mutex _task_mu;
-            std::condition_variable _task_cond;
+            std::atomic_uint64_t _task_op_cnt = 0;
 
             _scheduler_st_();
 
@@ -124,7 +122,6 @@ namespace cgo {
 #ifndef M_PLATFORM_WIN
             async_time_pool _time_pool;
             std::atomic_flag _time_pool_flag;
-
             bool run();
 #endif
 
@@ -135,10 +132,6 @@ namespace cgo {
             void dead_thread(_schedule_thread_st_* st);
 
             void steal_task(_schedule_thread_st_* st);
-
-            void wait(int32_t mill);
-
-            void notify_one();
 
             void print_debug_info();
         };
@@ -154,7 +147,7 @@ namespace cgo {
         void schedule_task(const std::function<void()>& routine, int stack, const char* file, int line);
         void schedule_wait(int wait_mil);
         void schedule_yield(void** data);
-        void schedule_co(int64_t co_id, void*);
+        void schedule_co(uint64_t co_id, void*);
         void set_cgo_procs(int cnt);
         void set_cgo_core(int cnt);
         void stop();

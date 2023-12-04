@@ -14,19 +14,19 @@
 namespace cgo {
     namespace coroutine {
         // create one new coroutine
-        int64_t create(std::function<void()> routine, int stack = 0, const char* file = 0, int line = 0);
+        uint64_t create(std::function<void()> routine, int stack = 0, const char* file = 0, int line = 0);
 
         // resume a coroutine
-        void resume(int64_t co_id, void* data = 0);
+        void resume(uint64_t co_id, void* data = 0);
 
         // yield
         void yield();
 
         void yield(void** data);
 
-        int64_t curid();
+        uint64_t curid();
 
-        bool suspend_wait(int64_t co_id);
+        bool suspend_wait(uint64_t co_id);
 
         // number of running coroutine
         int num();

@@ -28,7 +28,6 @@ namespace cgo {
         struct _schedule_st_;
 
         struct _co_st_ {
-            volatile int _no = -1;
             volatile int _status = 0;
             std::function<void()> _routine;
             void* volatile _data = 0;
@@ -44,30 +43,13 @@ namespace cgo {
             ucontext_t *_mctx = 0;
             char *_stack = 0;
 #endif
-
-            static _co_st_* alloc(int stack);
+            uint64_t get_coid();
+            static _co_st_* alloc(std::function<void()> routine, int stack, const char* file, int line);
+            static _co_st_* get_co(uint64_t co_id);
+            static uint64_t get_coid(_co_st_*);
             static void free(_co_st_* co);
             static bool memory_check(_co_st_* co);
         };
-
-        struct _schedule_st_ {
-            // capicity
-            std::atomic_int _cap = 0;
-            std::atomic_int _no = 0;
-            _co_st_ **_co = 0;
-            std::shared_mutex _mu;
-            co_no_queue_type _freenos;
-
-            ~_schedule_st_();
-            _co_st_* alloc_co(std::function<void()> routine, int stack, const char* file, int line);
-            void free_co(_co_st_* co);
-            _co_st_* get_co(int64_t no);
-        private:
-            int alloc_no();
-            bool realloc_schedule();
-        };
-
-        extern _schedule_st_ gschedule_st;
 
         struct _main_co_st_ {
 #ifdef M_PLATFORM_WIN
@@ -76,7 +58,7 @@ namespace cgo {
             ucontext_t _ctx;
 #endif
             // current coroutine no
-            int64_t _curno = -1;
+            uint64_t _curno = M_INVALID_COROUTINE_ID;
 
             ~_main_co_st_();
         };

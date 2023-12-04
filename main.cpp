@@ -30,7 +30,7 @@ void print_withtime(const std::string& msg) {
 
 void pause() {
     while (true) {
-        std::this_thread::sleep_for(std::chrono::seconds(10));
+        std::this_thread::sleep_for(std::chrono::seconds(20*10));
         break;
     }
 
@@ -297,9 +297,11 @@ void performance_test2() {
      *  优化前：
      *      自由线程：需要30~35秒
      *      单线程：2秒
+     *  优化后：
+     *      自由线程: 600ms
      * */
 
-    cgoprocs(3);
+    //cgoprocs(3);
     for (int j = 0; j < 3; j++) {
         print_withtime("begin");
         std::atomic_int count = 0;
@@ -314,6 +316,7 @@ void performance_test2() {
 
         while (count != total_count) {
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            //cgo::cgo_print_debug_info();
             //std::cout << count << "\n";
         }
 
@@ -322,6 +325,39 @@ void performance_test2() {
         print_withtime(std::string("end: ") + std::to_string(elapsed.count()));
         std::cout << "==============\n";
     }
+}
+
+void performance_test3() {
+    //cgoprocs(2);
+    go []() {
+        print_withtime("start");
+
+        for (int j = 0; j < 3; j++) {
+            print_withtime("begin");
+            std::atomic_int count = 0;
+            auto beg = std::chrono::steady_clock::now();
+            const int total_count = 1000000;
+
+            for (int i = 0; i < total_count; i++) {
+                go [&count]() {
+                    count++;
+                };
+            }
+
+            print_withtime("post over");
+            cgo::cgo_print_debug_info();
+
+            while (count != total_count) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+                cgo::cgo_print_debug_info();
+            }
+
+            auto end = std::chrono::steady_clock::now();
+            auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - beg);
+            print_withtime(std::string("end: ") + std::to_string(elapsed.count()));
+            std::cout << "==============\n";
+        }
+    };
 }
 
 void atomic_test() {
@@ -573,17 +609,59 @@ void work_steal_queue_test() {
     std::cout << q.size() << "\n";
 }
 
+void condition_variable_test() {
+    std::mutex mu;
+    std::condition_variable cond;
+    moodycamel::ConcurrentQueue<int> queue;
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+
+    std::thread producer([&queue, &cond]() {
+        print_withtime("begin");
+        auto beg = std::chrono::steady_clock::now();
+        for (int i = 0; i < 1000000; i++) {
+            queue.enqueue(i);
+            cond.notify_one();
+        }
+        auto end = std::chrono::steady_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - beg);
+        print_withtime(std::string("end: ") + std::to_string(elapsed.count()));
+    });
+
+    for (int i = 0; i < 32; i++) {
+        std::thread([&queue, &mu, &cond](){
+            while (true) {
+                int i = 0;
+                if (!queue.try_dequeue(i)) {
+                    std::unique_lock<std::mutex> task_lock(mu);
+                    //std::chrono::milliseconds wait_t(50);
+                    cond.wait(task_lock);
+                }
+            }
+        }).detach();
+    }
+
+    producer.join();
+
+    while (true) {
+        std::this_thread::sleep_for(std::chrono::seconds(20*10));
+        break;
+    }
+}
+
 int main()
 {
     enum test_type {
         t_work_steal_queue_test = 0,
         t_performance_base_test,
         t_performance_test2,
+        t_performance_test3,
         t_time_pool_test,
         t_cgo_test,
+        t_condition_variable_test,
     };
 
-    switch (t_performance_base_test) {
+    switch (t_performance_test3) {
         case t_work_steal_queue_test:
             work_steal_queue_test();
             break;
@@ -591,13 +669,18 @@ int main()
         case t_performance_test2:
             performance_test2();
             break;
+        case t_performance_test3:
+            performance_test3();
+            break;
         case t_time_pool_test:
             time_pool_test();
             break;
         case t_cgo_test:
             cgo_test();
             break;
-
+        case t_condition_variable_test:
+            condition_variable_test();
+            break;
         default:
             break;
     }

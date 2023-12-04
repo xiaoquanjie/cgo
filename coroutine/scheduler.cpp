@@ -269,8 +269,9 @@ namespace cgo {
                     continue;
                 }
 
-                int32_t need = M_MAX_LOCAL_TASK_QUEUE - local_task->size();
-                need = std::min(need, (int32_t)(has / 2));
+                has = has % 2 != 0 ? (has / 2) + 1 : has / 2;
+                int32_t need = M_MAX_LOCAL_TASK_QUEUE - to_local_task->size();
+                need = std::min(need, (int32_t)has);
 
                 local_task->steal(need, to_local_task);
                 if (to_local_task->size() > 0) {
@@ -279,31 +280,21 @@ namespace cgo {
             }
         }
 
-        void _scheduler_st_::wait(int32_t mill) {
-            std::chrono::milliseconds wait_t(mill);
-            std::unique_lock<std::mutex> task_lock(_task_mu);
-            if (_global_tasks.size() == 0) {
-                this->_task_cond.wait_for(task_lock, wait_t);
-            }
-        }
-
-        void _scheduler_st_::notify_one() {
-            this->_task_cond.notify_one();
-        }
-
         void _scheduler_st_::print_debug_info() {
             _thread_mu.lock();
             std::vector<std::shared_ptr<_schedule_thread_st_>> tmp_work_threads;
             tmp_work_threads = _work_threads;
             _thread_mu.unlock();
 
-
             std::string output = "queue info:\n";
-            output += std::string("task operation count:") + std::to_string(this->_task_op_cnt) + "\n";
-            output += std::string("global queue count:") + std::to_string(this->_global_tasks.size()) + "\n";
+            output += std::string("global queue count:") + std::to_string(this->_global_tasks.size());
+            output += std::string(", global task operation count:") + std::to_string(this->_task_op_cnt);
+            output += std::string("\n");
             for (auto thr : tmp_work_threads) {
                 auto local_task = thr->_local_task.load();
-                output += std::string("work id:") + std::to_string(thr->_work_id) + std::string(" local queue count:") + std::to_string(local_task->size()) + std::string("\n");
+                output += std::string("work id:") + std::to_string(thr->_work_id) + std::string(" local queue count:") + std::to_string(local_task->size());
+                output += std::string(", local task operation count:") + std::to_string(thr->_task_op_cnt);
+                output += std::string("\n");
             }
             M_CO_DEBUG_PRINT("%s\n", output.c_str());
         }

@@ -25,22 +25,22 @@ namespace cgo {
         }
 
         // create one new coroutine
-        int64_t create(std::function<void()> routine, int stack, const char* file, int line) {
-            auto co = gschedule_st.alloc_co(routine, stack, file, line);
+        uint64_t create(std::function<void()> routine, int stack, const char* file, int line) {
+            auto co = _co_st_::alloc(routine, stack, file, line);
             getcontext(&co->_ctx);
             //co->_ctx.uc_link = 0;
             co->_ctx.uc_stack.ss_size = co->_ssize;
             co->_ctx.uc_stack.ss_sp = co->_stack;
             makecontext(&co->_ctx, (void(*)(void))co_routine, 1, co);
-            return co->_no;
+            return co->get_coid();
         }
 
         // resume a coroutine
-        void resume(int64_t co_id, void* data) {
-            if (gmainco._curno != -1) {
+        void resume(uint64_t co_id, void* data) {
+            if (gmainco._curno != M_INVALID_COROUTINE_ID) {
                 return;
             }
-            auto co = gschedule_st.get_co(co_id);
+            auto co = _co_st_::get_co(co_id);
             if (!co) {
                 return;
             }
@@ -55,9 +55,9 @@ namespace cgo {
                     swapcontext(co->_mctx, &co->_ctx);
                     co->_data = 0;
                     if (co->_status == COROUTINE_DEAD) {
-                        gschedule_st.free_co(co);
+                        _co_st_::free(co);
                     }
-                    gmainco._curno = -1;
+                    gmainco._curno = M_INVALID_COROUTINE_ID;
                     break;
                 }
                 default:
@@ -68,11 +68,11 @@ namespace cgo {
         }
 
         void yield(void** data) {
-            if (gmainco._curno == -1) {
+            if (gmainco._curno == M_INVALID_COROUTINE_ID) {
                 return;
             }
 
-            auto co = gschedule_st.get_co(gmainco._curno);
+            auto co = _co_st_::get_co(gmainco._curno);
             auto mctx = co->_mctx;
             co->_status = COROUTINE_SUSPEND;
             co->_mctx = 0;

@@ -19,7 +19,7 @@ namespace cgo {
     namespace channel {
         struct _wait_st_ {
             void* _data;
-            int64_t _co_id;
+            uint64_t _co_id;
         };
 
         struct _chan_st_ : public _i_chan_st_ {

@@ -23,21 +23,21 @@ namespace cgo {
             st->_local_task.store(new _schedule_local_queue_st_);
             glocal_task_queue = st->_local_task;
 
-            int32_t wait_t = 500;
             int32_t idle_beg_time = 0;
             bool idle_quit = false;
+            int idles = 0;
 
             for (;;) {
-                if (st->_scheduler->run()) {
-                    wait_t = 10;
-                }
+                st->_scheduler->run();
 
                 // run local task
                 task_type task;
                 while (glocal_task_queue->try_dequeue(task)) {
                     idle_beg_time = 0;
+                    idles = 0;
                     st->_scheduler->_idle_thr_cnt--;
                     task();
+                    st->_task_op_cnt++;
                     st->_scheduler->_task_op_cnt++;
                     st->_scheduler->_idle_thr_cnt++;
                     if (st->_scheduler->_stop) {
@@ -50,12 +50,14 @@ namespace cgo {
                     st->_scheduler->steal_task(st);
                     if (glocal_task_queue->size() == 0) {
                         // idle
+                        idles++;
                         if (idle_beg_time == 0) {
                             idle_beg_time =
                                     std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
                         }
-                        st->_scheduler->wait(wait_t);
-                        //M_CO_DEBUG_PRINT("work:%d queue:%d\n", work_id, glocal_task_queue->size());
+                        if (idles >= 500) {
+                            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                        }
                     }
                 }
 
@@ -85,7 +87,7 @@ namespace cgo {
         }
 
         // thread-safety
-        void schedule_co(int64_t co_id, void* data) {
+        void schedule_co(uint64_t co_id, void* data) {
             std::function<void()> f = std::bind(coroutine::resume, co_id, data);
             add_global_task(std::move(f));
         }
