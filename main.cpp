@@ -208,41 +208,42 @@ void cqueue_test() {
 }
 
 void chan_test() {
+    /* 1000000次数据，16个协程
+     * golang 测试：
+     *  无缓存：300ms
+     *  100缓存：100ms
+     * */
     cgo::chan<int> ch;
     ch = makechan<int>(0);
 	std::cout << "ref:" << ch.use_count() << "\n";
-	
-	go [ch]() {
-        while (true) {
-            int i;
-            auto ok = ch << i;
-			if (!ok) {
-				break;
-			}
-            print_withtime(("co1:" + std::to_string(i)).c_str());
+    print_withtime("begin");
+
+    int total = 1000000;
+    std::atomic_int count = 0;
+
+	go [ch, &count, total]() {
+        for (int i = 0; i < total; i++) {
+            ch >> i;
         }
     };
 
-	go[ch]() {
-		while (true) {
-			int i;
-			auto ok = ch << i;
-			if (!ok) {
-				break;
-			}
-			print_withtime(("co2:" + std::to_string(i)).c_str());
-		}
-	};
+    for (int i=0; i< 16; i++) {
+        go [ch, &count]() {
+            while (true) {
+                int v;
+                auto ok = ch << v;
+                if (!ok) {
+                    break;
+                } else {
+                    count++;
+                }
+            }
 
-	go[ch]() {
-		std::cout << "ref:" << ch.use_count() << "\n";
-		
-		for (int i = 0; i < 100; i++) {
-			ch >> i;
-		}
+        };
+    }
 
-		//closechan(ch);
-	};
+    while (count != total) {}
+    print_withtime("end");
 }
 
 void performance_test() {
@@ -669,9 +670,10 @@ int main()
         t_cgo_test,
         t_cgo_wait_test,
         t_condition_variable_test,
+        t_chan_test,
     };
 
-    switch (t_performance_base_test) {
+    switch (t_chan_test) {
         case t_work_steal_queue_test:
             work_steal_queue_test();
             break;
@@ -696,6 +698,9 @@ int main()
         case t_cgo_wait_test:
             cgo_wait_test();
             break;
+        case t_chan_test:
+            chan_test();
+            break;
         default:
             break;
     }
@@ -705,7 +710,6 @@ int main()
     //mutex_slist_test();
     //caslist_test();
     //atomic_test();
-    //chan_test();
     //cqueue_test();
     //lock_test();
     //time_test();

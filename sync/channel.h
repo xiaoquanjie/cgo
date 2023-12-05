@@ -68,8 +68,7 @@ namespace cgo {
         protected:
             inline bool read(T& v) const {
                 if (!_ch) {
-                    assert(0==1 && ("chan is nil"));
-                    return false;
+                    throw "chan is nil";
                 }
 
                 void* pv = 0;
@@ -83,9 +82,9 @@ namespace cgo {
 
             inline bool write(const T& v) const {
                 if (!_ch) {
-                    assert(0==1 && ("chan is nil"));
-                    return false;
+                    throw "chan is nil";
                 }
+
                 auto pv = new T(v);
                 if (!_ch->write(pv)) {
                     _destructor(pv);
@@ -123,5 +122,8 @@ namespace cgo {
     using channel::chan;
 }
 
+#undef makechan
 #define makechan cgo::channel::makeChan
+
+#undef closechan
 #define closechan cgo::channel::closeChan
