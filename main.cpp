@@ -30,7 +30,7 @@ void print_withtime(const std::string& msg) {
 
 void pause() {
     while (true) {
-        std::this_thread::sleep_for(std::chrono::seconds(20*10));
+        std::this_thread::sleep_for(std::chrono::seconds(10));
         break;
     }
 
@@ -345,7 +345,7 @@ void performance_test3() {
             print_withtime("begin");
             std::atomic_int count = 0;
             auto beg = std::chrono::steady_clock::now();
-            const int total_count = 1000000;
+            const int total_count = 10000;
 
             for (int i = 0; i < total_count; i++) {
                 go [&count]() {
@@ -671,7 +671,7 @@ int main()
         t_condition_variable_test,
     };
 
-    switch (t_performance_test2) {
+    switch (t_performance_test3) {
         case t_work_steal_queue_test:
             work_steal_queue_test();
             break;

@@ -31,6 +31,7 @@ namespace cgo {
 
             st->_nosteal_local_task = new _schedule_global_queue_st_;
             gnosteal_local_task_queue = st->_nosteal_local_task;
+            glocal_time_pool = &st->_time_pool;
 
             int64_t idle_beg_time = 0;
             bool idle_quit = false;
@@ -93,6 +94,7 @@ namespace cgo {
 
             glocal_task_queue = nullptr;
             gnosteal_local_task_queue = nullptr;
+            glocal_time_pool = nullptr;
 
             if (idle_quit) {
                 st->_scheduler->dead_thread(st);
