@@ -248,6 +248,10 @@ namespace cgo {
             tmp_work_threads = _work_threads;
             _thread_mu.unlock();
 
+            if (tmp_work_threads.empty()) {
+                return;
+            }
+
             uint64_t full = tmp_work_threads.size();
             uint64_t rn = (uint64_t)(&tmp_work_threads);
             rn %= full;
