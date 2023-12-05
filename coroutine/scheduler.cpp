@@ -179,7 +179,7 @@ namespace cgo {
         void _scheduler_st_::start_thread() {
             auto task_size = _global_tasks.size();
             if (_thr_cnt >= _max_thr_cnt
-                || (_idle_thr_cnt != 0 && task_size > M_MAX_LOCAL_TASK_QUEUE)) {
+                || (_idle_thr_cnt != 0 && task_size < M_MAX_LOCAL_TASK_QUEUE)) {
                 return;
             }
 
@@ -188,7 +188,7 @@ namespace cgo {
             // double check
             task_size = _global_tasks.size();
             if (_thr_cnt >= _max_thr_cnt
-                || (_idle_thr_cnt != 0 && task_size > M_MAX_LOCAL_TASK_QUEUE)) {
+                || (_idle_thr_cnt != 0 && task_size < M_MAX_LOCAL_TASK_QUEUE)) {
                 return;
             }
 
@@ -292,6 +292,9 @@ namespace cgo {
             output += std::string("\n");
             for (auto thr : tmp_work_threads) {
                 auto local_task = thr->_local_task.load();
+                if (!local_task) {
+                    continue;
+                }
                 output += std::string("work id:") + std::to_string(thr->_work_id) + std::string(" local queue count:") + std::to_string(local_task->size());
                 output += std::string(", local task operation count:") + std::to_string(thr->_task_op_cnt);
                 output += std::string("\n");
