@@ -22,31 +22,40 @@ namespace cgo {
 
         _co_st_* _co_st_::alloc(std::function<void()> routine, int stack, const char* file, int line) {
             auto co = new _co_st_;
-            co->_ssize = stack <= 0 ? M_PRIVATE_STACK_SIZE : stack;
-#ifndef M_PLATFORM_WIN
-            // init stack
-            co->_stack = (char*) malloc(co->_ssize);
-            memset(co->_stack, 0, 8);
-            gmem.add(co->_ssize);
-#endif
             assert(co != 0);
+            if (stack <= 0) {
+                stack = M_PRIVATE_STACK_SIZE;
+            }
+            return init(co, routine, stack, file, line);
+        }
+
+        _co_st_* _co_st_::init(_co_st_* co, std::function<void()> routine, int stack, const char* file, int line) {
+            co->_ssize = stack;
             co->_status = COROUTINE_READY;
             co->_routine = routine;
             co->_file = file;
             co->_line = line;
+
+#ifndef M_PLATFORM_WIN
+            // init stack
+            co->_stack = (char*) malloc(co->_ssize);
+            memset(co->_stack, 0, 8);
+#endif
             gmem.add(sizeof(_co_st_));
+            gmem.add(co->_ssize);
             return co;
         }
 
         void _co_st_::free(_co_st_ *co) {
+            assert(co != 0);
 #ifndef M_PLATFORM_WIN
             if (co->_stack) {
                 // call global free
                 ::free(co->_stack);
-                gmem.dec(co->_ssize);
             }
 #endif
-            assert(co != 0);
+            gmem.dec(sizeof(_co_st_));
+            gmem.dec(co->_ssize);
             delete co;
         }
 

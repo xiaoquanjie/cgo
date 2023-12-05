@@ -22,138 +22,109 @@ namespace cgo {
     }
 
     namespace scheduler {
-		thread_local std::shared_ptr<_local_task_st_> glocal_tasks;
+        void thread_func(int work_id, _schedule_thread_st_* st) {
+            M_CO_DEBUG_PRINT("start cgo working thread:%d\n", work_id);
 
-		void init_local_task(int work_id) {
-			glocal_tasks = std::make_shared<_local_task_st_>();
-			std::unique_lock<std::mutex> lock(gscheduler._thread_mu);
-			gscheduler._thr_tasks[work_id] = glocal_tasks;
-		}
+            st->_scheduler->_idle_thr_cnt++;
+            st->_local_task.store(new _schedule_local_queue_st_);
+            glocal_task_queue = st->_local_task;
 
-        void thread_func(int work_id) {
-			init_local_task(work_id);
-			coroutine::gworkid = work_id;
-			
-            std::chrono::time_point<std::chrono::steady_clock> last_idle_time;
-            std::chrono::seconds idle_add_time(0);
-            auto& scheduler = gscheduler;
-            M_CO_DEBUG_PRINT("start working thread:%d\n", work_id);
+            st->_nosteal_local_task = new _schedule_global_queue_st_;
+            gnosteal_local_task_queue = st->_nosteal_local_task;
 
-            while (true) {
-                // local task first
-                slist<std::function<void()>> local_task;
-                {
-                    std::unique_lock<std::mutex> lock(glocal_tasks->_task_mu);
-					glocal_tasks->_tasks.swap(local_task);
-                }
+            int64_t idle_beg_time = 0;
+            bool idle_quit = false;
+            int idles = 0;
 
-                if (local_task.size()) {
-                    scheduler._idle_thr_cnt--;
-                    while (local_task.size()) {
-                        auto task = local_task.front();
-                        local_task.pop();
+            _schedule_base_queue_st_* local_queues[2] = { gnosteal_local_task_queue , glocal_task_queue };
+
+            for (;;) {
+                st->_time_pool.update();
+
+                // run nosteal local task
+                task_type task;
+                for (auto& que : local_queues) {
+                    while (que->try_dequeue(task)) {
+                        idle_beg_time = 0;
+                        idles = 0;
+                        st->_scheduler->_idle_thr_cnt--;
                         task();
-                    }
-                    scheduler._idle_thr_cnt++;
-                }
-
-                // grab the run right of time pool
-                std::chrono::milliseconds wait_t(2000);
-                if (!scheduler._time_pool_flag.test_and_set()) {
-                    scheduler._time_pool.update();
-                    scheduler._time_pool_flag.clear();
-                    wait_t = std::chrono::milliseconds(10);
-                }
-
-                if (coroutine::num_in_thread() > 0) {
-                    wait_t = std::chrono::milliseconds(10);
-                }
-
-                std::function<void()> task;
-                {
-                    std::unique_lock<std::mutex> task_lock(scheduler._task_mu);
-					if (scheduler._tasks.empty()) {
-						scheduler._task_cond.wait_for(task_lock, wait_t);
-					}
-
-                    if (scheduler._stop) {
-                        break;
-                    }
-
-                    if (!scheduler._tasks.empty()) {
-                        task = scheduler._tasks.front();
-                        scheduler._tasks.pop();
+                        st->_task_op_cnt++;
+                        st->_scheduler->_task_op_cnt++;
+                        st->_scheduler->_idle_thr_cnt++;
+                        if (st->_scheduler->_stop) {
+                            break;
+                        }
                     }
                 }
 
-                if (task) {
-                    idle_add_time = std::chrono::seconds(0);
-                    scheduler._idle_thr_cnt--;
-                    task();
-                    scheduler._idle_thr_cnt++;
-                } 
-
-				if (coroutine::num_in_thread() == 0) {
-                    auto now = std::chrono::steady_clock::now();
-                    if (idle_add_time == std::chrono::seconds(0)) {
-                        idle_add_time = std::chrono::seconds(1);
+                if (glocal_task_queue->size() == 0) {
+                    // steal from the other queue
+                    st->_scheduler->steal_task(st);
+                    if (glocal_task_queue->size() == 0) {
+                        // idle
+                        idles++;
+                        if (idle_beg_time == 0) {
+                            idle_beg_time =
+                                std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+                        }
+                        if (idles >= 500) {
+                            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                        }
                     }
-                    else {
-                        idle_add_time += std::chrono::duration_cast<std::chrono::seconds>(now - last_idle_time);
-                    }
-                    last_idle_time = now;
+                }
 
-					//M_CO_DEBUG_PRINT("wait:%d\n", wait_t.count());
-                    if (idle_add_time >= std::chrono::seconds(M_CO_IDLE_TIME)) {
-						// idle over one minute
-						std::unique_lock<std::mutex> lock(scheduler._thread_mu);
-						if ((int)scheduler._threads.size() > scheduler._core_thr_cnt) {
-							scheduler._threads[work_id].detach();
-							scheduler._threads.erase(work_id);
-							scheduler._thr_tasks.erase(work_id);
-							break;
-						}
-					}
-				}
+                if (st->_scheduler->_stop) {
+                    break;
+                }
+
+                if (idle_beg_time != 0) {
+                    auto now =
+                        std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+                    if (now - idle_beg_time >= M_CO_IDLE_TIME) {
+                        if (st->_scheduler->try_dead_thread()) {
+                            idle_quit = true;
+                            M_CO_DEBUG_PRINT("idle thread:%d\n", work_id);
+                            break;
+                        }
+                    }
+                }
             }
 
-            scheduler._idle_thr_cnt--;
-            M_CO_DEBUG_PRINT("quit working thread:%d\n", work_id);
+            glocal_task_queue = nullptr;
+            gnosteal_local_task_queue = nullptr;
+
+            if (idle_quit) {
+                st->_scheduler->dead_thread(st);
+            }
+            M_CO_DEBUG_PRINT("quit cgo working thread:%d\n", work_id);
         }
 
-        void schedule_co(int64_t co_id, void* data) {
-            int32_t work_id = -1;
-            int64_t real_co_id = -1;
-            coroutine::decode_coid(co_id, work_id, real_co_id);
-            assert(work_id != -1 && real_co_id != -1);
-
-			std::unique_lock<std::mutex> lock(gscheduler._thread_mu);
-			auto iter = gscheduler._thr_tasks.find(work_id);
-			if (iter != gscheduler._thr_tasks.end()) {
-				auto local_task = iter->second;
-				assert(local_task);
-				std::unique_lock<std::mutex> lock2(local_task->_task_mu);
-				local_task->_tasks.push([real_co_id, data]() {
-					coroutine::resume(real_co_id, data);
-				});
-			}
+        void schedule_co(uint64_t co_id, void* data) {
+            auto co = coroutine::_co_st_::get_co(co_id);
+            assert(co != 0);
+            _schedule_base_queue_st_* nosteal_que = (_schedule_base_queue_st_*)co->_lque;
+            std::function<void()> task = std::bind(coroutine::resume, co_id, data);
+            nosteal_que->enqueue(task);
         }
 
         void schedule_wait(int wait_mil) {
             assert(wait_mil <= M_MAX_CO_WAIT_TIME * 1000);
-            auto co_id = coroutine::real_curid();
+            auto co_id = coroutine::curid();
             if (co_id == M_INVALID_COROUTINE_ID) {
                 return;
             }
 
-			auto local_task = glocal_tasks;
-            gscheduler._time_pool.async_add_timer(wait_mil, [co_id, local_task]() {
-                std::unique_lock<std::mutex> lock(local_task->_task_mu);
-                local_task->_tasks.push([co_id]() {
-                    coroutine::resume(co_id, 0);
-                });
-            });
+            auto co = coroutine::_co_st_::get_co(co_id);
+            assert(co != 0);
+            co->_lque = (void*)gnosteal_local_task_queue;
 
+            std::function<void()> timer_func = [co_id]() {
+                std::function<void()> task = std::bind(coroutine::resume, co_id, nullptr);
+                add_local_task(std::move(task), true);
+            };
+
+            glocal_time_pool->add_timer(wait_mil, std::move(timer_func));
             coroutine::yield();
         }
     }

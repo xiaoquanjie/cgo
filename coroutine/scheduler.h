@@ -23,13 +23,8 @@ namespace cgo {
         void run(std::function<void()> routine, int stack, const char* file, int line);
         void resume(uint64_t co_id, void* data);
         uint64_t curid();
-        uint64_t real_curid();
         void yield();
         void yield(void** data);
-#ifdef M_PLATFORM_WIN
-        void decode_coid(int64_t co_id, int32_t& work_id, int64_t& real_id);
-        int num_in_thread();
-#endif
     }
 
     namespace scheduler {
@@ -140,10 +135,10 @@ namespace cgo {
         extern _schedule_base_queue_st_* gglobal_task_queue;
         extern thread_local _schedule_base_queue_st_* glocal_task_queue;
         extern thread_local _schedule_base_queue_st_* gnosteal_local_task_queue; // for windows
-        extern thread_local time_pool* glocal_time_pool;
+        extern thread_local time_pool* glocal_time_pool;    // for windows
 
         void add_global_task(std::function<void()>&& f);
-        void add_local_task(std::function<void()>&& f);
+        void add_local_task(std::function<void()>&& f, bool nosteal);
         void schedule_task(const std::function<void()>& routine, int stack, const char* file, int line);
         void schedule_wait(int wait_mil);
         void schedule_yield(void** data);

@@ -84,11 +84,6 @@ namespace cgo {
                 co->_data = 0;
             }
         }
-
-        // yield
-        void yield() {
-            yield(0);
-        }
     }
 }
 #endif

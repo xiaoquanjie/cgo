@@ -23,7 +23,7 @@ namespace cgo {
             st->_local_task.store(new _schedule_local_queue_st_);
             glocal_task_queue = st->_local_task;
 
-            int32_t idle_beg_time = 0;
+            int64_t idle_beg_time = 0;
             bool idle_quit = false;
             int idles = 0;
 
@@ -101,20 +101,11 @@ namespace cgo {
 
             std::function<void()> timer_func = [co_id]() {
                 std::function<void()> task = std::bind(coroutine::resume, co_id, nullptr);
-                add_local_task(std::move(task));
+                add_local_task(std::move(task), false);
             };
 
             gscheduler._time_pool.async_add_timer(wait_mil, std::move(timer_func));
             coroutine::yield();
-        }
-
-        void schedule_yield(void** data) {
-            auto co_id = coroutine::curid();
-            if (co_id == M_INVALID_COROUTINE_ID) {
-                return;
-            }
-
-            coroutine::yield(data);
         }
     }
 }

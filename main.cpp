@@ -100,6 +100,15 @@ void cgo_test() {
     }
 }
 
+void cgo_wait_test() {
+    go []() {
+        while (true) {
+            cgo::cgo_print_debug_info();
+            gowait(1000);
+        }
+    };
+}
+
 void cond_test() {
     std::mutex mu;
     std::condition_variable cond;
@@ -658,10 +667,11 @@ int main()
         t_performance_test3,
         t_time_pool_test,
         t_cgo_test,
+        t_cgo_wait_test,
         t_condition_variable_test,
     };
 
-    switch (t_performance_test3) {
+    switch (t_performance_test2) {
         case t_work_steal_queue_test:
             work_steal_queue_test();
             break;
@@ -680,6 +690,9 @@ int main()
             break;
         case t_condition_variable_test:
             condition_variable_test();
+            break;
+        case t_cgo_wait_test:
+            cgo_wait_test();
             break;
         default:
             break;

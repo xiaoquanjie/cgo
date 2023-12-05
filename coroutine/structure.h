@@ -38,6 +38,7 @@ namespace cgo {
 #ifdef M_PLATFORM_WIN
             LPVOID _ctx = 0;
             LPVOID _mctx = 0;
+            void* volatile _lque = 0;
 #else
             ucontext_t _ctx;
             ucontext_t *_mctx = 0;
@@ -45,6 +46,7 @@ namespace cgo {
 #endif
             uint64_t get_coid();
             static _co_st_* alloc(std::function<void()> routine, int stack, const char* file, int line);
+            static _co_st_* init(_co_st_*, std::function<void()> routine, int stack, const char* file, int line);
             static _co_st_* get_co(uint64_t co_id);
             static uint64_t get_coid(_co_st_*);
             static void free(_co_st_* co);
@@ -72,11 +74,5 @@ namespace cgo {
         };
 
         extern _memory_st_ gmem;
-
-#ifdef M_PLATFORM_WIN
-        extern thread_local std::atomic_int gwincocount;
-        extern thread_local std::atomic_int gworkid;
-#endif
-
     }
 }

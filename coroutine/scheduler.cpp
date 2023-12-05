@@ -10,6 +10,8 @@
 #include "scheduler.h"
 #include "structure.h"
 #include <memory>
+#include <algorithm>
+#include <string>
 
 namespace cgo {
     namespace scheduler {
@@ -270,9 +272,13 @@ namespace cgo {
                 }
 
                 has = has % 2 != 0 ? (has / 2) + 1 : has / 2;
-                int32_t need = M_MAX_LOCAL_TASK_QUEUE - to_local_task->size();
-                need = std::min(need, (int32_t)has);
+                int32_t need = M_MAX_LOCAL_TASK_QUEUE - (int32_t)to_local_task->size();
+                if (need <= 0) {
+                    continue;
+                }
 
+                // (std::min) for windows
+                need = (std::min)(need, (int32_t)has);
                 local_task->steal(need, to_local_task);
                 if (to_local_task->size() > 0) {
                     break;
@@ -343,12 +349,16 @@ namespace cgo {
             trigger_new_thread();
         }
 
-        void add_local_task(std::function<void()>&& f) {
+        void add_local_task(std::function<void()>&& f, bool nosteal) {
             if (glocal_task_queue == gglobal_task_queue) {
                 assert(false);
             } else {
-                glocal_task_queue->enqueue(f);
-                trigger_new_thread();
+                if (nosteal) {
+                    gnosteal_local_task_queue->enqueue(f);
+                } else {
+                    glocal_task_queue->enqueue(f);
+                    trigger_new_thread();
+                }
             }
         }
 
@@ -360,6 +370,15 @@ namespace cgo {
 
         void trigger_new_thread() {
             gscheduler.start_thread();
+        }
+
+        void schedule_yield(void** data) {
+            auto co_id = coroutine::curid();
+            if (co_id == M_INVALID_COROUTINE_ID) {
+                return;
+            }
+
+            coroutine::yield(data);
         }
     }
 }

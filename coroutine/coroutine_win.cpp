@@ -22,8 +22,6 @@ namespace cgo {
             auto co = (_co_st_ *) p;
             co->_routine();
             co->_status = COROUTINE_DEAD;
-            gmem.dec(co->_ssize);
-            gwincocount -= 1;
             ::SwitchToFiber(co->_mctx);
         }
 
@@ -41,29 +39,33 @@ namespace cgo {
             }
         }
 
-        int64_t create(std::function<void()> routine, int stack, const char* file, int line) {
+        uint64_t create(std::function<void()> routine, int stack, const char* file, int line) {
             win_init();
 
-            auto co = gschedule_st.alloc_co(routine, stack, file, line);
-            LPVOID ctx = ::CreateFiberEx(co->_ssize, 0, FIBER_FLAG_FLOAT_SWITCH, co_routine, co);
-            if (!ctx) {
-                M_CO_DEBUG_PRINT("windows create coroutine error:%d\n", ::GetLastError());
-                gschedule_st.free_co(co);
-                return M_INVALID_COROUTINE_ID;
+            auto co = new _co_st_;
+            assert(co != 0);
+            if (stack <= 0) {
+                stack = M_PRIVATE_STACK_SIZE;
             }
 
+            LPVOID ctx = ::CreateFiberEx(stack, 0, FIBER_FLAG_FLOAT_SWITCH, co_routine, co);
+            assert(ctx);
+            if (!ctx) {
+                _co_st_::free(co);
+                throw std::string("memory not enough");
+            }
+           
+            _co_st_::init(co, routine, stack, file, line);
             co->_ctx = ctx;
             co->_mctx = gmainco._ctx;
-            gmem.add(co->_ssize);
-            gwincocount += 1;
-            return co->_no;
+            return co->get_coid();
         }
 
-        void resume(int64_t co_id, void* data) {
-            if (gmainco._curno != -1) {
+        void resume(uint64_t co_id, void* data) {
+            if (gmainco._curno != M_INVALID_COROUTINE_ID) {
                 return;
             }
-            auto co = gschedule_st.get_co(co_id);
+            auto co = _co_st_::get_co(co_id);
             if (!co) {
                 return;
             }
@@ -77,9 +79,9 @@ namespace cgo {
                     ::SwitchToFiber(co->_ctx);
                     co->_data = 0;
                     if (co->_status == COROUTINE_DEAD) {
-                        gschedule_st.free_co(co);
+                        _co_st_::free(co);
                     }
-                    gmainco._curno = -1;
+                    gmainco._curno = M_INVALID_COROUTINE_ID;
                     break;
                 }
                 default:
@@ -93,7 +95,7 @@ namespace cgo {
 				return;
 			}
 
-			auto co = gschedule_st.get_co(gmainco._curno);
+            auto co = _co_st_::get_co(gmainco._curno);
 			co->_status = COROUTINE_SUSPEND;
 			::SwitchToFiber(co->_mctx);
 
@@ -102,14 +104,6 @@ namespace cgo {
 				co->_data = 0;
 			}
 		}
-
-        void yield() {
-			yield(0);
-        }
-
-        int num_in_thread() {
-            return gwincocount;
-        }
     }
 }
 #endif

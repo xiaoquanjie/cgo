@@ -22,17 +22,6 @@ namespace cgo {
             return id;
         }
 
-#ifdef M_PLATFORM_WIN
-        void decode_coid(int64_t co_id, int32_t& work_id, int64_t& real_id) {
-            work_id = co_id >> 32;
-            real_id = co_id & 0xFFFFFFFF;
-        }
-
-#endif
-        uint64_t real_curid() {
-            return gmainco._curno;
-        }
-
         bool suspend_wait(uint64_t co_id) {
             auto co = _co_st_::get_co(co_id);
             if (!co) {
@@ -58,6 +47,11 @@ namespace cgo {
 
         int memory() {
             return gmem._mem;
+        }
+
+        // yield
+        void yield() {
+            yield(0);
         }
     }
 }
