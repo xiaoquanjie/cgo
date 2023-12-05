@@ -671,11 +671,13 @@ int main()
         t_condition_variable_test,
     };
 
-    switch (t_performance_test3) {
+    switch (t_performance_base_test) {
         case t_work_steal_queue_test:
             work_steal_queue_test();
             break;
         case t_performance_base_test:
+            performance_base_test();
+            break;
         case t_performance_test2:
             performance_test2();
             break;
