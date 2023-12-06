@@ -35,7 +35,6 @@ void pause() {
     }
 
     print_withtime("try to stop");
-    cgostop();
 }
 
 void cgo_test() {
@@ -101,10 +100,19 @@ void cgo_test() {
 }
 
 void cgo_wait_test() {
+    cgoprocs(2);
     go []() {
+        go []() {
+            while (true) {
+                cgo::cgo_print_debug_info();
+                gowait(1000);
+            }
+        };
+
         while (true) {
-            cgo::cgo_print_debug_info();
-            gowait(1000);
+            print_withtime("thread sleep");
+            //cgo::cgo_print_debug_info();
+            std::this_thread::sleep_for(std::chrono::seconds(1));
         }
     };
 }
@@ -673,7 +681,7 @@ int main()
         t_chan_test,
     };
 
-    switch (t_chan_test) {
+    switch (t_performance_test2) {
         case t_work_steal_queue_test:
             work_steal_queue_test();
             break;

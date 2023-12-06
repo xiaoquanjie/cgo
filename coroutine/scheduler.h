@@ -20,6 +20,7 @@
 
 namespace cgo {
     namespace coroutine {
+        uint64_t create(std::function<void()> routine, int stack, const char* file, int line);
         void run(std::function<void()> routine, int stack, const char* file, int line);
         void resume(uint64_t co_id, void* data);
         uint64_t curid();
@@ -94,6 +95,22 @@ namespace cgo {
         using schedule_thread_st_type = std::shared_ptr<_schedule_thread_st_>;
         using dead_thread_queue_type = slist<schedule_thread_st_type>;
 
+        struct _co_pool_st_ {
+            struct _co_pool_item_st_ {
+                uint64_t _co_id = 0;
+                task_type* volatile _routine;
+                const char* _file;
+                int _line;
+                _co_pool_st_* _co_pool;
+            };
+
+            _co_pool_item_st_* create_item(const task_type& routine, const char* file, int line);
+
+            bool recycle_item(_co_pool_item_st_*);
+        private:
+            moodycamel::ConcurrentQueue<_co_pool_item_st_*> _pool;
+        };
+
         struct _scheduler_st_ {
             _schedule_global_queue_st_ _global_tasks;
             dead_thread_queue_type _dead_threads;
@@ -115,6 +132,7 @@ namespace cgo {
             void stop();
 
 #ifndef M_PLATFORM_WIN
+            _co_pool_st_ _co_pool;
             async_time_pool _time_pool;
             std::atomic_flag _time_pool_flag;
             bool run();
@@ -137,15 +155,16 @@ namespace cgo {
         extern thread_local _schedule_base_queue_st_* gnosteal_local_task_queue; // for windows
         extern thread_local time_pool* glocal_time_pool;    // for windows
 
-        void add_global_task(std::function<void()>&& f);
-        void add_local_task(std::function<void()>&& f, bool nosteal);
-        void schedule_task(const std::function<void()>& routine, int stack, const char* file, int line);
+        void co_pool_func(void*);
+        void add_global_task(task_type&& f);
+        void add_local_task(task_type&& f, bool nosteal);
+        void schedule_task(const task_type& routine, int stack, const char* file, int line);
         void schedule_wait(int wait_mil);
         void schedule_yield(void** data);
         void schedule_co(uint64_t co_id, void*);
         void set_cgo_procs(int cnt);
         void set_cgo_core(int cnt);
-        void stop();
+        void cgo_stop();
         void print_debug_info();
         // try to start a new thread
         void trigger_new_thread();

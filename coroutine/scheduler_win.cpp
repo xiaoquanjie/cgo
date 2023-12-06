@@ -25,7 +25,6 @@ namespace cgo {
         void thread_func(int work_id, _schedule_thread_st_* st) {
             M_CO_DEBUG_PRINT("start cgo working thread:%d\n", work_id);
 
-            st->_scheduler->_idle_thr_cnt++;
             st->_local_task.store(new _schedule_local_queue_st_);
             glocal_task_queue = st->_local_task;
 
@@ -48,10 +47,10 @@ namespace cgo {
                     while (que->try_dequeue(task)) {
                         idle_beg_time = 0;
                         idles = 0;
-                        st->_scheduler->_idle_thr_cnt--;
-                        task();
-                        st->_task_op_cnt++;
+                        st->_scheduler->_idle_thr_cnt--;                      
                         st->_scheduler->_task_op_cnt++;
+                        st->_task_op_cnt++;
+                        task();                      
                         st->_scheduler->_idle_thr_cnt++;
                         if (st->_scheduler->_stop) {
                             break;

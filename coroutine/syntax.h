@@ -35,14 +35,12 @@ namespace cgo {
 
     void cgo_core(int cnt);
 
-    void cgo_stop();
-
     void cgo_print_debug_info();
 }
 
+// learn from libgo
 #define go cgo::_cgo_syntax_st_(__FILE__, __LINE__) >>
 #define gostack(size) cgo::_cgo_stack_st_{size} >>
 #define gowait(mil) cgo::cgo_wait(mil)
 #define cgoprocs(cnt) cgo::cgo_procs(cnt)
 #define cgocore(cnt) cgo::cgo_core(cnt)
-#define cgostop() cgo::cgo_stop()

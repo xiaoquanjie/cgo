@@ -109,6 +109,34 @@ namespace cgo {
 
         //////////////////////////////////////////////////////////////
 
+        _co_pool_st_::_co_pool_item_st_* _co_pool_st_::create_item(const task_type& routine, const char* file, int line) {
+            _co_pool_item_st_* item = 0;
+            if (!_pool.try_dequeue(item)) {
+                item = new _co_pool_item_st_;
+                task_type f = std::bind(co_pool_func, item);
+                item->_co_id = coroutine::create(f, 0, 0, 0);
+                item->_routine = new task_type;
+                item->_co_pool = this;
+            }
+            *item->_routine = routine;
+            item->_file = file;
+            item->_line = line;
+            return item;
+        }
+
+        bool _co_pool_st_::recycle_item(_co_pool_st_::_co_pool_item_st_* item) {
+            if (_pool.size_approx() >= M_CO_POOL_SIZE) {
+                delete item->_routine;
+                delete item;
+                return false;
+            } else {
+                _pool.enqueue(item);
+                return true;
+            }
+        }
+
+        //////////////////////////////////////////////////////////////
+
         _schedule_thread_st_::~_schedule_thread_st_() {
             if (_thr) {
                 delete _thr;
@@ -139,6 +167,8 @@ namespace cgo {
         _scheduler_st_::_scheduler_st_() {
             _max_thr_cnt = (int)(std::thread::hardware_concurrency() * M_MAX_PROCS_FACTOR);
             _core_thr_cnt = (int)(_max_thr_cnt * M_CORE_POOL_FACTOR);
+
+            std::atexit(cgo::scheduler::cgo_stop);
         }
 
         _scheduler_st_::~_scheduler_st_() {
@@ -195,6 +225,7 @@ namespace cgo {
             }
 
             _idle_thr_cnt++;
+            //M_CO_DEBUG_PRINT("idle_thr_cnt:%d\n", _idle_thr_cnt.load());
             _thr_cnt++;
             auto work_id = generate_work_id++;
 
@@ -332,7 +363,8 @@ namespace cgo {
             gscheduler._core_thr_cnt = cnt;
         }
 
-        void stop() {
+        void cgo_stop() {
+            M_CO_DEBUG_PRINT("cgo stop\n");
             gscheduler.stop();
         }
 
@@ -340,7 +372,22 @@ namespace cgo {
             gscheduler.print_debug_info();
         }
 
-        void add_global_task(std::function<void()>&& f) {
+        void co_pool_func(void* i) {
+            _co_pool_st_::_co_pool_item_st_* item = (_co_pool_st_::_co_pool_item_st_*)i;
+            assert(item != 0);
+            assert(item->_routine || !(*item->_routine));
+
+            while (true) {
+                (*item->_routine)();
+                if (item->_co_pool->recycle_item(item)) {
+                    coroutine::yield(0);
+                    continue;
+                }
+                break;
+            }
+        }
+
+        void add_global_task(task_type&& f) {
             if (glocal_task_queue == gglobal_task_queue) {
                 glocal_task_queue->enqueue(f);
             } else {
@@ -353,7 +400,7 @@ namespace cgo {
             trigger_new_thread();
         }
 
-        void add_local_task(std::function<void()>&& f, bool nosteal) {
+        void add_local_task(task_type&& f, bool nosteal) {
             if (glocal_task_queue == gglobal_task_queue) {
                 assert(false);
             } else {
@@ -367,8 +414,8 @@ namespace cgo {
         }
 
         // thread-safety
-        void schedule_task(const std::function<void()>& routine, int stack, const char* file, int line) {
-            std::function<void()> f = std::bind(coroutine::run, routine, stack, file, line);
+        void schedule_task(const task_type& routine, int stack, const char* file, int line) {
+            task_type f = std::bind(coroutine::run, routine, stack, file, line);
             add_global_task(std::move(f));
         }
 

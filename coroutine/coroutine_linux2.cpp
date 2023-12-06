@@ -61,7 +61,7 @@ namespace cgo {
                     break;
                 }
                 default:
-                    assert(false);
+                    assert(co->_status != COROUTINE_SUSPEND && co->_status != COROUTINE_READY);
                     break;
             }
 
