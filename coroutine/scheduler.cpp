@@ -380,7 +380,7 @@ namespace cgo {
             while (true) {
                 (*item->_routine)();
                 if (item->_co_pool->recycle_item(item)) {
-                    coroutine::yield(0);
+                    schedule_yield(0);
                     continue;
                 }
                 break;

@@ -126,7 +126,7 @@ namespace cgo {
             };
 
             glocal_time_pool->add_timer(wait_mil, std::move(timer_func));
-            coroutine::yield();
+            schedule_yield(0);
         }
     }
 }

@@ -72,12 +72,29 @@ namespace cgo {
             void steal(int32_t count, _schedule_base_queue_st_* to) override;
         };
 
+        struct _co_pool_st_ {
+            struct _co_pool_item_st_ {
+                uint64_t _co_id = 0;
+                task_type* volatile _routine;
+                const char* _file;
+                int _line;
+                _co_pool_st_* _co_pool;
+            };
+
+            _co_pool_item_st_* create_item(const task_type& routine, const char* file, int line);
+
+            bool recycle_item(_co_pool_item_st_*);
+        private:
+            moodycamel::ConcurrentQueue<_co_pool_item_st_*> _pool;
+        };
+
         struct _schedule_thread_st_ {
             int _work_id = 0;
             std::thread* _thr = 0;
             _scheduler_st_* _scheduler = 0;
             std::atomic<_schedule_base_queue_st_*> _local_task;
             std::atomic_uint64_t _task_op_cnt = 0;
+            _co_pool_st_ _co_pool;
 #ifdef M_PLATFORM_WIN
             _schedule_base_queue_st_* _nosteal_local_task = 0;  // for windows
             time_pool _time_pool;
@@ -94,22 +111,6 @@ namespace cgo {
 
         using schedule_thread_st_type = std::shared_ptr<_schedule_thread_st_>;
         using dead_thread_queue_type = slist<schedule_thread_st_type>;
-
-        struct _co_pool_st_ {
-            struct _co_pool_item_st_ {
-                uint64_t _co_id = 0;
-                task_type* volatile _routine;
-                const char* _file;
-                int _line;
-                _co_pool_st_* _co_pool;
-            };
-
-            _co_pool_item_st_* create_item(const task_type& routine, const char* file, int line);
-
-            bool recycle_item(_co_pool_item_st_*);
-        private:
-            moodycamel::ConcurrentQueue<_co_pool_item_st_*> _pool;
-        };
 
         struct _scheduler_st_ {
             _schedule_global_queue_st_ _global_tasks;
@@ -132,7 +133,6 @@ namespace cgo {
             void stop();
 
 #ifndef M_PLATFORM_WIN
-            _co_pool_st_ _co_pool;
             async_time_pool _time_pool;
             std::atomic_flag _time_pool_flag;
             bool run();

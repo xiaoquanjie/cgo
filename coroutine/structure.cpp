@@ -53,6 +53,8 @@ namespace cgo {
                 // call global free
                 ::free(co->_stack);
             }
+#else
+            DeleteFiber(co->_ctx);
 #endif
             gmem.dec(sizeof(_co_st_));
             gmem.dec(co->_ssize);
