@@ -30,7 +30,7 @@ void print_withtime(const std::string& msg) {
 
 void pause() {
     while (true) {
-        std::this_thread::sleep_for(std::chrono::seconds(10));
+        std::this_thread::sleep_for(std::chrono::seconds(500));
         break;
     }
 
@@ -421,13 +421,6 @@ void atomic_test() {
     std::this_thread::yield();
 }
 
-#include "common/cas_slist.h"
-void caslist_test() {
-    cas_slist<int> s;
-    s.push(1);
-    s.push(2);
-}
-
 #include "common/concurrentqueue.h"
 void concurrentqueue_test() {
     moodycamel::ConcurrentQueue<int> q;
@@ -687,6 +680,38 @@ void condition_variable_test() {
     }
 }
 
+void cas_cqueue_test() {
+    cas_cqueue<int> que(100);
+    std::atomic_int produce_cnt = 0;
+    std::atomic_int consume_cnt = 0;
+
+    for (int i = 0; i < 1; i++) {
+        std::thread([&que, &produce_cnt]{
+            for (int j = 0; j < 10000; j++) {
+                if (que.push(j)) {
+                    produce_cnt++;
+                }
+            }
+        }).detach();
+    }
+
+    for (int i = 0; i < 10; i++) {
+        std::thread([&que, &consume_cnt]{
+            int v = 0;
+            while (true) {
+                if (que.pop(v)) {
+                    consume_cnt++;
+                }
+            }
+        }).detach();
+    }
+
+    while (true) {
+        std::cout << produce_cnt << " " << consume_cnt << "\n";
+        std::this_thread::sleep_for(std::chrono::seconds(2));
+    }
+}
+
 int main()
 {
     enum test_type {
@@ -700,9 +725,10 @@ int main()
         t_condition_variable_test,
         t_chan_test,
         t_performance_copool_base_test,
+        t_cas_cqueue_test,
     };
 
-    switch (t_performance_test3) {
+    switch (t_cas_cqueue_test) {
         case t_work_steal_queue_test:
             work_steal_queue_test();
             break;
@@ -733,6 +759,9 @@ int main()
         case t_performance_copool_base_test:
             performance_copool_base_test();
             break;
+        case t_cas_cqueue_test:
+            cas_cqueue_test();
+            break;
         default:
             break;
     }
@@ -740,7 +769,6 @@ int main()
     //concurrentqueue_test();
     //slist_test();
     //mutex_slist_test();
-    //caslist_test();
     //atomic_test();
     //cqueue_test();
     //lock_test();

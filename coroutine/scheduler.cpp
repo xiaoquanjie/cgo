@@ -36,6 +36,7 @@ namespace cgo {
 
         void _schedule_local_queue_st_::enqueue(const std::function<void()>& f) {
             task_type* task = new task_type(f);
+            // Only the owner thread can insert an item to the queue.
             _queue->push(task);
         }
 
