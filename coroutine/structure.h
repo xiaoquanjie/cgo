@@ -50,6 +50,7 @@ namespace cgo {
             static _co_st_* get_co(uint64_t co_id);
             static uint64_t get_coid(_co_st_*);
             static void free(_co_st_* co);
+            static void free(uint64_t co_id);
             static bool memory_check(_co_st_* co);
         };
 

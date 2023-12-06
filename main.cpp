@@ -100,19 +100,14 @@ void cgo_test() {
 }
 
 void cgo_wait_test() {
-    cgoprocs(2);
     go []() {
-        go []() {
-            while (true) {
-                cgo::cgo_print_debug_info();
-                gowait(1000);
-            }
-        };
-
-        while (true) {
-            print_withtime("thread sleep");
-            //cgo::cgo_print_debug_info();
-            std::this_thread::sleep_for(std::chrono::seconds(1));
+        for (int i = 0; i < 10; i++) {
+            go [i]() {
+                for (int j = 0; j < 10; ++j) {
+                    print_withtime(std::string("co wait") + std::to_string(i));
+                    gowait(1000 + i * 10);
+                }
+            };
         }
     };
 }
@@ -303,6 +298,31 @@ void performance_base_test() {
     }
 }
 
+#include "coroutine/scheduler.h"
+void performance_copool_base_test() {
+    for (int j = 0; j < 3; j++) {
+        print_withtime("co pool base test begin");
+        auto beg = std::chrono::steady_clock::now();
+        std::atomic_int count = 0;
+        const int total_count = 1000000;
+
+        cgo::scheduler::_co_pool_st_ co_pool;
+        for (int i = 0; i < total_count; i++) {
+            co_pool.run([&count]() {
+                count++;
+            }, 0, 0);
+        }
+
+        while (count != total_count) {
+        }
+
+        auto end = std::chrono::steady_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - beg);
+        print_withtime("co pool base test end: " + std::to_string(elapsed.count()));
+        std::cout << "==============\n";
+    }
+}
+
 void performance_test2() {
     /*
      * 基准测试结果：
@@ -354,7 +374,7 @@ void performance_test3() {
             print_withtime("begin");
             std::atomic_int count = 0;
             auto beg = std::chrono::steady_clock::now();
-            const int total_count = 10000;
+            const int total_count = 1000000;
 
             for (int i = 0; i < total_count; i++) {
                 go [&count]() {
@@ -679,9 +699,10 @@ int main()
         t_cgo_wait_test,
         t_condition_variable_test,
         t_chan_test,
+        t_performance_copool_base_test,
     };
 
-    switch (t_performance_test2) {
+    switch (t_performance_test3) {
         case t_work_steal_queue_test:
             work_steal_queue_test();
             break;
@@ -708,6 +729,9 @@ int main()
             break;
         case t_chan_test:
             chan_test();
+            break;
+        case t_performance_copool_base_test:
+            performance_copool_base_test();
             break;
         default:
             break;

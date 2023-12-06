@@ -81,11 +81,15 @@ namespace cgo {
                 _co_pool_st_* _co_pool;
             };
 
+            void run(const task_type& routine, const char* file, int line);
+
             _co_pool_item_st_* create_item(const task_type& routine, const char* file, int line);
 
             bool recycle_item(_co_pool_item_st_*);
+
+            ~_co_pool_st_();
         private:
-            moodycamel::ConcurrentQueue<_co_pool_item_st_*> _pool;
+            slist<_co_pool_item_st_*> _pool;
         };
 
         struct _schedule_thread_st_ {
@@ -113,7 +117,7 @@ namespace cgo {
         using dead_thread_queue_type = slist<schedule_thread_st_type>;
 
         struct _scheduler_st_ {
-            _schedule_global_queue_st_ _global_tasks;
+            _schedule_global_queue_st_* _global_tasks;
             dead_thread_queue_type _dead_threads;
             std::vector<schedule_thread_st_type> _work_threads;
             int generate_work_id = 1;
@@ -154,6 +158,7 @@ namespace cgo {
         extern thread_local _schedule_base_queue_st_* glocal_task_queue;
         extern thread_local _schedule_base_queue_st_* gnosteal_local_task_queue; // for windows
         extern thread_local time_pool* glocal_time_pool;    // for windows
+        extern thread_local _co_pool_st_* glocal_co_pool;
 
         void co_pool_func(void*);
         void add_global_task(task_type&& f);

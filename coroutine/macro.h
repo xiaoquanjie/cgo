@@ -64,4 +64,4 @@
 #define M_MAX_CO_WAIT_TIME (1800)
 
 #undef M_CO_POOL_SIZE
-#define M_CO_POOL_SIZE (0)
+#define M_CO_POOL_SIZE (1000)

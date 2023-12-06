@@ -27,6 +27,7 @@ namespace cgo {
 
             st->_local_task.store(new _schedule_local_queue_st_);
             glocal_task_queue = st->_local_task;
+            glocal_co_pool = &st->_co_pool;
 
             st->_nosteal_local_task = new _schedule_global_queue_st_;
             gnosteal_local_task_queue = st->_nosteal_local_task;

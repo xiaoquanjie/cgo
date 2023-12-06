@@ -109,15 +109,24 @@ namespace cgo {
 
         //////////////////////////////////////////////////////////////
 
+        void _co_pool_st_::run(const task_type& routine, const char* file, int line) {
+            auto item = create_item(routine, file, line);
+            coroutine::resume(item->_co_id, (void*)0);
+        }
+
         _co_pool_st_::_co_pool_item_st_* _co_pool_st_::create_item(const task_type& routine, const char* file, int line) {
             _co_pool_item_st_* item = 0;
-            if (!_pool.try_dequeue(item)) {
+            if (_pool.empty()) {
                 item = new _co_pool_item_st_;
                 task_type f = std::bind(co_pool_func, item);
                 item->_co_id = coroutine::create(f, 0, 0, 0);
                 item->_routine = new task_type;
                 item->_co_pool = this;
+            } else {
+                item = _pool.front();
+                _pool.pop();
             }
+
             *item->_routine = routine;
             item->_file = file;
             item->_line = line;
@@ -125,13 +134,22 @@ namespace cgo {
         }
 
         bool _co_pool_st_::recycle_item(_co_pool_st_::_co_pool_item_st_* item) {
-            if (_pool.size_approx() >= M_CO_POOL_SIZE) {
+            if (_pool.size() >= M_CO_POOL_SIZE) {
                 delete item->_routine;
                 delete item;
                 return false;
             } else {
-                _pool.enqueue(item);
+                _pool.push(item);
                 return true;
+            }
+        }
+
+        _co_pool_st_::~_co_pool_st_() {
+            while (!_pool.empty()) {
+                auto item = _pool.front();
+                _pool.pop();
+
+                delete item;
             }
         }
 
@@ -167,12 +185,14 @@ namespace cgo {
         _scheduler_st_::_scheduler_st_() {
             _max_thr_cnt = (int)(std::thread::hardware_concurrency() * M_MAX_PROCS_FACTOR);
             _core_thr_cnt = (int)(_max_thr_cnt * M_CORE_POOL_FACTOR);
-
+            _global_tasks = new _schedule_global_queue_st_;
             std::atexit(cgo::scheduler::cgo_stop);
         }
 
         _scheduler_st_::~_scheduler_st_() {
             this->stop();
+            // don't have to delete _global_tasks, cause of the moodycamel::details::ThreadExitNotifier
+            //delete _global_tasks;
         }
 
         void _scheduler_st_::stop() {
@@ -209,7 +229,7 @@ namespace cgo {
 #endif
 
         void _scheduler_st_::start_thread() {
-            auto task_size = _global_tasks.size();
+            auto task_size = _global_tasks->size();
             if (_thr_cnt >= _max_thr_cnt
                 || (_idle_thr_cnt != 0 && task_size < M_MAX_LOCAL_TASK_QUEUE)) {
                 return;
@@ -218,7 +238,7 @@ namespace cgo {
             std::unique_lock<std::mutex> scoped_lock(_thread_mu);
 
             // double check
-            task_size = _global_tasks.size();
+            task_size = _global_tasks->size();
             if (_thr_cnt >= _max_thr_cnt
                 || (_idle_thr_cnt != 0 && task_size < M_MAX_LOCAL_TASK_QUEUE)) {
                 return;
@@ -265,7 +285,7 @@ namespace cgo {
         void _scheduler_st_::steal_task(_schedule_thread_st_* st) {
             // steal from global first
             // max local task queue: M_MAX_LOCAL_TASK_QUEUE
-            this->_global_tasks.steal(M_MAX_LOCAL_TASK_QUEUE, st->_local_task);
+            this->_global_tasks->steal(M_MAX_LOCAL_TASK_QUEUE, st->_local_task);
 
             _schedule_base_queue_st_* to_local_task = st->_local_task;
             if (_thr_cnt <= 1 || to_local_task->size() > 0) {
@@ -328,7 +348,7 @@ namespace cgo {
             _thread_mu.unlock();
 
             std::string output = "queue info:\n";
-            output += std::string("global queue count:") + std::to_string(this->_global_tasks.size());
+            output += std::string("global queue count:") + std::to_string(this->_global_tasks->size());
             output += std::string(", global task operation count:") + std::to_string(this->_task_op_cnt);
             output += std::string("\n");
             for (auto thr : tmp_work_threads) {
@@ -344,10 +364,11 @@ namespace cgo {
         }
 
         _scheduler_st_ gscheduler;
-        _schedule_base_queue_st_* gglobal_task_queue = &gscheduler._global_tasks;
+        _schedule_base_queue_st_* gglobal_task_queue = gscheduler._global_tasks;
         thread_local _schedule_base_queue_st_* glocal_task_queue = gglobal_task_queue;
         thread_local _schedule_base_queue_st_* gnosteal_local_task_queue = nullptr;
         thread_local time_pool* glocal_time_pool = nullptr;
+        thread_local _co_pool_st_* glocal_co_pool = nullptr;
 
         void set_cgo_procs(int cnt) {
             if (cnt < 1) {
@@ -415,8 +436,14 @@ namespace cgo {
 
         // thread-safety
         void schedule_task(const task_type& routine, int stack, const char* file, int line) {
-            task_type f = std::bind(coroutine::run, routine, stack, file, line);
-            add_global_task(std::move(f));
+            if (stack > 0 && stack != M_PRIVATE_STACK_SIZE) {
+                task_type f = std::bind(coroutine::run, routine, stack, file, line);
+                add_global_task(std::move(f));
+            } else {
+                add_global_task([routine, file, line]() {
+                    glocal_co_pool->run(routine, file, line);
+                });
+            }
         }
 
         void trigger_new_thread() {
@@ -424,11 +451,6 @@ namespace cgo {
         }
 
         void schedule_yield(void** data) {
-            auto co_id = coroutine::curid();
-            if (co_id == M_INVALID_COROUTINE_ID) {
-                return;
-            }
-
             coroutine::yield(data);
         }
     }

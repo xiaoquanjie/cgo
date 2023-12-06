@@ -61,6 +61,11 @@ namespace cgo {
             delete co;
         }
 
+        void _co_st_::free(uint64_t co_id) {
+            auto co = get_co(co_id);
+            _co_st_::free(co);
+        }
+
         _co_st_* _co_st_::get_co(uint64_t co_id) {
             _co_st_* co = (_co_st_*)uintptr_t(co_id);
             return co;

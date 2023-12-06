@@ -21,6 +21,7 @@ namespace cgo {
 
             st->_local_task.store(new _schedule_local_queue_st_);
             glocal_task_queue = st->_local_task;
+            glocal_co_pool = &st->_co_pool;
 
             int64_t idle_beg_time = 0;
             bool idle_quit = false;
@@ -78,6 +79,7 @@ namespace cgo {
             }
 
             glocal_task_queue = nullptr;
+            glocal_co_pool = nullptr;
 
             if (idle_quit) {
                 st->_scheduler->dead_thread(st);
