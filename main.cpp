@@ -681,35 +681,49 @@ void condition_variable_test() {
 }
 
 void cas_cqueue_test() {
-    cas_cqueue<int> que(100);
+    cas_cqueue2<int> que(2048);
     std::atomic_int produce_cnt = 0;
     std::atomic_int consume_cnt = 0;
+    std::atomic_int produce_fail = 0;
+    std::atomic_int consume_fail = 0;
+    int total = 1000000;
+    print_withtime("cas_cqueue test begin");
 
-    for (int i = 0; i < 1; i++) {
-        std::thread([&que, &produce_cnt]{
-            for (int j = 0; j < 10000; j++) {
-                if (que.push(j)) {
+    for (int i = 0; i < 10; i++) {
+        std::thread([&que, &produce_cnt, &produce_fail, total]{
+            while (true) {
+                if (que.push(produce_cnt.load())) {
                     produce_cnt++;
+                }
+                if (produce_cnt >= total) {
+                    break;
                 }
             }
         }).detach();
     }
 
-    for (int i = 0; i < 10; i++) {
-        std::thread([&que, &consume_cnt]{
+    for (int i = 0; i < 8; i++) {
+        std::thread([&que, &consume_cnt, &consume_fail, total]{
             int v = 0;
             while (true) {
                 if (que.pop(v)) {
                     consume_cnt++;
                 }
+                if (consume_cnt >= total) {
+                    break;
+                }
             }
         }).detach();
     }
 
-    while (true) {
-        std::cout << produce_cnt << " " << consume_cnt << "\n";
-        std::this_thread::sleep_for(std::chrono::seconds(2));
-    }
+    while (!(produce_cnt >= total && consume_cnt >= total));
+
+    print_withtime("cas_cqueue test end");
+    std::cout << "produce_cnt:" << produce_cnt
+              << " produce_fail:" << produce_fail
+              << " consume_cnt:" << consume_cnt
+              << " consume_fail:" << consume_fail
+              << "\n";
 }
 
 int main()
