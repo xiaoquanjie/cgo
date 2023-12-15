@@ -58,6 +58,16 @@ public:
         }
     }
 
+    bool pop(T& v) {
+        if (empty()) {
+            return false;
+        }
+
+        v = front();
+        pop();
+        return true;
+    }
+
     void push(const T& val) {
         auto n = new node;
         n->_val = val;

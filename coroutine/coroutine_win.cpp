@@ -26,7 +26,7 @@ namespace cgo {
         }
 
         void win_init() {
-            if (gmainco._ctx) {
+            if (gmainctx) {
                 return;
             }
 
@@ -35,7 +35,7 @@ namespace cgo {
                 DWORD error = GetLastError();
                 throw error;
             } else {
-                gmainco._ctx = ctx;
+                gmainctx = ctx;
             }
         }
 
@@ -57,12 +57,11 @@ namespace cgo {
            
             _co_st_::init(co, routine, stack, file, line);
             co->_ctx = ctx;
-            co->_mctx = gmainco._ctx;
             return co->get_coid();
         }
 
         void resume(uint64_t co_id, void* data) {
-            if (gmainco._curno != M_INVALID_COROUTINE_ID) {
+            if (gcurno != M_INVALID_COROUTINE_ID) {
                 return;
             }
             auto co = _co_st_::get_co(co_id);
@@ -70,18 +69,21 @@ namespace cgo {
                 return;
             }
 
+            win_init();
+
             switch (co->_status) {
                 case COROUTINE_READY:
                 case COROUTINE_SUSPEND: {
                     co->_data = data;
                     co->_status = COROUTINE_RUNNING;
-                    gmainco._curno = co_id;
+                    gcurno = co_id;
+                    co->_mctx = gmainctx;
                     ::SwitchToFiber(co->_ctx);
                     co->_data = 0;
                     if (co->_status == COROUTINE_DEAD) {
                         _co_st_::free(co);
                     }
-                    gmainco._curno = M_INVALID_COROUTINE_ID;
+                    gcurno = M_INVALID_COROUTINE_ID;
                     break;
                 }
                 default:
@@ -90,19 +92,20 @@ namespace cgo {
             }
         }
 
-		void yield(void** data) {
-			if (gmainco._curno == -1) {
+		void yield(void*& data) {
+			if (gcurno == M_INVALID_COROUTINE_ID) {
 				return;
 			}
 
-            auto co = _co_st_::get_co(gmainco._curno);
+            auto co_id = gcurno;
+            auto co = _co_st_::get_co(co_id);
 			co->_status = COROUTINE_SUSPEND;
+
 			::SwitchToFiber(co->_mctx);
 
-			if (data) {
-				*data = co->_data;
-				co->_data = 0;
-			}
+            auto co2 = _co_st_::get_co(co_id);
+            data = co2->_data;
+            co2->_data = 0;
 		}
     }
 }

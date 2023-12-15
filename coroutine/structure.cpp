@@ -95,15 +95,13 @@ namespace cgo {
             this->_mem -= (int)s;
         }
 
-        _main_co_st_::~_main_co_st_() {
+        thread_local volatile uint64_t gcurno = M_INVALID_COROUTINE_ID;
 #ifdef M_PLATFORM_WIN
-            if (this->_ctx) {
-                ::ConvertFiberToThread();
-            }
+        thread_local LPVOID volatile gmainctx = 0;
+#else
+        static thread_local ucontext_t glocal_mainctx;
+        thread_local ucontext_t* volatile gmainctx = &glocal_mainctx;
 #endif
-        }
-
-        thread_local _main_co_st_ gmainco;
 
         _memory_st_ gmem;
     }

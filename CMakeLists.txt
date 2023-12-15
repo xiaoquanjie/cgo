@@ -8,15 +8,17 @@ add_compile_options(-Wno-deprecated-declarations)
 
 add_executable(cgo
         main.cpp
+        test.cpp
 
         coroutine/structure.cpp
         coroutine/coroutine.cpp
         coroutine/coroutine_linux2.cpp
         coroutine/coroutine_win.cpp
-        coroutine/syntax.cpp
-        coroutine/scheduler.cpp
-        coroutine/scheduler_linux.cpp
-        coroutine/scheduler_win.cpp
+        coroutine/coroutine_adapter.cpp
+        scheduler/syntax.cpp
+        scheduler/scheduler.cpp
+        scheduler/scheduler_linux.cpp
+        scheduler/scheduler_win.cpp
 
         common/time_pool.cpp
         sync/channel.cpp

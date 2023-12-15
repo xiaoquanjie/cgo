@@ -4,10 +4,17 @@
 //
 // author: 404558965@qq.com (xiaoquanjie)
 // github: https://github.com/xiaoquanjie/cgo
-// Created by xiaoqj on 2023/11/01.
+// Created by xiaoqj on 2023/11/09
 //----------------------------------------------------------------*/
 
-#pragma once
 
-#include "scheduler/syntax.h"
-#include "sync/channel.h"
+#include "../coroutine/macro.h"
+
+#ifndef M_PLATFORM_WIN
+
+namespace cgo {
+    namespace scheduler {
+    }
+}
+
+#endif

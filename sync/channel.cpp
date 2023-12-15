@@ -10,7 +10,7 @@
 #include "channel.h"
 #include "../coroutine/macro.h"
 #include "../coroutine/coroutine.h"
-#include "../coroutine/scheduler.h"
+#include "../scheduler/scheduler.h"
 #include "../common/circle_queue.h"
 #include "../common/slist.h"
 #include <mutex>
@@ -38,18 +38,16 @@ namespace cgo {
             ~_chan_st_() {
                 this->close();
 
-                while (!_buf.empty()) {
-                    void* v = 0;
-                    _buf.pop(v);
+                void* v = 0;
+                while (_buf.pop(v)) {
                     _destructor(v);
                 }
             }
 
-            bool read(void*& v) {
+            bool recv(void*& v) {
                 auto co_id = coroutine::curid();
                 if (co_id == M_INVALID_COROUTINE_ID) {
-                    assert(0==1 && ("not allow to op chan in non-coroutine"));
-                    return false;
+                    throw "not allow to read chan in non-coroutine";
                 }
 
                 this->_mu.lock();
@@ -59,14 +57,11 @@ namespace cgo {
                 }
 
                 if (this->_buf.empty()) {
-                    if (_sendq.size()) {
-                        // pick first one
-                        auto wait = _sendq.front();
-                        _sendq.pop();
+                    _wait_st_ wait;
+                    if (_sendq.pop(wait)) {
                         this->_mu.unlock();
 
-                        coroutine::suspend_wait(wait._co_id);
-                        scheduler::schedule_co(wait._co_id, 0);
+                        scheduler::schedule_wait_co(wait._co_id, 0);
                         v = wait._data;
                         return true;
                     }
@@ -74,7 +69,8 @@ namespace cgo {
 					this->_recvq.push(co_id);
 					this->_mu.unlock();
 
-					coroutine::yield(&v);
+                    scheduler::schedule_yield(v);
+                    //assert(v != 0);
 					if (_closed) {
 						return false;
 					}
@@ -86,11 +82,10 @@ namespace cgo {
                 return true;
             }
 
-            bool write(void* v) override {
+            bool send(void* v) override {
                 auto co_id = coroutine::curid();
                 if (co_id == M_INVALID_COROUTINE_ID) {
-                    assert(0==1 && ("not allow to op chan in non-coroutine"));
-                    return false;
+                    throw "not allow to write chan in non-coroutine";
                 }
 
                 this->_mu.lock();
@@ -100,14 +95,12 @@ namespace cgo {
                 }
 
                 if (_buf.empty()) {
-                    if (_recvq.size()) {
-                        // pick first one
-                        auto rid = _recvq.front();
-                        _recvq.pop();
+                    int64_t wait;
+                    if (_recvq.pop(wait)) {
                         this->_mu.unlock();
 
-                        coroutine::suspend_wait(rid);
-                        scheduler::schedule_co(rid, v);
+                        assert(v != 0);
+                        scheduler::schedule_wait_co(wait, v);
                         return true;
                     }
                 }
@@ -115,8 +108,8 @@ namespace cgo {
                 if (_buf.full()) {
                     _sendq.push(_wait_st_{v, co_id});
                     this->_mu.unlock();
-                    coroutine::yield();
 
+                    scheduler::schedule_yield();
                     if (_closed) {
                         return false;
                     }
@@ -135,24 +128,24 @@ namespace cgo {
                 }
 
                 this->_closed = true;
+
                 while (_recvq.size()) {
                     auto co_id = _recvq.front();
                     _recvq.pop();
-                    coroutine::suspend_wait(co_id);
                     scheduler::schedule_co(co_id, 0);
                 }
+
                 while (_sendq.size()) {
                     auto wait = _sendq.front();
                     _sendq.pop();
-                    coroutine::suspend_wait(wait._co_id);
                     _destructor(wait._data);
                     scheduler::schedule_co(wait._co_id, 0);
                 }
             }
         };
 
-        std::shared_ptr<_i_chan_st_> make_chan(int cap, const std::function<void(void*)>& destructor) {
-            auto i = std::make_shared<_chan_st_>(cap, destructor);
+        _i_chan_st_* make_chan(int cap, const std::function<void(void*)>& destructor) {
+            auto i = new _chan_st_(cap, destructor);
             return i;
         }
     }

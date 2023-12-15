@@ -216,28 +216,31 @@ void chan_test() {
      *  无缓存：300ms
      *  100缓存：100ms
      * */
+
+    //cgoprocs(2);
     cgo::chan<int> ch;
     ch = makechan<int>(0);
 	std::cout << "ref:" << ch.use_count() << "\n";
     print_withtime("begin");
 
-    int total = 1000000;
+    int total = 2000000;
     std::atomic_int count = 0;
 
-	go [ch, &count, total]() {
+	go gostack(1024*1024) [&ch, &count, total]() {
         for (int i = 0; i < total; i++) {
             ch >> i;
         }
     };
 
     for (int i=0; i< 16; i++) {
-        go [ch, &count]() {
+        go gostack(1024*1024) [&ch, &count]() {
             while (true) {
                 int v;
                 auto ok = ch << v;
                 if (!ok) {
                     break;
                 } else {
+                    //print_withtime(std::to_string(v));
                     count++;
                 }
             }
@@ -245,7 +248,9 @@ void chan_test() {
         };
     }
 
-    while (count != total) {}
+    while (count != total) {
+        //print_withtime(std::to_string(count.load()));
+    }
     print_withtime("end");
 }
 
@@ -298,29 +303,8 @@ void performance_base_test() {
     }
 }
 
-#include "coroutine/scheduler.h"
+#include "scheduler/scheduler.h"
 void performance_copool_base_test() {
-    for (int j = 0; j < 3; j++) {
-        print_withtime("co pool base test begin");
-        auto beg = std::chrono::steady_clock::now();
-        std::atomic_int count = 0;
-        const int total_count = 1000000;
-
-        cgo::scheduler::_co_pool_st_ co_pool;
-        for (int i = 0; i < total_count; i++) {
-            co_pool.run([&count]() {
-                count++;
-            }, 0, 0);
-        }
-
-        while (count != total_count) {
-        }
-
-        auto end = std::chrono::steady_clock::now();
-        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - beg);
-        print_withtime("co pool base test end: " + std::to_string(elapsed.count()));
-        std::cout << "==============\n";
-    }
 }
 
 void performance_test2() {
@@ -398,27 +382,58 @@ void performance_test3() {
     };
 }
 
+std::atomic_uint32_t read, write;
 void atomic_test() {
-    struct test_s {
-        volatile int i = 0;
-        std::string j;
-    };
+    read = 0;
+    write = 0;
 
-    struct test_s2 {
-        int i = 0;
-        std::string j;
-    };
+    for (int i = 0; i < 10; i++) {
+        std::thread([]() {
+            while (true) {
+                auto oldv = write.load();
+                auto cmp = read.load();
+                if (oldv - cmp >= 500) {
+                    continue;
+                }
 
-    void* m = malloc(sizeof(test_s));
-    auto p = new(m)test_s;
-    p->i= 2132;
-    p->j = "fdfsfsdfs";
-    print_withtime(p->j.c_str());
-    p->~test_s();
-    std::cout << sizeof(test_s) << std::endl;
-    std::cout << sizeof(test_s2) << std::endl;
+                uint32_t expected = oldv;
+                uint32_t desired = oldv + 1;
+                write.compare_exchange_strong(expected, desired);
+                std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+            }
 
-    std::this_thread::yield();
+        }).detach();
+    }
+
+    for (int i = 0; i < 2; i++) {
+        std::thread([i]() {
+            uint32_t expected = 0;
+            uint32_t desired = 0;
+            while (true) {
+                uint32_t oldv = read;//.load();
+                uint32_t cmp = write;//.load();
+                assert(oldv <= cmp && i >= 0);
+                if (oldv == cmp) {
+                    continue;
+                }
+
+                expected = oldv;
+                desired = oldv + 1;
+                if (read.compare_exchange_strong(expected, desired)) {
+                    std::string tmp = "read=" + std::to_string(read.load());
+                    tmp += " expected=" + std::to_string(expected);
+                    tmp += " desired=" + std::to_string(desired);
+                    tmp += " thread=" + std::to_string(i);
+                    print_withtime(tmp);
+                }
+            }
+
+        }).detach();
+    }
+
+    while (true) {
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
 }
 
 #include "common/concurrentqueue.h"
@@ -681,42 +696,52 @@ void condition_variable_test() {
 }
 
 void cas_cqueue_test() {
-    cas_cqueue2<int> que(2048);
+    //cas_cqueue<int> que(2012);
+    mpmc_bounded_queue<int> que(2012);
     std::atomic_int produce_cnt = 0;
     std::atomic_int consume_cnt = 0;
     std::atomic_int produce_fail = 0;
     std::atomic_int consume_fail = 0;
-    int total = 1000000;
+    int thrs = 2;
+    int total = thrs * 100000;
     print_withtime("cas_cqueue test begin");
 
-    for (int i = 0; i < 10; i++) {
-        std::thread([&que, &produce_cnt, &produce_fail, total]{
-            while (true) {
-                if (que.push(produce_cnt.load())) {
+    for (int i = 0; i < thrs; i++) {
+        std::thread([&que, &produce_cnt, &produce_fail, i]{
+            for (int j = 0; j < 100000;) {
+                if (que.enqueue(produce_cnt.load())) {
                     produce_cnt++;
-                }
-                if (produce_cnt >= total) {
-                    break;
+                    j++;
                 }
             }
+
+            print_withtime("produce quit:" + std::to_string(i));
         }).detach();
     }
 
-    for (int i = 0; i < 8; i++) {
-        std::thread([&que, &consume_cnt, &consume_fail, total]{
+    for (int i = 0; i < 1; i++) {
+        std::thread([&que, &consume_cnt, &consume_fail, total, i]{
             int v = 0;
             while (true) {
-                if (que.pop(v)) {
+                if (que.dequeue(v)) {
                     consume_cnt++;
                 }
                 if (consume_cnt >= total) {
                     break;
                 }
             }
+            print_withtime("consume quit:" + std::to_string(i));
         }).detach();
     }
 
-    while (!(produce_cnt >= total && consume_cnt >= total));
+    while (!(produce_cnt >= total && consume_cnt >= total)) {
+        std::cout << "produce_cnt:" << produce_cnt
+                  << " produce_fail:" << produce_fail
+                  << " consume_cnt:" << consume_cnt
+                  << " consume_fail:" << consume_fail
+                  << "\n";
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
 
     print_withtime("cas_cqueue test end");
     std::cout << "produce_cnt:" << produce_cnt
@@ -726,8 +751,114 @@ void cas_cqueue_test() {
               << "\n";
 }
 
-int main()
+void cas_cqueue_test2() {
+    struct info {
+        int idx = 0;
+        int val = 0;
+        bool flag = false;
+    };
+
+    //cas_cqueue<info> que(2012);
+    mpmc_bounded_queue<info> que(2048);
+    //cqueue2<info> que(2048);
+
+    int thrs = 2;
+    int total = 1000000;
+    info* write = new info[total];
+    info* read = new info[total];
+
+    while (true) {
+        for (int i = 0; i < total; i++) {
+            write[i].idx = i;
+            write[i].val = rand();
+            write[i].flag = false;
+            read[i].idx = false;
+            read[i].idx = 0;
+            read[i].idx = 0;
+        }
+
+        std::atomic_thread_fence(std::memory_order_seq_cst);
+        std::vector<std::thread> thr_vec;
+
+        print_withtime("begin");
+
+        // 生产数量
+        std::atomic_int prod = 0;
+        for (int i = 0; i < thrs; i++) {
+            thr_vec.emplace_back(std::move(std::thread([&que, write, read, total, &prod]{
+                static std::mutex mu;
+                for (int i = 0; i < total; i++) {
+                    mu.lock();
+                    if (write[i].flag) {
+                        mu.unlock();
+                        continue;
+                    }
+                    write[i].flag = true;
+                    mu.unlock();
+
+                    while (true) {
+                        if (que.enqueue(write[i])) {
+                            prod++;
+                            break;
+                        }
+                    }
+                }
+            })));
+        }
+
+        // 消费数量
+        std::atomic_int cons = 0;
+        for (int i = 0; i < thrs; i++) {
+            thr_vec.emplace_back(std::thread([&que, write, read, total, &cons] {
+                while (true) {
+                    info j;
+                    if (que.dequeue(j)) {
+                        assert(j.val == write[j.idx].val);
+                        read[j.idx] = j;
+                        //read[i.idx].idx = i.idx;
+                        //read[i.idx].val = i.val;
+                        read[j.idx].flag = true;
+                        cons++;
+                    }
+                    if (cons >= total) {
+                        break;
+                    }
+                }
+            }));
+        }
+
+        for (auto& t : thr_vec) {
+            std::cout << "consume:" << cons.load() << " produce:" << prod << "\n";
+            t.join();
+        }
+
+        print_withtime("end");
+        std::atomic_thread_fence(std::memory_order_seq_cst);
+
+        for (int i = 0; i < total; i++) {
+            if (write[i].val != read[i].val) {
+                std::cout << "write[" << i << "]:" << write[i].val << " read[" << i << "]:" << read[i].val << " read_flag:" << read[i].flag << "\n";
+                assert(false);
+            }
+        }
+
+        std::cout << "================\n";
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+}
+
+void cas_cqueue_test3() {
+    mpmc_bounded_queue<int> que(2);
+    que.enqueue(1);
+    que.enqueue(2);
+    //int i;
+    //que.dequeue(i);
+    que.enqueue(3);
+}
+
+int main2()
 {
+
     enum test_type {
         t_work_steal_queue_test = 0,
         t_performance_base_test,
@@ -740,9 +871,11 @@ int main()
         t_chan_test,
         t_performance_copool_base_test,
         t_cas_cqueue_test,
+        t_cas_cqueue_test2,
+        t_atomic_test,
     };
 
-    switch (t_cas_cqueue_test) {
+    switch (t_chan_test) {
         case t_work_steal_queue_test:
             work_steal_queue_test();
             break;
@@ -776,6 +909,12 @@ int main()
         case t_cas_cqueue_test:
             cas_cqueue_test();
             break;
+        case t_cas_cqueue_test2:
+            cas_cqueue_test2();
+            break;
+        case t_atomic_test:
+            atomic_test();
+            break;
         default:
             break;
     }
@@ -783,7 +922,6 @@ int main()
     //concurrentqueue_test();
     //slist_test();
     //mutex_slist_test();
-    //atomic_test();
     //cqueue_test();
     //lock_test();
     //time_test();

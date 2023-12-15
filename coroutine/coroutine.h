@@ -22,11 +22,9 @@ namespace cgo {
         // yield
         void yield();
 
-        void yield(void** data);
+        void yield(void*& data);
 
         uint64_t curid();
-
-        bool suspend_wait(uint64_t co_id);
 
         // number of running coroutine
         int num();

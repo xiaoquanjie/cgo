@@ -37,7 +37,7 @@ namespace cgo {
 
         // resume a coroutine
         void resume(uint64_t co_id, void* data) {
-            if (gmainco._curno != M_INVALID_COROUTINE_ID) {
+            if (gcurno != M_INVALID_COROUTINE_ID) {
                 return;
             }
             auto co = _co_st_::get_co(co_id);
@@ -47,17 +47,17 @@ namespace cgo {
 
             switch (co->_status) {
                 case COROUTINE_SUSPEND:
-                case COROUTINE_READY: {
                     co->_data = data;
-                    co->_mctx = &gmainco._ctx;
+                case COROUTINE_READY: {
+                    co->_mctx = gmainctx;
                     co->_status = COROUTINE_RUNNING;
-                    gmainco._curno = co_id;
+                    gcurno = co_id;
                     swapcontext(co->_mctx, &co->_ctx);
                     co->_data = 0;
                     if (co->_status == COROUTINE_DEAD) {
                         _co_st_::free(co);
                     }
-                    gmainco._curno = M_INVALID_COROUTINE_ID;
+                    gcurno = M_INVALID_COROUTINE_ID;
                     break;
                 }
                 default:
@@ -67,22 +67,21 @@ namespace cgo {
 
         }
 
-        void yield(void** data) {
-            if (gmainco._curno == M_INVALID_COROUTINE_ID) {
+        void yield(void*& data) {
+            if (gcurno == M_INVALID_COROUTINE_ID) {
                 return;
             }
 
-            auto co = _co_st_::get_co(gmainco._curno);
-            auto mctx = co->_mctx;
+            auto co_id = gcurno;
+            auto co = _co_st_::get_co(co_id);
             co->_status = COROUTINE_SUSPEND;
-            co->_mctx = 0;
             co->memory_check(co);
-            swapcontext(&co->_ctx, mctx);
 
-            if (data) {
-                *data = co->_data;
-                co->_data = 0;
-            }
+            swapcontext(&co->_ctx, co->_mctx);
+
+            co = _co_st_::get_co(co_id);
+            data = co->_data;
+            co->_data = 0;
         }
     }
 }

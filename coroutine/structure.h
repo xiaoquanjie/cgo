@@ -38,7 +38,6 @@ namespace cgo {
 #ifdef M_PLATFORM_WIN
             LPVOID _ctx = 0;
             LPVOID _mctx = 0;
-            void* volatile _lque = 0;
 #else
             ucontext_t _ctx;
             ucontext_t *_mctx = 0;
@@ -54,19 +53,12 @@ namespace cgo {
             static bool memory_check(_co_st_* co);
         };
 
-        struct _main_co_st_ {
+        extern thread_local volatile uint64_t gcurno;
 #ifdef M_PLATFORM_WIN
-            LPVOID _ctx = 0;
+        extern thread_local LPVOID volatile gmainctx;
 #else
-            ucontext_t _ctx;
+        extern thread_local ucontext_t* volatile gmainctx;
 #endif
-            // current coroutine no
-            uint64_t _curno = M_INVALID_COROUTINE_ID;
-
-            ~_main_co_st_();
-        };
-
-        extern thread_local _main_co_st_ gmainco;
 
         struct _memory_st_ {
             std::atomic_int _mem = 0;
