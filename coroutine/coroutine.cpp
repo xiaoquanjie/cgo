@@ -14,6 +14,23 @@ namespace cgo {
     namespace coroutine {
         uint64_t create(std::function<void()> routine, int stack, const char* file, int line);
 
+        bool set_user_data(uint64_t co_id, void* data) {
+            auto co = _co_st_::get_co(co_id);
+            if (co) {
+                co->_data = data;
+                return true;
+            }
+            return false;
+        }
+
+        void* get_user_data(uint64_t co_id) {
+            auto co = _co_st_::get_co(co_id);
+            if (co) {
+                return co->_data;
+            }
+            return 0;
+        }
+
         uint64_t curid() {
             uint64_t id = gcurno;
             if (id == M_INVALID_COROUTINE_ID) {
@@ -39,10 +56,5 @@ namespace cgo {
             return gmem._mem;
         }
 
-        // yield
-        void yield() {
-            void* data = 0;
-            yield(data);
-        }
     }
 }

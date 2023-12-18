@@ -16,13 +16,15 @@ namespace cgo {
         // create one new coroutine
         uint64_t create(std::function<void()> routine, int stack = 0, const char* file = 0, int line = 0);
 
-        // resume a coroutine
-        void resume(uint64_t co_id, void* data = 0);
+        bool set_user_data(uint64_t co_id, void* data);
+
+        void* get_user_data(uint64_t co_id);
+
+        // resume a coroutine, return the status of coroutine
+        int resume(uint64_t co_id);
 
         // yield
         void yield();
-
-        void yield(void*& data);
 
         uint64_t curid();
 

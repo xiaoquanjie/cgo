@@ -35,39 +35,39 @@ namespace cgo {
             return co->get_coid();
         }
 
-        // resume a coroutine
-        void resume(uint64_t co_id, void* data) {
+        // resume a coroutine, return the status of coroutine
+        int resume(uint64_t co_id) {
             if (gcurno != M_INVALID_COROUTINE_ID) {
-                return;
+                return COROUTINE_NONE;
             }
             auto co = _co_st_::get_co(co_id);
             if (!co) {
-                return;
+                return COROUTINE_NONE;
             }
 
             switch (co->_status) {
                 case COROUTINE_SUSPEND:
-                    co->_data = data;
                 case COROUTINE_READY: {
                     co->_mctx = gmainctx;
                     co->_status = COROUTINE_RUNNING;
                     gcurno = co_id;
                     swapcontext(co->_mctx, &co->_ctx);
-                    co->_data = 0;
+                    auto status = co->_status;
                     if (co->_status == COROUTINE_DEAD) {
                         _co_st_::free(co);
                     }
                     gcurno = M_INVALID_COROUTINE_ID;
-                    break;
+                    return status;
                 }
                 default:
                     assert(co->_status != COROUTINE_SUSPEND && co->_status != COROUTINE_READY);
                     break;
             }
 
+            return COROUTINE_NONE;
         }
 
-        void yield(void*& data) {
+        void yield() {
             if (gcurno == M_INVALID_COROUTINE_ID) {
                 return;
             }
@@ -78,10 +78,6 @@ namespace cgo {
             co->memory_check(co);
 
             swapcontext(&co->_ctx, co->_mctx);
-
-            co = _co_st_::get_co(co_id);
-            data = co->_data;
-            co->_data = 0;
         }
     }
 }

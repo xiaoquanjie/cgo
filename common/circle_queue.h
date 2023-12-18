@@ -173,7 +173,7 @@ public:
 
             if (_read.compare_exchange_weak(oldv, oldv + 1)) {
                 oldv = oldv % _cap;
-                while (!_head[oldv]._flag); // 旋转一下如果还未读到值
+                while (!_head[oldv]._flag); 
                 v = _head[oldv]._val;
                 std::atomic_thread_fence(std::memory_order_release);
                 _head[oldv]._flag = false;

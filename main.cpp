@@ -877,7 +877,7 @@ int main()
         t_atomic_test,
     };
 
-    switch (t_performance_test2) {
+    switch (t_chan_test) {
         case t_work_steal_queue_test:
             work_steal_queue_test();
             break;

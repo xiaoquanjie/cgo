@@ -21,17 +21,13 @@
 #endif
 #endif
 
-#undef COROUTINE_READY
-#define COROUTINE_READY   (1)
-
-#undef COROUTINE_RUNNING
-#define COROUTINE_RUNNING (2)
-
-#undef COROUTINE_SUSPEND
-#define COROUTINE_SUSPEND (3)
-
-#undef COROUTINE_DEAD
-#define COROUTINE_DEAD	  (4)
+enum CoroutineStatus {
+    COROUTINE_NONE = 0,
+    COROUTINE_READY = 1,
+    COROUTINE_RUNNING = 2,
+    COROUTINE_SUSPEND = 3,
+    COROUTINE_DEAD = 4,
+};
 
 // invalid coroutine id
 #undef M_INVALID_COROUTINE_ID

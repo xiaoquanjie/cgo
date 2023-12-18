@@ -7,6 +7,7 @@
 
 #if defined(USE_CGO_COROUTINE)
 #include "coroutine.h"
+#include "macro.h"
 #elif defined(USE_MINI_CORO)
 #define MINICORO_IMPL
 #include "minicoro.h"
@@ -26,11 +27,19 @@ namespace cgo {
             co_adapter_info* info = (co_adapter_info*)mco_get_user_data(co);
             info->routine();
         }
+#elif defined(USE_CGO_COROUTINE)
+        struct co_adapter_info {
+            std::function<void()> after;
+            void* volatile data = 0;
+        };
 #endif
 
         uint64_t create_co(std::function<void()> routine, int stack, const char* file, int line) {
 #if defined(USE_CGO_COROUTINE)
-            return coroutine::create(routine, stack, file, line);
+            auto co_id = coroutine::create(routine, stack, file, line);
+            co_adapter_info* info = new co_adapter_info;
+            coroutine::set_user_data(co_id, info);
+            return co_id;
 #elif defined(USE_MINI_CORO)
             mco_desc desc = mco_desc_init(minicoro_routine, stack);
             co_adapter_info* info = new co_adapter_info;
@@ -48,7 +57,21 @@ namespace cgo {
 
         void resume_co(uint64_t co_id, void* data) {
 #if defined(USE_CGO_COROUTINE)
-            coroutine::resume(co_id, data);
+            co_adapter_info* info = (co_adapter_info*)coroutine::get_user_data(co_id);
+            info->data = data;
+            auto status = coroutine::resume(co_id);
+            switch (status) {
+                case COROUTINE_SUSPEND: {
+                    if (info->after) {
+                        info->after();
+                    }
+                    break;
+                }
+                case COROUTINE_DEAD: {
+                    delete info;
+                    break;
+                }
+            }
 #elif defined(USE_MINI_CORO)
             mco_coro* co = (mco_coro*)uintptr_t(co_id);
             mco_push(co, &data, sizeof(void*));
@@ -75,7 +98,11 @@ namespace cgo {
 
         void yield_co(void*& data, const std::function<void()>& after) {
 #if defined(USE_CGO_COROUTINE)
-            coroutine::yield(data);
+            auto co2 = coroutine::curid();
+            co_adapter_info* info = (co_adapter_info*)coroutine::get_user_data(co2);
+            info->after = after;
+            coroutine::yield();
+            data = info->data;
 #elif defined(USE_MINI_CORO)
             auto co2 = mco_running();
             co_adapter_info* info = (co_adapter_info*)mco_get_user_data(co2);

@@ -60,13 +60,14 @@ namespace cgo {
             return co->get_coid();
         }
 
-        void resume(uint64_t co_id, void* data) {
+        // resume a coroutine, return the status of coroutine
+        int resume(uint64_t co_id) {
             if (gcurno != M_INVALID_COROUTINE_ID) {
-                return;
+                return COROUTINE_NONE;
             }
             auto co = _co_st_::get_co(co_id);
             if (!co) {
-                return;
+                return COROUTINE_NONE;
             }
 
             win_init();
@@ -74,25 +75,26 @@ namespace cgo {
             switch (co->_status) {
                 case COROUTINE_READY:
                 case COROUTINE_SUSPEND: {
-                    co->_data = data;
                     co->_status = COROUTINE_RUNNING;
                     gcurno = co_id;
                     co->_mctx = gmainctx;
                     ::SwitchToFiber(co->_ctx);
-                    co->_data = 0;
+                    auto status = co->_status;
                     if (co->_status == COROUTINE_DEAD) {
                         _co_st_::free(co);
                     }
                     gcurno = M_INVALID_COROUTINE_ID;
-                    break;
+                    return status;
                 }
                 default:
                     assert(false);
                     break;
             }
+
+            return COROUTINE_NONE;
         }
 
-		void yield(void*& data) {
+		void yield() {
 			if (gcurno == M_INVALID_COROUTINE_ID) {
 				return;
 			}
@@ -102,10 +104,6 @@ namespace cgo {
 			co->_status = COROUTINE_SUSPEND;
 
 			::SwitchToFiber(co->_mctx);
-
-            auto co2 = _co_st_::get_co(co_id);
-            data = co2->_data;
-            co2->_data = 0;
 		}
     }
 }
