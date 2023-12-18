@@ -38,7 +38,7 @@ void rouinte() {
     }
 }
 
-int main() {
+int main2() {
     for(int i=0; i<NUM_TASKS; ++i) {
         tasks[i] = cgo::coro_adapter::create_co(rouinte);
     }
@@ -51,4 +51,5 @@ int main() {
         thr.join();
     }
     return 0;
+
 }

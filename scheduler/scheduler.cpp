@@ -363,23 +363,16 @@ namespace cgo {
             gscheduler.start_thread();
         }
 
+        void schedule_yield(void*& data, const task_type& after) {
+            coro_adapter::yield_co(data, after);
+        }
+
         void schedule_yield(void*& data) {
             coro_adapter::yield_co(data);
         }
 
         void schedule_yield() {
             coro_adapter::yield_co();
-        }
-
-        void schedule_wait_co(uint64_t co_id, void* data) {
-            assert(false);
-//            auto co = coroutine::_co_st_::get_co(co_id);
-//            assert(co);
-//
-//            while (co->_status != COROUTINE_SUSPEND
-//                && co->_status != COROUTINE_DEAD);
-//
-//            schedule_co(co_id, data);
         }
 
         void thread_func(int work_id, _schedule_thread_st_* st) {
@@ -457,6 +450,15 @@ namespace cgo {
             add_global_task(std::move(f));
         }
 
+        void yield_after(uint64_t co_id, int wait_mil) {
+            std::function<void()> timer_func = [co_id]() {
+                std::function<void()> task = std::bind(coro_adapter::resume_co, co_id, (void*)0);
+                add_local_task(std::move(task), false);
+            };
+
+            gscheduler._time_pool.async_add_timer(wait_mil, std::move(timer_func));
+        }
+
         void schedule_wait(int wait_mil) {
             assert(wait_mil <= M_MAX_CO_WAIT_TIME * 1000);
             auto co_id = coro_adapter::cur_coid();
@@ -464,13 +466,9 @@ namespace cgo {
                 return;
             }
 
-            std::function<void()> timer_func = [co_id]() {
-                std::function<void()> task = std::bind(coro_adapter::resume_co, co_id, (void*)0);
-                add_local_task(std::move(task), false);
-            };
-
-            gscheduler._time_pool.async_add_timer(wait_mil, std::move(timer_func));
-            schedule_yield();
+            std::function<void()> after = std::bind(yield_after, co_id, wait_mil);
+            void* data = 0;
+            schedule_yield(data, after);
         }
     }
 }

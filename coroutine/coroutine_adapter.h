@@ -21,6 +21,8 @@ namespace cgo {
 
         void resume_co(uint64_t co_id, void* data);
 
+        void yield_co(void*& data, const std::function<void()>& after);
+
         void yield_co(void*& data);
 
         void yield_co();

@@ -22,6 +22,7 @@ namespace cgo {
     namespace coro_adapter {
         uint64_t create_co(std::function<void()> routine, int stack, const char* file, int line);
         void resume_co(uint64_t co_id, void* data);
+        void yield_co(void*& data, const std::function<void()>& after);
         void yield_co(void*& data);
         void yield_co();
         void run_co(std::function<void()> routine, int stack, const char* file, int line);
@@ -133,10 +134,10 @@ namespace cgo {
         void add_local_task(task_type&& f, bool nosteal);
         void schedule_task(const task_type& routine, int stack, const char* file, int line);
         void schedule_wait(int wait_mil);
+        void schedule_yield(void*& data, const task_type& after);
         void schedule_yield(void*& data);
         void schedule_yield();
         void schedule_co(uint64_t co_id, void*);
-        void schedule_wait_co(uint64_t co_id, void*);
         void set_cgo_procs(int cnt);
         void set_cgo_core(int cnt);
         void cgo_stop();

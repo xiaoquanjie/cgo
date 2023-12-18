@@ -223,21 +223,22 @@ void chan_test() {
 	std::cout << "ref:" << ch.use_count() << "\n";
     print_withtime("begin");
 
-    int total = 2000000;
+    int total = 1000000;
     std::atomic_int count = 0;
 
-	go gostack(1024*1024) [&ch, &count, total]() {
+	go gostack(1024*1024) [ch, &count, total]() {
         for (int i = 0; i < total; i++) {
             ch >> i;
         }
     };
 
     for (int i=0; i< 16; i++) {
-        go gostack(1024*1024) [&ch, &count]() {
+        go gostack(1024*1024) [ch, &count]() {
             while (true) {
                 int v;
                 auto ok = ch << v;
                 if (!ok) {
+                    print_withtime("over");
                     break;
                 } else {
                     //print_withtime(std::to_string(v));
@@ -248,6 +249,7 @@ void chan_test() {
         };
     }
 
+    //closechan(ch);
     while (count != total) {
         //print_withtime(std::to_string(count.load()));
     }
@@ -856,7 +858,7 @@ void cas_cqueue_test3() {
     que.enqueue(3);
 }
 
-int main2()
+int main()
 {
 
     enum test_type {
@@ -875,7 +877,7 @@ int main2()
         t_atomic_test,
     };
 
-    switch (t_chan_test) {
+    switch (t_performance_test2) {
         case t_work_steal_queue_test:
             work_steal_queue_test();
             break;

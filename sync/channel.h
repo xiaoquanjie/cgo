@@ -19,16 +19,20 @@ namespace cgo {
     namespace channel {
         struct _i_chan_st_ {
             virtual ~_i_chan_st_() {}
-            virtual bool recv(void*& v) = 0;
-            virtual bool send(void* v) = 0;
+            virtual bool recv(void* v) = 0;
+            virtual bool send(const void* v) = 0;
             virtual void close() = 0;
         };
 
-        _i_chan_st_* make_chan(int, const std::function<void(void*)>&);
+        _i_chan_st_* make_chan(int,
+                               void(*destructor)(void*),
+                               void*(*constructor)(),
+                               void(*copy)(void*, const void*));
 
         // make sync data simple
         template<typename T>
         struct chan {
+
             template<class A>
             friend chan<A> makeChan(int);
 
@@ -41,7 +45,7 @@ namespace cgo {
                 incr_ref();
             }
 
-            chan(chan<T>& other) {
+            chan(const chan<T>& other) {
                 copy(other);
             }
 
@@ -49,12 +53,14 @@ namespace cgo {
                 copy(other);
             }
 
-            chan& operator=(chan<T>& other) {
+            chan& operator=(const chan<T>& other) {
+                desc_ref();
                 copy(other);
                 return *this;
             }
 
             chan& operator=(chan<T>&& other) {
+                desc_ref();
                 copy(other);
                 return *this;
             }
@@ -94,12 +100,7 @@ namespace cgo {
                     throw "chan is nil";
                 }
 
-                void* pv = 0;
-                if (_ch->recv(pv)) {
-                    if (pv) {
-                        v = *(T*)pv;
-                        _destructor(pv);
-                    }
+                if (_ch->recv(&v)) {
                     return true;
                 }
                 return false;
@@ -110,9 +111,7 @@ namespace cgo {
                     throw "chan is nil";
                 }
 
-                auto pv = new T(v);
-                if (!_ch->send(pv)) {
-                    _destructor(pv);
+                if (!_ch->send(&v)) {
                     return false;
                 }
                 return true;
@@ -131,29 +130,33 @@ namespace cgo {
                 _ref->fetch_add(1, std::memory_order_relaxed);
             }
 
-            inline void copy(chan<T>& other) {
-                desc_ref();
-
+            inline void copy(const chan<T>& other) {
                 this->_ref = other._ref;
                 this->_ch = other._ch;
                 incr_ref();
             }
+
+            inline static void data_destructor(void*v) {
+                T* p = (T*)v;
+                delete p;
+            }
+
+            inline static void* data_constructor() {
+                return (void*)new T;
+            }
+
+            inline static void data_copy(void* dst, const void* src) {
+                *(T*)dst = *(T*)src;
+            }
         private:
             _i_chan_st_ *_ch = 0;
             std::atomic_int* _ref = 0;
-            static std::function<void(void*)> _destructor;
-        };
-
-        template<typename T>
-        std::function<void(void*)> chan<T>::_destructor = [](void*t) {
-            T* p = (T*)t;
-            delete p;
         };
 
         template<typename T>
         inline chan<T> makeChan(int cap = 0) {
             chan<T> ch;
-            ch._ch = make_chan(cap, ch._destructor);
+            ch._ch = make_chan(cap, ch.data_destructor, ch.data_constructor, ch.data_copy);
             return ch;
         }
 

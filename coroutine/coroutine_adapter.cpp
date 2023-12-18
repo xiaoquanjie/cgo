@@ -15,11 +15,16 @@
 namespace cgo {
     namespace coro_adapter {
 #if defined(USE_MINI_CORO)
+        struct co_adapter_info {
+            std::function<void()> routine;
+            std::function<void()> after;
+        };
+
         void minicoro_routine(mco_coro* co) {
             void* data = 0;
             mco_pop(co, &data, sizeof(void*));
-            std::function<void()>* routine = (std::function<void()>*) mco_get_user_data(co);
-            (*routine)();
+            co_adapter_info* info = (co_adapter_info*)mco_get_user_data(co);
+            info->routine();
         }
 #endif
 
@@ -28,7 +33,10 @@ namespace cgo {
             return coroutine::create(routine, stack, file, line);
 #elif defined(USE_MINI_CORO)
             mco_desc desc = mco_desc_init(minicoro_routine, stack);
-            desc.user_data = (void*)new std::function<void()>(routine);
+            co_adapter_info* info = new co_adapter_info;
+            info->routine = routine;
+            desc.user_data = (void*)info;
+
             mco_coro* co;
             mco_result res = mco_create(&co, &desc);
             assert(res == MCO_SUCCESS);
@@ -45,21 +53,33 @@ namespace cgo {
             mco_coro* co = (mco_coro*)uintptr_t(co_id);
             mco_push(co, &data, sizeof(void*));
             mco_resume(co);
-            if (mco_status(co) == MCO_DEAD) {
-                std::function<void()>* routine = (std::function<void()>*)(co->user_data);
-                delete routine;
-                mco_destroy(co);
+            switch (mco_status(co)) {
+                case MCO_DEAD: {
+                    co_adapter_info* info = (co_adapter_info*)mco_get_user_data(co);
+                    delete info;
+                    mco_destroy(co);
+                    break;
+                }
+                case MCO_SUSPENDED: {
+                    co_adapter_info* info = (co_adapter_info*)mco_get_user_data(co);
+                    if (info->after) {
+                        info->after();
+                    }
+                    break;
+                }
             }
 #else
 #pragma message("no coroutine implement")
 #endif
         }
 
-        void yield_co(void*& data) {
+        void yield_co(void*& data, const std::function<void()>& after) {
 #if defined(USE_CGO_COROUTINE)
             coroutine::yield(data);
 #elif defined(USE_MINI_CORO)
             auto co2 = mco_running();
+            co_adapter_info* info = (co_adapter_info*)mco_get_user_data(co2);
+            info->after = after;
             mco_yield(co2);
             auto co = mco_running();
             mco_pop(co, &data, sizeof(void*));
@@ -68,9 +88,13 @@ namespace cgo {
 #endif
         }
 
+        void yield_co(void*& data) {
+            yield_co(data, nullptr);
+        }
+
         void yield_co() {
             void* data = 0;
-            yield_co(data);
+            yield_co(data, nullptr);
         }
 
         void run_co(std::function<void()> routine, int stack, const char* file, int line) {
@@ -83,7 +107,7 @@ namespace cgo {
             return coroutine::curid();
 #elif defined(USE_MINI_CORO)
             auto co = mco_running();
-            if (co == 0) {
+            if (co != 0) {
                 return (uintptr_t)co;
             }
             return (uint64_t)-1;
