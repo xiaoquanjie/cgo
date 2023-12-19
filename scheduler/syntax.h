@@ -39,8 +39,17 @@ namespace cgo {
 }
 
 // learn from libgo
+#undef go
 #define go cgo::_cgo_syntax_st_(__FILE__, __LINE__) >>
+
+#undef gostack
 #define gostack(size) cgo::_cgo_stack_st_{size} >>
+
+#undef gowait
 #define gowait(mil) cgo::cgo_wait(mil)
+
+#undef cgoprocs
 #define cgoprocs(cnt) cgo::cgo_procs(cnt)
+
+#undef cgocore
 #define cgocore(cnt) cgo::cgo_core(cnt)
