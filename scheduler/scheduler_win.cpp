@@ -9,7 +9,7 @@
 
 #include "../coroutine/macro.h"
 
-#ifdef M_PLATFORM_WIN
+#ifdef _MSC_VER
 
 namespace cgo {
     namespace scheduler {

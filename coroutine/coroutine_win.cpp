@@ -9,7 +9,7 @@
 
 #include "macro.h"
 
-#ifdef M_PLATFORM_WIN
+#ifdef _MSC_VER
 
 #include "structure.h"
 #include "../common/print.h"

@@ -15,7 +15,7 @@
 #include <atomic>
 #include <shared_mutex>
 
-#ifdef M_PLATFORM_WIN
+#ifdef _MSC_VER
 #include <Windows.h>
 #else
 #include <ucontext.h>
@@ -35,7 +35,7 @@ namespace cgo {
             const char* _file = 0;
             int _line = 0;
 
-#ifdef M_PLATFORM_WIN
+#ifdef _MSC_VER
             LPVOID _ctx = 0;
             LPVOID _mctx = 0;
 #else
@@ -54,7 +54,7 @@ namespace cgo {
         };
 
         extern thread_local volatile uint64_t gcurno;
-#ifdef M_PLATFORM_WIN
+#ifdef _MSC_VER
         extern thread_local LPVOID volatile gmainctx;
 #else
         extern thread_local ucontext_t* volatile gmainctx;

@@ -15,7 +15,7 @@ void print_withtime(const char* msg);
 uint64_t tasks[NUM_TASKS];
 std::atomic_flag flags[NUM_TASKS];
 
-void fun1() { // çº¿ç¨‹1
+void fun1() { // Ïß³Ì1
     static std::mutex mu;
     while (true) {
         for (int i = 0; i < NUM_TASKS; i++) {
@@ -38,18 +38,13 @@ void rouinte() {
     }
 }
 
-int main2() {
-    for(int i=0; i<NUM_TASKS; ++i) {
-        tasks[i] = cgo::coro_adapter::create_co(rouinte);
-    }
+void hook_test() {
 
-    std::vector<std::thread> thrs;
-    for (int i = 0; i < 10; i++) {
-        thrs.emplace_back(std::thread(fun1));
-    }
-    for (auto& thr : thrs) {
-        thr.join();
-    }
+}
+
+int main2() {
+    //hook();
+    hook_test();
     return 0;
 
 }

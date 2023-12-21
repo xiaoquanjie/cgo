@@ -164,9 +164,16 @@ namespace cgo {
                     std::unique_lock<std::mutex> scoped_lock(_thread_mu);
                     _dead_threads.clear();
                 }
-                return true;
             }
-            return false;
+
+            if (!_loops_flag.test_and_set()) {
+                for (auto& f : _loops) {
+                    f();
+                }
+                _loops_flag.clear();
+            }
+
+            return true;
         }
 
         void _scheduler_st_::start_thread() {
@@ -247,17 +254,17 @@ namespace cgo {
             uint64_t full = tmp_work_threads.size();
             uint64_t rn = (uint64_t)(&tmp_work_threads);
             rn %= full;
-            rn = (uint64_t)tmp_work_threads[rn].get();
+            rn = (uint64_t)(uintptr_t)tmp_work_threads[(uint32_t)rn].get();
             rn %= full;
 
             while (full > 0) {
                 full--;
                 auto i = (rn++) % tmp_work_threads.size();
-                if (tmp_work_threads[i].get() == st) {
+                if (tmp_work_threads[(uint32_t)i].get() == st) {
                     continue;
                 }
 
-                auto local_task = tmp_work_threads[i]->_local_task.load();
+                auto local_task = tmp_work_threads[(uint32_t)i]->_local_task.load();
                 if (!local_task) {
                     continue;
                 }
@@ -320,6 +327,10 @@ namespace cgo {
                 cnt = 1;
             }
             gscheduler._core_thr_cnt = cnt;
+        }
+
+        void cgo_add_loop(const task_type& f) {
+            gscheduler._loops.push_back(f);
         }
 
         void cgo_stop() {

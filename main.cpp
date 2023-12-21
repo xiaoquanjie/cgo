@@ -28,7 +28,7 @@ void print_withtime(const std::string& msg) {
     print_withtime(msg.c_str());
 }
 
-void pause() {
+void pause2() {
     while (true) {
         std::this_thread::sleep_for(std::chrono::seconds(500));
         break;
@@ -180,7 +180,7 @@ void lock_test() {
         }
     };
 
-    pause();
+    pause2();
 }
 
 #include "common/circle_queue.h"
@@ -384,23 +384,23 @@ void performance_test3() {
     };
 }
 
-std::atomic_uint32_t read, write;
+std::atomic_uint32_t read_n, write_n;
 void atomic_test() {
-    read = 0;
-    write = 0;
+    read_n = 0;
+    write_n = 0;
 
     for (int i = 0; i < 10; i++) {
         std::thread([]() {
             while (true) {
-                auto oldv = write.load();
-                auto cmp = read.load();
+                auto oldv = write_n.load();
+                auto cmp = read_n.load();
                 if (oldv - cmp >= 500) {
                     continue;
                 }
 
                 uint32_t expected = oldv;
                 uint32_t desired = oldv + 1;
-                write.compare_exchange_strong(expected, desired);
+                write_n.compare_exchange_strong(expected, desired);
                 std::this_thread::sleep_for(std::chrono::milliseconds(1000));
             }
 
@@ -412,8 +412,8 @@ void atomic_test() {
             uint32_t expected = 0;
             uint32_t desired = 0;
             while (true) {
-                uint32_t oldv = read;//.load();
-                uint32_t cmp = write;//.load();
+                uint32_t oldv = read_n;//.load();
+                uint32_t cmp = write_n;//.load();
                 assert(oldv <= cmp && i >= 0);
                 if (oldv == cmp) {
                     continue;
@@ -421,8 +421,8 @@ void atomic_test() {
 
                 expected = oldv;
                 desired = oldv + 1;
-                if (read.compare_exchange_strong(expected, desired)) {
-                    std::string tmp = "read=" + std::to_string(read.load());
+                if (read_n.compare_exchange_strong(expected, desired)) {
+                    std::string tmp = "read=" + std::to_string(read_n.load());
                     tmp += " expected=" + std::to_string(expected);
                     tmp += " desired=" + std::to_string(desired);
                     tmp += " thread=" + std::to_string(i);
@@ -858,6 +858,25 @@ void cas_cqueue_test3() {
     que.enqueue(3);
 }
 
+
+void hook_api_test() {
+    socket(0, 0, 0);
+
+    print_withtime("begin");
+
+    msleep(1);
+    print_withtime("sleep over");
+
+    go []() {
+        msleep(1);
+        print_withtime("sleep over");
+    };
+    go []() {
+        msleep(1);
+        print_withtime("sleep over2");
+    };
+}
+
 int main()
 {
 
@@ -875,9 +894,10 @@ int main()
         t_cas_cqueue_test,
         t_cas_cqueue_test2,
         t_atomic_test,
+        t_hook_api_test,
     };
 
-    switch (t_chan_test) {
+    switch (t_hook_api_test) {
         case t_work_steal_queue_test:
             work_steal_queue_test();
             break;
@@ -917,6 +937,9 @@ int main()
         case t_atomic_test:
             atomic_test();
             break;
+        case t_hook_api_test:
+            hook_api_test();
+            break;
         default:
             break;
     }
@@ -928,7 +951,7 @@ int main()
     //lock_test();
     //time_test();
     //cond_test();
-    pause();
+    pause2();
 	std::cout << "finish\n";
 	return 0;
 }

@@ -104,14 +104,17 @@ namespace cgo {
             std::atomic_int _thr_cnt = 0;       // current thread count
             std::atomic_uint64_t _task_op_cnt = 0;
 
+            async_time_pool _time_pool;
+            std::atomic_flag _time_pool_flag;
+            std::vector<task_type> _loops;
+            std::atomic_flag _loops_flag;
+
             _scheduler_st_();
 
             ~_scheduler_st_();
 
             void stop();
 
-            async_time_pool _time_pool;
-            std::atomic_flag _time_pool_flag;
             bool run();
 
             void start_thread();
@@ -140,6 +143,7 @@ namespace cgo {
         void schedule_co(uint64_t co_id, void*);
         void set_cgo_procs(int cnt);
         void set_cgo_core(int cnt);
+        void cgo_add_loop(const task_type& f);
         void cgo_stop();
         void print_debug_info();
         // try to start a new thread

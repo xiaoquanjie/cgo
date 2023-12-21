@@ -35,6 +35,8 @@ namespace cgo {
 
     void cgo_core(int cnt);
 
+    void cgo_add_loop(const std::function<void()>& f);
+
     void cgo_print_debug_info();
 }
 
@@ -46,10 +48,13 @@ namespace cgo {
 #define gostack(size) cgo::_cgo_stack_st_{size} >>
 
 #undef gowait
-#define gowait(mil) cgo::cgo_wait(mil)
+#define gowait cgo::cgo_wait
 
 #undef cgoprocs
-#define cgoprocs(cnt) cgo::cgo_procs(cnt)
+#define cgoprocs cgo::cgo_procs
 
 #undef cgocore
-#define cgocore(cnt) cgo::cgo_core(cnt)
+#define cgocore cgo::cgo_core
+
+#undef cgoloop
+#define cgoloop cgo::cgo_add_loop

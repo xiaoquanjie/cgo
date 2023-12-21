@@ -15,6 +15,7 @@ namespace cgo {
         void schedule_wait(int wait_mil);
         void set_cgo_procs(int cnt);
         void set_cgo_core(int cnt);
+        void cgo_add_loop(const std::function<void()>& f);
         void print_debug_info();
     }
 
@@ -40,6 +41,10 @@ namespace cgo {
 
     void cgo_core(int cnt) {
         scheduler::set_cgo_core(cnt);
+    }
+
+    void cgo_add_loop(const std::function<void()>& f) {
+        scheduler::cgo_add_loop(f);
     }
 
     void cgo_print_debug_info() {

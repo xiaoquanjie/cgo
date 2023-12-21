@@ -10,7 +10,7 @@
 
 #include "../coroutine/macro.h"
 
-#ifndef M_PLATFORM_WIN
+#ifdef __GNUC__
 
 namespace cgo {
     namespace scheduler {

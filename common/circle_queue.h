@@ -300,7 +300,7 @@ protected:
         number |= number >> 4;
         number |= number >> 8;
         number |= number >> 16;
-        number |= number >> 32;
+        number |= (size_t)(number >> 32);
         number++;
 
         return number;

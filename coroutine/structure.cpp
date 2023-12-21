@@ -36,7 +36,7 @@ namespace cgo {
             co->_file = file;
             co->_line = line;
 
-#ifndef M_PLATFORM_WIN
+#ifdef __GNUC__
             // init stack
             co->_stack = (char*) malloc(co->_ssize);
             memset(co->_stack, 0, 8);
@@ -48,7 +48,7 @@ namespace cgo {
 
         void _co_st_::free(_co_st_ *co) {
             assert(co != 0);
-#ifndef M_PLATFORM_WIN
+#ifdef __GNUC__
             if (co->_stack) {
                 // call global free
                 ::free(co->_stack);
@@ -77,7 +77,7 @@ namespace cgo {
         }
 
         bool _co_st_::memory_check(_co_st_* co) {
-#ifndef M_PLATFORM_WIN
+#ifdef __GNUC__
             assert(co->_stack);
             uint64_t* d = (uint64_t*)co->_stack;
             assert(*d == 0);
@@ -96,7 +96,7 @@ namespace cgo {
         }
 
         thread_local volatile uint64_t gcurno = M_INVALID_COROUTINE_ID;
-#ifdef M_PLATFORM_WIN
+#ifdef _MSC_VER
         thread_local LPVOID volatile gmainctx = 0;
 #else
         static thread_local ucontext_t glocal_mainctx;

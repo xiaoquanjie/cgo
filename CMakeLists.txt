@@ -22,11 +22,13 @@ add_executable(cgo
 
         common/time_pool.cpp
         sync/channel.cpp
+        hook/hook.cpp
         )
 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
 elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MinGw")
 else()
     target_link_libraries(cgo
-            pthread)
+            pthread
+            dl)
 endif()

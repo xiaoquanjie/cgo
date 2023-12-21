@@ -9,18 +9,6 @@
 
 #pragma once
 
-#ifndef M_PLATFORM_WIN32
-#if defined(_WIN32) || defined(__WIN32__) || defined(WIN32)
-#define M_PLATFORM_WIN32 1
-#endif
-#endif
-
-#ifndef M_PLATFORM_WIN
-#if defined(M_PLATFORM_WIN32) || defined(WIN64) || defined(_WIN64_) || defined(_WIN64)
-#define M_PLATFORM_WIN 1
-#endif
-#endif
-
 enum CoroutineStatus {
     COROUTINE_NONE = 0,
     COROUTINE_READY = 1,

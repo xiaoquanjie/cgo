@@ -9,7 +9,7 @@
 
 #include "macro.h"
 
-#ifndef M_PLATFORM_WIN
+#ifdef __GNUC__
 
 #include "structure.h"
 #include <assert.h>
