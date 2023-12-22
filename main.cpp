@@ -858,28 +858,194 @@ void cas_cqueue_test3() {
     que.enqueue(3);
 }
 
+#include <string.h>
+void hook_connect_test() {
+    struct fd_state {
+        enum {
+            set = 1,
+            read = 2,
+            write = 4,
+            accept = 8,
+            connect = 16,
+            connect_ok = 32,
+        };
 
-void hook_api_test() {
-    socket(0, 0, 0);
-
-    print_withtime("begin");
-
-    msleep(1);
-    print_withtime("sleep over");
-
-    go []() {
-        msleep(1);
-        print_withtime("sleep over");
+        volatile uint64_t co_id = -1;
+        //volatile char flag = 0;
+        std::atomic_char flag = 0;
     };
-    go []() {
-        msleep(1);
-        print_withtime("sleep over2");
+
+    static const int g_max_fd = 4*1024*100;
+    static fd_state* g_fd_state[g_max_fd];
+    int s = sizeof(g_fd_state);
+
+    for (int i = 0; i < 2; i++) {
+        go [i]() {
+            int fd = socket(AF_INET, SOCK_STREAM, 0);
+            if (fd == -1) {
+                print_withtime("create socket error");
+                return;
+            }
+
+            struct sockaddr_in addr;
+            memset(&addr, 0, sizeof(addr));
+            addr.sin_family = AF_INET;
+            addr.sin_port = htons(8080);
+            if (inet_pton(AF_INET, "192.168.204.61", &addr.sin_addr) <= 0) {
+                print_withtime("inet_pton error");
+                return;
+            }
+
+            int ret = connect(fd, (struct sockaddr*)&addr, sizeof(addr));
+            if (ret != 0) {
+                print_withtime("connect error");
+                close(fd);
+                return;
+            }
+
+            while (true) {
+                std::string data = "nihao" + std::to_string(i);
+                auto cnt = send(fd, data.c_str(), data.length(), 0);
+                if (cnt <= 0) {
+                    break;
+                }
+
+                char buf[100];
+                cnt = recv(fd, buf, 100, 0);
+                if (cnt <= 0) {
+                    break;
+                }
+
+                std::string rdata(buf, cnt);
+                print_withtime(rdata.c_str());
+
+                gowait(1000);
+            }
+
+            print_withtime("connection close");
+            close(fd);
+        };
+    }
+}
+
+void hook_accept_test() {
+    int fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (fd == -1) {
+        print_withtime("create socket error");
+        return;
+    }
+
+    int optval = 1;
+    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval)) == -1) {
+        print_withtime("setsockopt error");
+        return;
+    }
+
+    struct sockaddr_in server_addr;
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(50052);  // 绑定的端口号
+    server_addr.sin_addr.s_addr = INADDR_ANY;  // 监听所有可用的网络接口
+    if (bind(fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) == -1) {
+        perror("bind");
+        exit(EXIT_FAILURE);
+    }
+
+    if (listen(fd, 10) == -1) {  // 允许最多 10 个连接请求等待处理
+        perror("listen");
+        exit(EXIT_FAILURE);
+    }
+
+    go [fd]() {
+        while (true) {
+            struct sockaddr_in client_addr;
+            socklen_t client_addrlen = sizeof(client_addr);
+            int conn = accept(fd, (struct sockaddr*)&client_addr, &client_addrlen);
+            if (conn == -1) {
+                print_withtime("accept error");
+                assert(false);
+                continue;
+            }
+
+            print_withtime("a new connection");
+
+            go [conn]() {
+                while (true) {
+                    char buf[100] = {' ', 'r', 'e', 'a', 'd', ':'};
+                    auto cnt = recv(conn, buf+6, 94, 0);
+                    if (cnt <= 0) {
+                        break;
+                    }
+
+                    buf[cnt+6] = '\0';
+                    print_withtime(buf+1);
+
+                    buf[0] = 'r';
+                    buf[1] = 'e';
+                    buf[2] = 'p';
+                    buf[3] = 'l';
+                    buf[4] = 'y';
+                    buf[5] = ':';
+                    send(conn, buf, cnt+6, 0);
+                }
+
+                print_withtime("connection close");
+                close(conn);
+            };
+        }
+
+        close(fd);
+    };
+}
+
+void hook_udp_connect() {
+    int fd;
+
+    // 创建套接字
+    fd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (fd == -1) {
+        print_withtime("create socket error");
+        return;
+    }
+
+    go [fd]() {
+        while (true) {
+            struct sockaddr_in serverAddr;
+            // 设置服务器地址
+            memset(&serverAddr, 0, sizeof(serverAddr));
+            serverAddr.sin_family = AF_INET;
+            serverAddr.sin_port = htons(8080);  // 设置服务器端口号
+            if (inet_pton(AF_INET, "192.168.204.61", &(serverAddr.sin_addr)) <= 0) {
+                print_withtime("inet_pton error");
+                break;
+            }
+
+            // 发送数据
+            char buffer[1024];
+            const char *message = "Hello, server!";
+            int messageLen = strlen(message);
+            ssize_t cnt = sendto(fd, message, messageLen, 0, (struct sockaddr *)&serverAddr, sizeof(serverAddr));
+            if (cnt <= 0) {
+                break;
+            }
+
+            socklen_t addrlen = 0;
+            cnt = recvfrom(fd, buffer, 1024, 0, (struct sockaddr *)&serverAddr, &addrlen);
+            if (cnt <= 0) {
+                break;
+            }
+
+            buffer[cnt] = '\0';
+            print_withtime(buffer);
+            gowait(1000);
+        }
+
+        print_withtime("connection close");
+        close(fd);
     };
 }
 
 int main()
 {
-
     enum test_type {
         t_work_steal_queue_test = 0,
         t_performance_base_test,
@@ -894,10 +1060,12 @@ int main()
         t_cas_cqueue_test,
         t_cas_cqueue_test2,
         t_atomic_test,
-        t_hook_api_test,
+        t_hook_connect_test,
+        t_hook_accept_test,
+        t_hook_udp_connect,
     };
 
-    switch (t_hook_api_test) {
+    switch (t_hook_accept_test) {
         case t_work_steal_queue_test:
             work_steal_queue_test();
             break;
@@ -937,8 +1105,14 @@ int main()
         case t_atomic_test:
             atomic_test();
             break;
-        case t_hook_api_test:
-            hook_api_test();
+        case t_hook_connect_test:
+            hook_connect_test();
+            break;
+        case t_hook_accept_test:
+            hook_accept_test();
+            break;
+        case t_hook_udp_connect:
+            hook_udp_connect();
             break;
         default:
             break;

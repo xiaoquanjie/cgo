@@ -38,7 +38,7 @@ namespace cgo {
 #if defined(USE_CGO_COROUTINE)
             auto co_id = coroutine::create(routine, stack, file, line);
             co_adapter_info* info = new co_adapter_info;
-            coroutine::set_user_data(co_id, info);
+            coroutine::set_udata(co_id, info);
             return co_id;
 #elif defined(USE_MINI_CORO)
             mco_desc desc = mco_desc_init(minicoro_routine, stack);
@@ -57,7 +57,7 @@ namespace cgo {
 
         void resume_co(uint64_t co_id, void* data) {
 #if defined(USE_CGO_COROUTINE)
-            co_adapter_info* info = (co_adapter_info*)coroutine::get_user_data(co_id);
+            co_adapter_info* info = (co_adapter_info*)coroutine::get_udata(co_id);
             info->data = data;
             auto status = coroutine::resume(co_id);
             switch (status) {
@@ -99,7 +99,7 @@ namespace cgo {
         void yield_co(void*& data, const std::function<void()>& after) {
 #if defined(USE_CGO_COROUTINE)
             auto co2 = coroutine::curid();
-            co_adapter_info* info = (co_adapter_info*)coroutine::get_user_data(co2);
+            co_adapter_info* info = (co_adapter_info*)coroutine::get_udata(co2);
             info->after = after;
             coroutine::yield();
             data = info->data;

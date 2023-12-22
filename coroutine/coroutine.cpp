@@ -14,7 +14,7 @@ namespace cgo {
     namespace coroutine {
         uint64_t create(std::function<void()> routine, int stack, const char* file, int line);
 
-        bool set_user_data(uint64_t co_id, void* data) {
+        bool set_udata(uint64_t co_id, void* data) {
             auto co = _co_st_::get_co(co_id);
             if (co) {
                 co->_data = data;
@@ -23,7 +23,7 @@ namespace cgo {
             return false;
         }
 
-        void* get_user_data(uint64_t co_id) {
+        void* get_udata(uint64_t co_id) {
             auto co = _co_st_::get_co(co_id);
             if (co) {
                 return co->_data;

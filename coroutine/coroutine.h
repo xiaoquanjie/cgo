@@ -16,9 +16,9 @@ namespace cgo {
         // create one new coroutine
         uint64_t create(std::function<void()> routine, int stack = 0, const char* file = 0, int line = 0);
 
-        bool set_user_data(uint64_t co_id, void* data);
+        bool set_udata(uint64_t co_id, void* data);
 
-        void* get_user_data(uint64_t co_id);
+        void* get_udata(uint64_t co_id);
 
         // resume a coroutine, return the status of coroutine
         int resume(uint64_t co_id);
