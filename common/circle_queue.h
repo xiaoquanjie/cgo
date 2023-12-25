@@ -86,6 +86,7 @@ public:
     }
 };
 
+/*
 // only for inbuilt type
 template<typename T>
 class cas_cqueue {
@@ -405,3 +406,5 @@ public:
         return _head[_read];
     }
 };
+
+*/

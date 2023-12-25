@@ -311,35 +311,39 @@ namespace cgo {
             M_CO_DEBUG_PRINT("%s\n", output.c_str());
         }
 
-        _scheduler_st_ gscheduler;
-        _schedule_base_queue_st_* gglobal_task_queue = gscheduler._global_tasks;
+        _schedule_base_queue_st_* gglobal_task_queue = scheduler_inst()._global_tasks;
         thread_local _schedule_base_queue_st_* volatile glocal_task_queue = gglobal_task_queue;
 
         void set_cgo_procs(int cnt) {
             if (cnt < 1) {
                 cnt = 1;
             }
-            gscheduler._max_thr_cnt = cnt;
+            scheduler_inst()._max_thr_cnt = cnt;
         }
 
         void set_cgo_core(int cnt) {
             if (cnt < 1) {
                 cnt = 1;
             }
-            gscheduler._core_thr_cnt = cnt;
+            scheduler_inst()._core_thr_cnt = cnt;
         }
 
         void cgo_add_loop(const task_type& f) {
-            gscheduler._loops.push_back(f);
+            scheduler_inst()._loops.push_back(f);
         }
 
         void cgo_stop() {
             M_CO_DEBUG_PRINT("cgo stop\n");
-            gscheduler.stop();
+            scheduler_inst().stop();
         }
 
         void print_debug_info() {
-            gscheduler.print_debug_info();
+            scheduler_inst().print_debug_info();
+        }
+
+        _scheduler_st_& scheduler_inst() {
+            static _scheduler_st_ s_scheduler;
+            return s_scheduler;
         }
 
         void add_global_task(task_type&& f) {
@@ -371,7 +375,7 @@ namespace cgo {
         }
 
         void trigger_new_thread() {
-            gscheduler.start_thread();
+            scheduler_inst().start_thread();
         }
 
         void schedule_yield(void*& data, const task_type& after) {
@@ -467,7 +471,7 @@ namespace cgo {
                 add_local_task(std::move(task), false);
             };
 
-            gscheduler._time_pool.async_add_timer(wait_mil, std::move(timer_func));
+            scheduler_inst()._time_pool.async_add_timer(wait_mil, std::move(timer_func));
         }
 
         void schedule_wait(int wait_mil) {

@@ -128,11 +128,10 @@ namespace cgo {
             void print_debug_info();
         };
 
-        extern _scheduler_st_ gscheduler;
         extern _schedule_base_queue_st_* gglobal_task_queue;
         extern thread_local _schedule_base_queue_st_* volatile glocal_task_queue;
 
-        void co_pool_func(void*);
+        _scheduler_st_& scheduler_inst();
         void add_global_task(task_type&& f);
         void add_local_task(task_type&& f, bool nosteal);
         void schedule_task(const task_type& routine, int stack, const char* file, int line);

@@ -699,186 +699,159 @@ void condition_variable_test() {
 
 void cas_cqueue_test() {
     //cas_cqueue<int> que(2012);
-    mpmc_bounded_queue<int> que(2012);
-    std::atomic_int produce_cnt = 0;
-    std::atomic_int consume_cnt = 0;
-    std::atomic_int produce_fail = 0;
-    std::atomic_int consume_fail = 0;
-    int thrs = 2;
-    int total = thrs * 100000;
-    print_withtime("cas_cqueue test begin");
-
-    for (int i = 0; i < thrs; i++) {
-        std::thread([&que, &produce_cnt, &produce_fail, i]{
-            for (int j = 0; j < 100000;) {
-                if (que.enqueue(produce_cnt.load())) {
-                    produce_cnt++;
-                    j++;
-                }
-            }
-
-            print_withtime("produce quit:" + std::to_string(i));
-        }).detach();
-    }
-
-    for (int i = 0; i < 1; i++) {
-        std::thread([&que, &consume_cnt, &consume_fail, total, i]{
-            int v = 0;
-            while (true) {
-                if (que.dequeue(v)) {
-                    consume_cnt++;
-                }
-                if (consume_cnt >= total) {
-                    break;
-                }
-            }
-            print_withtime("consume quit:" + std::to_string(i));
-        }).detach();
-    }
-
-    while (!(produce_cnt >= total && consume_cnt >= total)) {
-        std::cout << "produce_cnt:" << produce_cnt
-                  << " produce_fail:" << produce_fail
-                  << " consume_cnt:" << consume_cnt
-                  << " consume_fail:" << consume_fail
-                  << "\n";
-        std::this_thread::sleep_for(std::chrono::seconds(1));
-    }
-
-    print_withtime("cas_cqueue test end");
-    std::cout << "produce_cnt:" << produce_cnt
-              << " produce_fail:" << produce_fail
-              << " consume_cnt:" << consume_cnt
-              << " consume_fail:" << consume_fail
-              << "\n";
+//    mpmc_bounded_queue<int> que(2012);
+//    std::atomic_int produce_cnt = 0;
+//    std::atomic_int consume_cnt = 0;
+//    std::atomic_int produce_fail = 0;
+//    std::atomic_int consume_fail = 0;
+//    int thrs = 2;
+//    int total = thrs * 100000;
+//    print_withtime("cas_cqueue test begin");
+//
+//    for (int i = 0; i < thrs; i++) {
+//        std::thread([&que, &produce_cnt, &produce_fail, i]{
+//            for (int j = 0; j < 100000;) {
+//                if (que.enqueue(produce_cnt.load())) {
+//                    produce_cnt++;
+//                    j++;
+//                }
+//            }
+//
+//            print_withtime("produce quit:" + std::to_string(i));
+//        }).detach();
+//    }
+//
+//    for (int i = 0; i < 1; i++) {
+//        std::thread([&que, &consume_cnt, &consume_fail, total, i]{
+//            int v = 0;
+//            while (true) {
+//                if (que.dequeue(v)) {
+//                    consume_cnt++;
+//                }
+//                if (consume_cnt >= total) {
+//                    break;
+//                }
+//            }
+//            print_withtime("consume quit:" + std::to_string(i));
+//        }).detach();
+//    }
+//
+//    while (!(produce_cnt >= total && consume_cnt >= total)) {
+//        std::cout << "produce_cnt:" << produce_cnt
+//                  << " produce_fail:" << produce_fail
+//                  << " consume_cnt:" << consume_cnt
+//                  << " consume_fail:" << consume_fail
+//                  << "\n";
+//        std::this_thread::sleep_for(std::chrono::seconds(1));
+//    }
+//
+//    print_withtime("cas_cqueue test end");
+//    std::cout << "produce_cnt:" << produce_cnt
+//              << " produce_fail:" << produce_fail
+//              << " consume_cnt:" << consume_cnt
+//              << " consume_fail:" << consume_fail
+//              << "\n";
 }
 
 void cas_cqueue_test2() {
-    struct info {
-        int idx = 0;
-        int val = 0;
-        bool flag = false;
-    };
-
-    //cas_cqueue<info> que(2012);
-    mpmc_bounded_queue<info> que(2048);
-    //cqueue2<info> que(2048);
-
-    int thrs = 2;
-    int total = 1000000;
-    info* write = new info[total];
-    info* read = new info[total];
-
-    while (true) {
-        for (int i = 0; i < total; i++) {
-            write[i].idx = i;
-            write[i].val = rand();
-            write[i].flag = false;
-            read[i].idx = false;
-            read[i].idx = 0;
-            read[i].idx = 0;
-        }
-
-        std::atomic_thread_fence(std::memory_order_seq_cst);
-        std::vector<std::thread> thr_vec;
-
-        print_withtime("begin");
-
-        // 生产数量
-        std::atomic_int prod = 0;
-        for (int i = 0; i < thrs; i++) {
-            thr_vec.emplace_back(std::move(std::thread([&que, write, read, total, &prod]{
-                static std::mutex mu;
-                for (int i = 0; i < total; i++) {
-                    mu.lock();
-                    if (write[i].flag) {
-                        mu.unlock();
-                        continue;
-                    }
-                    write[i].flag = true;
-                    mu.unlock();
-
-                    while (true) {
-                        if (que.enqueue(write[i])) {
-                            prod++;
-                            break;
-                        }
-                    }
-                }
-            })));
-        }
-
-        // 消费数量
-        std::atomic_int cons = 0;
-        for (int i = 0; i < thrs; i++) {
-            thr_vec.emplace_back(std::thread([&que, write, read, total, &cons] {
-                while (true) {
-                    info j;
-                    if (que.dequeue(j)) {
-                        assert(j.val == write[j.idx].val);
-                        read[j.idx] = j;
-                        //read[i.idx].idx = i.idx;
-                        //read[i.idx].val = i.val;
-                        read[j.idx].flag = true;
-                        cons++;
-                    }
-                    if (cons >= total) {
-                        break;
-                    }
-                }
-            }));
-        }
-
-        for (auto& t : thr_vec) {
-            std::cout << "consume:" << cons.load() << " produce:" << prod << "\n";
-            t.join();
-        }
-
-        print_withtime("end");
-        std::atomic_thread_fence(std::memory_order_seq_cst);
-
-        for (int i = 0; i < total; i++) {
-            if (write[i].val != read[i].val) {
-                std::cout << "write[" << i << "]:" << write[i].val << " read[" << i << "]:" << read[i].val << " read_flag:" << read[i].flag << "\n";
-                assert(false);
-            }
-        }
-
-        std::cout << "================\n";
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
-    }
+//    struct info {
+//        int idx = 0;
+//        int val = 0;
+//        bool flag = false;
+//    };
+//
+//    //cas_cqueue<info> que(2012);
+//    mpmc_bounded_queue<info> que(2048);
+//    //cqueue2<info> que(2048);
+//
+//    int thrs = 2;
+//    int total = 1000000;
+//    info* write = new info[total];
+//    info* read = new info[total];
+//
+//    while (true) {
+//        for (int i = 0; i < total; i++) {
+//            write[i].idx = i;
+//            write[i].val = rand();
+//            write[i].flag = false;
+//            read[i].idx = false;
+//            read[i].idx = 0;
+//            read[i].idx = 0;
+//        }
+//
+//        std::atomic_thread_fence(std::memory_order_seq_cst);
+//        std::vector<std::thread> thr_vec;
+//
+//        print_withtime("begin");
+//
+//        // 生产数量
+//        std::atomic_int prod = 0;
+//        for (int i = 0; i < thrs; i++) {
+//            thr_vec.emplace_back(std::move(std::thread([&que, write, read, total, &prod]{
+//                static std::mutex mu;
+//                for (int i = 0; i < total; i++) {
+//                    mu.lock();
+//                    if (write[i].flag) {
+//                        mu.unlock();
+//                        continue;
+//                    }
+//                    write[i].flag = true;
+//                    mu.unlock();
+//
+//                    while (true) {
+//                        if (que.enqueue(write[i])) {
+//                            prod++;
+//                            break;
+//                        }
+//                    }
+//                }
+//            })));
+//        }
+//
+//        // 消费数量
+//        std::atomic_int cons = 0;
+//        for (int i = 0; i < thrs; i++) {
+//            thr_vec.emplace_back(std::thread([&que, write, read, total, &cons] {
+//                while (true) {
+//                    info j;
+//                    if (que.dequeue(j)) {
+//                        assert(j.val == write[j.idx].val);
+//                        read[j.idx] = j;
+//                        //read[i.idx].idx = i.idx;
+//                        //read[i.idx].val = i.val;
+//                        read[j.idx].flag = true;
+//                        cons++;
+//                    }
+//                    if (cons >= total) {
+//                        break;
+//                    }
+//                }
+//            }));
+//        }
+//
+//        for (auto& t : thr_vec) {
+//            std::cout << "consume:" << cons.load() << " produce:" << prod << "\n";
+//            t.join();
+//        }
+//
+//        print_withtime("end");
+//        std::atomic_thread_fence(std::memory_order_seq_cst);
+//
+//        for (int i = 0; i < total; i++) {
+//            if (write[i].val != read[i].val) {
+//                std::cout << "write[" << i << "]:" << write[i].val << " read[" << i << "]:" << read[i].val << " read_flag:" << read[i].flag << "\n";
+//                assert(false);
+//            }
+//        }
+//
+//        std::cout << "================\n";
+//        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+//    }
 }
 
-void cas_cqueue_test3() {
-    mpmc_bounded_queue<int> que(2);
-    que.enqueue(1);
-    que.enqueue(2);
-    //int i;
-    //que.dequeue(i);
-    que.enqueue(3);
-}
 
 #include <string.h>
 void hook_connect_test() {
-    struct fd_state {
-        enum {
-            set = 1,
-            read = 2,
-            write = 4,
-            accept = 8,
-            connect = 16,
-            connect_ok = 32,
-        };
-
-        volatile uint64_t co_id = -1;
-        //volatile char flag = 0;
-        std::atomic_char flag = 0;
-    };
-
-    static const int g_max_fd = 4*1024*100;
-    static fd_state* g_fd_state[g_max_fd];
-    int s = sizeof(g_fd_state);
-
     for (int i = 0; i < 2; i++) {
         go [i]() {
             int fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -929,6 +902,8 @@ void hook_connect_test() {
 }
 
 void hook_accept_test() {
+    //cgo_global_hook(true);
+
     int fd = socket(AF_INET, SOCK_STREAM, 0);
     if (fd == -1) {
         print_withtime("create socket error");
@@ -936,14 +911,14 @@ void hook_accept_test() {
     }
 
     int optval = 1;
-    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval)) == -1) {
+    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (const char*) & optval, sizeof(optval)) == -1) {
         print_withtime("setsockopt error");
         return;
     }
 
     struct sockaddr_in server_addr;
     server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(50052);  // 绑定的端口号
+    server_addr.sin_port = htons(50051);  // 绑定的端口号
     server_addr.sin_addr.s_addr = INADDR_ANY;  // 监听所有可用的网络接口
     if (bind(fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) == -1) {
         perror("bind");
@@ -956,6 +931,7 @@ void hook_accept_test() {
     }
 
     go [fd]() {
+        cgo_hook_fd(fd);
         while (true) {
             struct sockaddr_in client_addr;
             socklen_t client_addrlen = sizeof(client_addr);
@@ -967,8 +943,9 @@ void hook_accept_test() {
             }
 
             print_withtime("a new connection");
-
+            continue;
             go [conn]() {
+                cgo_hook_fd(conn);
                 while (true) {
                     char buf[100] = {' ', 'r', 'e', 'a', 'd', ':'};
                     auto cnt = recv(conn, buf+6, 94, 0);
@@ -1023,7 +1000,7 @@ void hook_udp_connect() {
             char buffer[1024];
             const char *message = "Hello, server!";
             int messageLen = strlen(message);
-            ssize_t cnt = sendto(fd, message, messageLen, 0, (struct sockaddr *)&serverAddr, sizeof(serverAddr));
+            auto cnt = sendto(fd, message, messageLen, 0, (struct sockaddr *)&serverAddr, sizeof(serverAddr));
             if (cnt <= 0) {
                 break;
             }
