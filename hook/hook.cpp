@@ -10,7 +10,7 @@
 #include <stdio.h>
 #include <atomic>
 
-#define hook_debug _hook_debug
+#define hook_debug //_hook_debug
 
 inline void _hook_debug(const char* name) {
     printf("hook: %s ok\n", name);
@@ -544,6 +544,11 @@ struct SendOverlapped : public WinOverlapped {
 
 struct RecvOverlapped : public SendOverlapped {};
 
+struct ConnOverlapped : public WinOverlapped {
+    const struct sockaddr* name;
+    int namelen;
+};
+
 typedef SOCKET (PASCAL FAR *socket_hook_t)(_In_ int af,
     _In_ int type,
     _In_ int protocol);
@@ -636,7 +641,54 @@ int PASCAL FAR hook_connect (
                         _In_ SOCKET s,
                         _In_reads_bytes_(namelen) const struct sockaddr FAR *name,
                         _In_ int namelen) {
-    return 0;
+    if (!canhook((int)s)) {
+        return connect_hook(s, name, namelen);
+    }
+
+    hook_debug(__FUNCTION__);
+
+    DWORD dwBytes;
+    LPFN_CONNECTEX lpfnConn = NULL;
+    GUID guidConnectEx = WSAID_CONNECTEX;
+    if (SOCKET_ERROR == WSAIoctl(s, SIO_GET_EXTENSION_FUNCTION_POINTER,
+        &guidConnectEx, sizeof(guidConnectEx), &lpfnConn, sizeof(lpfnConn), &dwBytes, NULL, NULL))
+    {
+        return -1;
+    }
+
+    for (;;) {
+        ConnOverlapped* ov = new ConnOverlapped;
+        memset(ov, 0, sizeof(ConnOverlapped));
+        ov->name = name;
+        ov->namelen = namelen;
+
+        auto state = check_fd_state((int)s, fd_state::connect);
+        state->co_id = cgo::coro_adapter::cur_coid();
+        state->flag |= fd_state::connect;
+
+        void* data = 0;
+        cgo::scheduler::schedule_yield(data, [ov, state, s, lpfnConn]() {
+            auto ret = lpfnConn(s, ov->name, ov->namelen, NULL, 0, NULL, (LPOVERLAPPED)ov);
+            if (ret == FALSE) {
+                auto err = WSAGetLastError();
+                if (err == ERROR_IO_PENDING) {}
+                else {
+                    ov->err = err;
+                    cgo::coro_adapter::resume_co(state->co_id, 0);
+                }
+            }
+        });
+
+        delete ov;
+        if (state->flag & fd_state::connecok) {
+            return 0;
+        }
+
+        WSASetLastError(WSAENETUNREACH);
+        break;
+    }
+
+    return -1;
 }
 
 typedef int (PASCAL FAR* closesocket_hook_t)(IN SOCKET s);
@@ -817,7 +869,7 @@ void WINAPI hook_sleep(_In_ DWORD dwMilliseconds) {
 if (MH_CreateHookApi(TEXT(module), #oriname, &hook_##name, reinterpret_cast<LPVOID*>(&name##_hook)) != MH_OK) { \
     throw "hook " #oriname " error"; \
 } \
-if (MH_EnableHook(&oriname) != MH_OK) {\
+if (MH_EnableHookApi(TEXT(module), #oriname) != MH_OK) {\
     throw "enable hook " #oriname " error"; \
 }
 
@@ -840,25 +892,25 @@ bool win_hook_init() {
     }
 
     HOOK_API("kernel32.dll", Sleep, sleep);
-    HOOK_API2(socket, socket);
-    HOOK_API2(accept, accept);
-    HOOK_API2(connect, connect);
-    HOOK_API2(closesocket, closesocket);
-    HOOK_API2(sendto, sendto);
-    HOOK_API2(recvfrom, recvfrom);
-    HOOK_API2(send, send);
-    HOOK_API2(recv, recv);
-    //HOOK_API2(gethostbyname, gethostbyname);
+    HOOK_API("Ws2_32.dll", socket, socket);
+    HOOK_API("Ws2_32.dll", accept, accept);
+    HOOK_API("Ws2_32.dll", connect, connect);
+    HOOK_API("Ws2_32.dll", closesocket, closesocket);
+    HOOK_API("Ws2_32.dll", sendto, sendto);
+    HOOK_API("Ws2_32.dll", recvfrom, recvfrom);
+    HOOK_API("Ws2_32.dll", send, send);
+    HOOK_API("Ws2_32.dll", recv, recv);
 
+    //HOOK_API2(gethostbyname, gethostbyname);
 
     g_iocp_handle = CreateIoCompletionPort(INVALID_HANDLE_VALUE, 0, 0, 0);
 
-    cgo::scheduler::cgo_add_loop([]() {
+    auto iocp_proc = []() {
         DWORD dwTrans = 0; // Number Of Bytes Transferred
         ULONG_PTR lpCompletionKey = 0;
         WinOverlapped* overlapped = 0;
         BOOL ok = GetQueuedCompletionStatus(g_iocp_handle, &dwTrans, &lpCompletionKey, (LPOVERLAPPED*)&overlapped, 0);
-        
+
         if (ok == FALSE) {
             if (overlapped == NULL) {
                 if (GetLastError() != WAIT_TIMEOUT) {
@@ -877,12 +929,40 @@ bool win_hook_init() {
         overlapped->bytes = dwTrans; // dwTrans is 0 when socket is closed or error but accept
         overlapped->err = ERROR_SUCCESS;
         cgo::scheduler::schedule_co(state->co_id, 0);
+    };
 
-        //printf("fd:%d trans:%d flag:%d\n", lpCompletionKey, dwTrans, state->flag.load());
-        //if ((state->flag & fd_state::set) && state->co_id != -1) {
-        //    
-        //}
-    });
+    auto iocp_proc2 = []() {
+        static const int MAX_ENTRY = 200;
+        static OVERLAPPED_ENTRY completionPortEntries[MAX_ENTRY];
+        ULONG ulNumEntriesRemoved;
+        BOOL ok = GetQueuedCompletionStatusEx(g_iocp_handle, completionPortEntries, MAX_ENTRY, &ulNumEntriesRemoved, 0, true);
+        
+        if (ok == FALSE) {
+            return;
+        }
+
+        for (ULONG idx = 0; idx < ulNumEntriesRemoved; idx++) {
+            auto fd = completionPortEntries[idx].lpCompletionKey;
+            auto state = get_fd_state((int)fd);
+            if (state->flag & state->connect) {
+                int optVal = -1;
+                int optLen = sizeof(optVal);
+                if (getsockopt(fd, SOL_SOCKET, SO_CONNECT_TIME, (char*)&optVal, &optLen) == NO_ERROR) {
+                    if (optVal != 0xFFFFFFFF) {
+                        state->flag |= fd_state::connecok;
+                    }
+                }
+            }
+            else {
+                WinOverlapped* overlapped = (WinOverlapped*)completionPortEntries[idx].lpOverlapped;
+                overlapped->bytes = completionPortEntries[idx].dwNumberOfBytesTransferred; // dwTrans is 0 when socket is closed or error but accept
+                overlapped->err = ERROR_SUCCESS;
+            }
+            cgo::scheduler::schedule_co(state->co_id, 0);
+        }
+    };
+
+    cgo::scheduler::cgo_add_loop(iocp_proc2);
 
     return true;
 }

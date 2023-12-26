@@ -911,11 +911,11 @@ void hook_accept_test() {
         return;
     }
 
-    int optval = 1;
+    /*int optval = 1;
     if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (const char*) & optval, sizeof(optval)) == -1) {
         print_withtime("setsockopt error");
         return;
-    }
+    }*/
 
     struct sockaddr_in server_addr;
     server_addr.sin_family = AF_INET;
@@ -1043,7 +1043,7 @@ int main()
         t_hook_udp_connect,
     };
 
-    switch (t_hook_accept_test) {
+    switch (t_hook_connect_test) {
         case t_work_steal_queue_test:
             work_steal_queue_test();
             break;

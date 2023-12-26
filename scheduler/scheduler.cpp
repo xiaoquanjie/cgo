@@ -299,7 +299,7 @@ namespace cgo {
             output += std::string("global queue count:") + std::to_string(this->_global_tasks->size());
             output += std::string(", global task operation count:") + std::to_string(this->_task_op_cnt);
             output += std::string("\n");
-            for (auto thr : tmp_work_threads) {
+            for (std::shared_ptr<_schedule_thread_st_> thr : tmp_work_threads) {
                 auto local_task = thr->_local_task.load();
                 if (!local_task) {
                     continue;

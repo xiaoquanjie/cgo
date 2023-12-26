@@ -154,6 +154,8 @@ extern "C" {
     //                enabled in one go.
     MH_STATUS WINAPI MH_EnableHook(LPVOID pTarget);
 
+    MH_STATUS WINAPI MH_EnableHookApi(LPCWSTR pszModule, LPCSTR pszProcName);
+
     // Disables an already created hook.
     // Parameters:
     //   pTarget [in] A pointer to the target function.
@@ -2707,6 +2709,22 @@ static MH_STATUS EnableHook(LPVOID pTarget, BOOL enable)
 //-------------------------------------------------------------------------
 MH_STATUS WINAPI MH_EnableHook(LPVOID pTarget)
 {
+    return EnableHook(pTarget, TRUE);
+}
+
+//-------------------------------------------------------------------------
+MH_STATUS WINAPI MH_EnableHookApi(LPCWSTR pszModule, LPCSTR pszProcName) {
+    HMODULE hModule;
+    LPVOID  pTarget;
+
+    hModule = GetModuleHandleW(pszModule);
+    if (hModule == NULL)
+        return MH_ERROR_MODULE_NOT_FOUND;
+
+    pTarget = (LPVOID)GetProcAddress(hModule, pszProcName);
+    if (pTarget == NULL)
+        return MH_ERROR_FUNCTION_NOT_FOUND;
+
     return EnableHook(pTarget, TRUE);
 }
 
