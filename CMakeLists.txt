@@ -6,21 +6,7 @@ set(CMAKE_CXX_STANDARD 17)
 add_compile_options(-Wno-error=deprecated-declarations)
 add_compile_options(-Wno-deprecated-declarations)
 
-add_library("cgo"
-        coroutine/structure.cpp
-        coroutine/coroutine.cpp
-        coroutine/coroutine_linux2.cpp
-        coroutine/coroutine_win.cpp
-        coroutine/coroutine_adapter.cpp
-        scheduler/syntax.cpp
-        scheduler/scheduler.cpp
-        scheduler/scheduler_linux.cpp
-        scheduler/scheduler_win.cpp
-
-        common/time_pool.cpp
-        sync/channel.cpp
-        hook/hook.cpp
-)
+add_subdirectory(./cgo)
 
 add_executable(cgo_exmaple
         example/main.cpp

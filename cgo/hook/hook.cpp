@@ -6,7 +6,7 @@
 
 #ifdef CGO_USE_HOOK
 
-#include "../scheduler/scheduler.h"
+#include "scheduler/scheduler.h"
 #include <stdio.h>
 #include <atomic>
 
