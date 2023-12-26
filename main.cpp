@@ -976,50 +976,55 @@ void hook_accept_test() {
 }
 
 void hook_udp_connect() {
-    int fd;
+    //cgoprocs(1);
+    cgo_global_hook(true);
 
-    // 创建套接字
-    fd = socket(AF_INET, SOCK_DGRAM, 0);
-    if (fd == -1) {
-        print_withtime("create socket error");
-        return;
+    for (int i = 0; i < 3; i++) {
+        go[i]() {
+            // 创建套接字
+            int fd = socket(AF_INET, SOCK_DGRAM, 0);
+            if (fd == -1) {
+                print_withtime("create socket error");
+                return;
+            }
+
+            while (true) {
+                struct sockaddr_in serverAddr;
+                // 设置服务器地址
+                memset(&serverAddr, 0, sizeof(serverAddr));
+                serverAddr.sin_family = AF_INET;
+                serverAddr.sin_port = htons(8080);  // 设置服务器端口号
+                if (inet_pton(AF_INET, "192.168.204.61", &(serverAddr.sin_addr)) <= 0) {
+                    print_withtime("inet_pton error");
+                    break;
+                }
+
+                // 发送数据
+                std::string message = "Hello, server!";
+                message += std::to_string(i);
+                auto cnt = sendto(fd, message.c_str(), message.length(), 0, (struct sockaddr*)&serverAddr, sizeof(serverAddr));
+                if (cnt <= 0) {
+                    break;
+                }
+
+                char buffer[1024];
+                memset(&serverAddr, 0, sizeof(serverAddr));
+                socklen_t addrlen = sizeof(sockaddr_in);
+                cnt = recvfrom(fd, buffer, 1024, 0, (struct sockaddr*)&serverAddr, &addrlen);
+                if (cnt <= 0) {
+                    auto err = WSAGetLastError();
+                    break;
+                }
+
+                buffer[cnt] = '\0';
+                print_withtime(buffer);
+                gowait(1000);
+            }
+
+            print_withtime("connection close");
+            close(fd);
+        };
     }
-
-    go [fd]() {
-        while (true) {
-            struct sockaddr_in serverAddr;
-            // 设置服务器地址
-            memset(&serverAddr, 0, sizeof(serverAddr));
-            serverAddr.sin_family = AF_INET;
-            serverAddr.sin_port = htons(8080);  // 设置服务器端口号
-            if (inet_pton(AF_INET, "192.168.204.61", &(serverAddr.sin_addr)) <= 0) {
-                print_withtime("inet_pton error");
-                break;
-            }
-
-            // 发送数据
-            char buffer[1024];
-            const char *message = "Hello, server!";
-            int messageLen = strlen(message);
-            auto cnt = sendto(fd, message, messageLen, 0, (struct sockaddr *)&serverAddr, sizeof(serverAddr));
-            if (cnt <= 0) {
-                break;
-            }
-
-            socklen_t addrlen = 0;
-            cnt = recvfrom(fd, buffer, 1024, 0, (struct sockaddr *)&serverAddr, &addrlen);
-            if (cnt <= 0) {
-                break;
-            }
-
-            buffer[cnt] = '\0';
-            print_withtime(buffer);
-            gowait(1000);
-        }
-
-        print_withtime("connection close");
-        close(fd);
-    };
 }
 
 int main()
@@ -1043,7 +1048,7 @@ int main()
         t_hook_udp_connect,
     };
 
-    switch (t_hook_connect_test) {
+    switch (t_hook_udp_connect) {
         case t_work_steal_queue_test:
             work_steal_queue_test();
             break;

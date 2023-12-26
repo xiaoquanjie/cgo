@@ -549,6 +549,16 @@ struct ConnOverlapped : public WinOverlapped {
     int namelen;
 };
 
+struct SendtoOverlapped : public SendOverlapped {
+    const struct sockaddr* name;
+    int namelen;
+};
+
+struct RecvfromOverlapped : public RecvOverlapped {
+    struct sockaddr* name;
+    int* namelen;
+};
+
 typedef SOCKET (PASCAL FAR *socket_hook_t)(_In_ int af,
     _In_ int type,
     _In_ int protocol);
@@ -680,6 +690,7 @@ int PASCAL FAR hook_connect (
         });
 
         delete ov;
+        state->flag ^= fd_state::connect;
         if (state->flag & fd_state::connecok) {
             return 0;
         }
@@ -717,7 +728,48 @@ int PASCAL FAR hook_sendto (
                        _In_ int flags,
                        _In_reads_bytes_opt_(tolen) const struct sockaddr FAR *to,
                        _In_ int tolen) {
-    return 0;
+    if (!canhook(s)) {
+        return sendto_hook(s, buf, len, flags, to, tolen);
+    }
+
+    hook_debug(__FUNCTION__);
+
+    for (;;) {
+        SendtoOverlapped* ov = new SendtoOverlapped;
+        memset(ov, 0, sizeof(SendtoOverlapped));
+        ov->buf[0].buf = const_cast<char*>(buf);
+        ov->buf[0].len = len;
+        ov->name = to;
+        ov->namelen = tolen;
+
+        auto state = check_fd_state((int)s, fd_state::write);
+        state->co_id = cgo::coro_adapter::cur_coid();
+        state->flag |= fd_state::write;
+
+        void* data = 0;
+        cgo::scheduler::schedule_yield(data, [ov, state, s, flags]() {
+            int ret = WSASendTo(s, ov->buf, 1, &ov->bytes, flags, ov->name, ov->namelen, (LPOVERLAPPED)ov, NULL);
+            if (ret != ERROR_SUCCESS) {
+                auto err = WSAGetLastError();
+                if (err == ERROR_IO_PENDING) {}
+                else {
+                    ov->err = err;
+                    cgo::coro_adapter::resume_co(state->co_id, 0);
+                }
+            }
+        });
+
+        state->flag ^= fd_state::write;
+        int err = ov->err;
+        DWORD bytes = ov->bytes;
+        delete ov;
+
+        if (err != ERROR_SUCCESS) {
+            WSASetLastError(err);
+        }
+        return bytes;
+    }
+    return -1;
 }
 
 typedef int (PASCAL FAR* recvfrom_hook_t)(
@@ -735,7 +787,50 @@ int PASCAL FAR hook_recvfrom (
                          _In_ int flags,
                          _Out_writes_bytes_to_opt_(*fromlen, *fromlen) struct sockaddr FAR * from,
                          _Inout_opt_ int FAR * fromlen) {
-    return 0;
+    if (!canhook(s)) {
+        return recvfrom_hook(s, buf, len, flags, from, fromlen);
+    }
+
+    hook_debug(__FUNCTION__);
+
+    for (;;) {
+        RecvfromOverlapped* ov = new RecvfromOverlapped;
+        memset(ov, 0, sizeof(RecvfromOverlapped));
+        ov->buf[0].buf = buf;
+        ov->buf[0].len = len;
+        ov->name = from;
+        ov->namelen = fromlen;
+
+        auto state = check_fd_state((int)s, fd_state::read);
+        state->co_id = cgo::coro_adapter::cur_coid();
+        state->flag |= fd_state::read;
+
+        void* data = 0;
+        cgo::scheduler::schedule_yield(data, [ov, state, s]() {
+            DWORD flag = 0;
+            int ret = WSARecvFrom(s, ov->buf, 1, &ov->bytes, &flag, ov->name, ov->namelen, (LPOVERLAPPED)ov, NULL);
+            if (ret != ERROR_SUCCESS) {
+                auto err = WSAGetLastError();
+                if (err == ERROR_IO_PENDING) {}
+                else {
+                    ov->err = err;
+                    cgo::coro_adapter::resume_co(state->co_id, 0);
+                }
+            }
+        });
+
+        state->flag ^= fd_state::read;
+        int err = ov->err;
+        DWORD bytes = ov->bytes;
+        delete ov;
+
+        if (err != ERROR_SUCCESS) {
+            WSASetLastError(err);
+        }
+        return bytes;
+    }
+
+    return -1;
 }
 
 typedef int (PASCAL FAR* send_hook_t)(
@@ -850,7 +945,7 @@ int PASCAL FAR hook_recv (
 typedef struct hostent FAR* (PASCAL FAR* gethostbyname_hook_t)(_In_z_ const char FAR* name);
 static gethostbyname_hook_t gethostbyname_hook = 0;
 struct hostent FAR * PASCAL FAR hook_gethostbyname(_In_z_ const char FAR * name) {
-    return 0;
+    return gethostbyname_hook(name);
 }
 
 typedef void (WINAPI *sleep_hook_t)(_In_ DWORD dwMilliseconds);
