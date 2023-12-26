@@ -902,6 +902,7 @@ void hook_connect_test() {
 }
 
 void hook_accept_test() {
+    //cgoprocs(1);
     //cgo_global_hook(true);
 
     int fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -918,16 +919,16 @@ void hook_accept_test() {
 
     struct sockaddr_in server_addr;
     server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(50051);  // 绑定的端口号
+    server_addr.sin_port = htons(50052);  // 绑定的端口号
     server_addr.sin_addr.s_addr = INADDR_ANY;  // 监听所有可用的网络接口
     if (bind(fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) == -1) {
-        perror("bind");
-        exit(EXIT_FAILURE);
+        print_withtime("bind error");
+        return;
     }
 
     if (listen(fd, 10) == -1) {  // 允许最多 10 个连接请求等待处理
-        perror("listen");
-        exit(EXIT_FAILURE);
+        print_withtime("listen error");
+        return;
     }
 
     go [fd]() {
@@ -943,7 +944,7 @@ void hook_accept_test() {
             }
 
             print_withtime("a new connection");
-            continue;
+            
             go [conn]() {
                 cgo_hook_fd(conn);
                 while (true) {

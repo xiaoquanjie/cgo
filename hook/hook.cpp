@@ -51,6 +51,9 @@ inline void clear_fd_state(int fd) {
 
 inline fd_state* check_fd_state(int fd, int fs) {
     auto state = get_fd_state(fd);
+    if (state->flag & fs) {
+        throw "duplicate state";
+    }
     assert((state->flag & fs) == 0);
     return state;
 }
@@ -109,7 +112,7 @@ void add_fd(int fd) {
     }
 }
 
-void remove_fd(int fd) {
+inline void remove_fd(int fd) {
     epoll_ctl(g_epoll_fd, EPOLL_CTL_DEL, fd, NULL);
 }
 
@@ -526,14 +529,20 @@ static HANDLE g_iocp_handle = NULL;
 struct WinOverlapped {
     OVERLAPPED overlap;
     int err;
+    DWORD bytes; // Number Of Bytes Sent / recv
 };
 
 struct AcceptOverlapped : public WinOverlapped {
     SOCKET l_fd;
     SOCKET c_fd;
     char addr_buf[128];
-    DWORD bytes;
 };
+
+struct SendOverlapped : public WinOverlapped {
+    WSABUF buf[1];
+};
+
+struct RecvOverlapped : public SendOverlapped {};
 
 typedef SOCKET (PASCAL FAR *socket_hook_t)(_In_ int af,
     _In_ int type,
@@ -547,6 +556,7 @@ SOCKET PASCAL FAR hook_socket(
     return socket_hook(af, type, protocol);
 }
 
+// for more error info,see WSAGetLastError
 typedef SOCKET(PASCAL FAR *accept_hook_t)(
     _In_ SOCKET s,
     _Out_writes_bytes_opt_(*addrlen) struct sockaddr FAR* addr,
@@ -561,8 +571,7 @@ SOCKET PASCAL FAR hook_accept (
     }
 
     hook_debug(__FUNCTION__);
-    auto state = check_fd_state((int)s, fd_state::accept);
-
+    
     for (;;) {
         SOCKET c_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
         if (c_fd == INVALID_SOCKET) {
@@ -574,6 +583,7 @@ SOCKET PASCAL FAR hook_accept (
         ov->l_fd = s;
         ov->c_fd = c_fd;
 
+        auto state = check_fd_state((int)s, fd_state::accept);
         state->co_id = cgo::coro_adapter::cur_coid();
         state->flag |= fd_state::accept;
 
@@ -588,11 +598,7 @@ SOCKET PASCAL FAR hook_accept (
                 sizeof(sockaddr_in) + 16,
                 &ov->bytes, (LPOVERLAPPED)ov);
 
-            if (ret == TRUE) {
-                ov->err = ERROR_SUCCESS;
-                cgo::coro_adapter::resume_co(state->co_id, 0);
-            }
-            else {
+            if (ret == FALSE) {
                 auto err = WSAGetLastError();
                 if (err == ERROR_IO_PENDING) {}
                 else {
@@ -602,18 +608,18 @@ SOCKET PASCAL FAR hook_accept (
             }
         });
 
+        state->flag ^= fd_state::accept;
         int err = ov->err;
         delete ov;
 
         if (err == ERROR_SUCCESS) {
-            state->flag ^= fd_state::accept;
             return c_fd;
         } 
 
         closesocket(c_fd);
 
         if (err != WSAECONNRESET) {
-            state->flag ^= fd_state::accept;
+            WSASetLastError(err);
             break;
         }
     }
@@ -636,7 +642,12 @@ int PASCAL FAR hook_connect (
 typedef int (PASCAL FAR* closesocket_hook_t)(IN SOCKET s);
 static closesocket_hook_t closesocket_hook = 0;
 int PASCAL FAR hook_closesocket (IN SOCKET s) {
-    return 0;
+    hook_debug(__FUNCTION__);
+    auto state = get_fd_state((int)s);
+    if (state->flag & fd_state::set) {
+        clear_fd_state(s);
+    }
+    return closesocket_hook(s);
 }
 
 typedef int (PASCAL FAR* sendto_hook_t)(
@@ -686,7 +697,47 @@ int PASCAL FAR hook_send (
                      _In_reads_bytes_(len) const char FAR * buf,
                      _In_ int len,
                      _In_ int flags) {
-    return 0;
+    if (!canhook((int)s)) {
+        return send_hook(s, buf, len, flags);
+    }
+
+    hook_debug(__FUNCTION__);
+    
+    for (;;) {
+        SendOverlapped* ov = new SendOverlapped;
+        memset(ov, 0, sizeof(SendOverlapped));
+        ov->buf[0].buf = const_cast<char*>(buf);
+        ov->buf[0].len = len;
+
+        auto state = check_fd_state((int)s, fd_state::write);
+        state->co_id = cgo::coro_adapter::cur_coid();
+        state->flag |= fd_state::write;
+
+        void* data = 0;
+        cgo::scheduler::schedule_yield(data, [ov, state, s]() {
+            int ret = WSASend(s, ov->buf, 1, &ov->bytes, 0, (LPOVERLAPPED)ov, NULL);
+            if (ret != ERROR_SUCCESS) {
+                auto err = WSAGetLastError();
+                if (err == ERROR_IO_PENDING) {}
+                else {
+                    ov->err = err;
+                    cgo::coro_adapter::resume_co(state->co_id, 0);
+                }
+            }
+        });
+
+        state->flag ^= fd_state::write;
+        int err = ov->err;
+        DWORD bytes = ov->bytes;
+        delete ov;
+
+        if (err != ERROR_SUCCESS) {
+            WSASetLastError(err);
+        }
+        return bytes;
+    }
+
+    return -1;
 }
 
 typedef int (PASCAL FAR* recv_hook_t)(
@@ -700,7 +751,48 @@ int PASCAL FAR hook_recv (
                      _Out_writes_bytes_to_(len, return) __out_data_source(NETWORK) char FAR * buf,
                      _In_ int len,
                      _In_ int flags) {
-    return 0;
+    if (!canhook((int)s)) {
+        return recv_hook(s, buf, len, flags);
+    }
+
+    hook_debug(__FUNCTION__);
+
+    for (;;) {
+        RecvOverlapped* ov = new RecvOverlapped;
+        memset(ov, 0, sizeof(RecvOverlapped));
+        ov->buf[0].buf = buf;
+        ov->buf[0].len = len;
+
+        auto state = check_fd_state((int)s, fd_state::read);
+        state->co_id = cgo::coro_adapter::cur_coid();
+        state->flag |= fd_state::read;
+
+        void* data = 0;
+        cgo::scheduler::schedule_yield(data, [ov, state, s]() {
+            DWORD flag = 0;
+            int ret = WSARecv(s, ov->buf, 1, &ov->bytes, &flag, (LPOVERLAPPED)ov, NULL);
+            if (ret != ERROR_SUCCESS) {
+                auto err = WSAGetLastError();
+                if (err == ERROR_IO_PENDING) {}
+                else {
+                    ov->err = err;
+                    cgo::coro_adapter::resume_co(state->co_id, 0);
+                }
+            }
+        });
+
+        state->flag ^= fd_state::read;
+        int err = ov->err;
+        DWORD bytes = ov->bytes;
+        delete ov;
+
+        if (err != ERROR_SUCCESS) {
+            WSASetLastError(err);
+        }
+        return bytes;
+    }
+
+    return -1;
 }
 
 typedef struct hostent FAR* (PASCAL FAR* gethostbyname_hook_t)(_In_z_ const char FAR* name);
@@ -774,7 +866,7 @@ bool win_hook_init() {
                 }
             }
             else {
-                overlapped->err = GetLastError();
+                overlapped->err = WSAEBADF;// GetLastError();
                 auto state = get_fd_state((int)lpCompletionKey);
                 cgo::scheduler::schedule_co(state->co_id, 0);
             }
@@ -782,20 +874,14 @@ bool win_hook_init() {
         }
 
         auto state = get_fd_state((int)lpCompletionKey);
-        if (state->flag & fd_state::accept) {
-            overlapped->err = ERROR_SUCCESS;
-        }
-        else {
-            if (dwTrans == 0) {
-                // socket is closed
-                overlapped->err = SOCKET_ERROR;
-            }
-            else {
-                overlapped->err = ERROR_SUCCESS;
-            }
-        }
-
+        overlapped->bytes = dwTrans; // dwTrans is 0 when socket is closed or error but accept
+        overlapped->err = ERROR_SUCCESS;
         cgo::scheduler::schedule_co(state->co_id, 0);
+
+        //printf("fd:%d trans:%d flag:%d\n", lpCompletionKey, dwTrans, state->flag.load());
+        //if ((state->flag & fd_state::set) && state->co_id != -1) {
+        //    
+        //}
     });
 
     return true;
