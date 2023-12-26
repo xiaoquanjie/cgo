@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 #include <iomanip>
-#include "cgo.h"
+#include "../cgo.h"
 
 void print_withtime(const char* msg) {
     static std::mutex mu;
@@ -142,7 +142,7 @@ void cond_test() {
     }
 }
 
-#include "common/time_pool.h"
+#include "../common/time_pool.h"
 void time_test() {
     async_time_pool p;
     std::thread([&p]() {
@@ -183,7 +183,7 @@ void lock_test() {
     pause2();
 }
 
-#include "common/circle_queue.h"
+#include "../common/circle_queue.h"
 void cqueue_test() {
     struct info {
         int i = 0;
@@ -283,7 +283,7 @@ void test(std::atomic_int& c) {
     c++;
 }
 
-#include "coroutine/coroutine.h"
+#include "../coroutine/coroutine.h"
 void performance_base_test() {
     for (int j = 0; j < 3; j++) {
         print_withtime("base test begin");
@@ -305,7 +305,7 @@ void performance_base_test() {
     }
 }
 
-#include "scheduler/scheduler.h"
+#include "../scheduler/scheduler.h"
 void performance_copool_base_test() {
 }
 
@@ -438,7 +438,7 @@ void atomic_test() {
     }
 }
 
-#include "common/concurrentqueue.h"
+#include "../common/concurrentqueue.h"
 void concurrentqueue_test() {
     moodycamel::ConcurrentQueue<int> q;
     std::vector<std::thread> thrs;
@@ -646,7 +646,7 @@ void time_pool_test() {
     print_withtime(std::string("end count:") + std::to_string(p.timer_count()));
 }
 
-#include "common/work_steal_queue.hpp"
+#include "../common/work_steal_queue.hpp"
 void work_steal_queue_test() {
     WorkStealingQueue<int> q(8);
     while (true) {
@@ -1012,7 +1012,6 @@ void hook_udp_connect() {
                 socklen_t addrlen = sizeof(sockaddr_in);
                 cnt = recvfrom(fd, buffer, 1024, 0, (struct sockaddr*)&serverAddr, &addrlen);
                 if (cnt <= 0) {
-                    auto err = WSAGetLastError();
                     break;
                 }
 
