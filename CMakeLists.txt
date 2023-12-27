@@ -9,4 +9,5 @@ add_compile_options(-Wno-deprecated-declarations)
 add_subdirectory(./cgo)
 add_subdirectory(./example)
 add_subdirectory(./thirdparty/co_grpc)
+add_subdirectory(./thirdparty/grpc-test)
 

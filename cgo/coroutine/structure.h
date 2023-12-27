@@ -9,7 +9,7 @@
 
 #pragma once
 
-#include "macro.h"
+#include "common/macro.h"
 #include "../common/concurrentqueue.h"
 #include <functional>
 #include <atomic>

@@ -24,6 +24,33 @@ namespace cgo {
     }
 
     namespace scheduler {
+        void _schedule_base_queue_st_::record() {
+            if (this->_clock.time_since_epoch().count() == 0) {
+                this->_clock = std::chrono::steady_clock::now();
+            }
+        }
+
+        void _schedule_base_queue_st_::unrecord() {
+            if (this->size() == 0 || this->_clock.time_since_epoch().count() == 0) {
+                this->_clock = time_point();
+            }
+        }
+
+        bool _schedule_base_queue_st_::delay() {
+            if (this->size() == 0) {
+                return false;
+            }
+
+            auto now = std::chrono::steady_clock::now();
+            auto expire = (std::chrono::duration_cast<std::chrono::milliseconds>(now - this->_clock)).count();
+            //M_CO_DEBUG_PRINT("delay:%ld clock:%ld \n", expire, this->_clock.time_since_epoch().count());
+
+            if (expire >= M_QUEUE_DELAY_TIME) {
+                return true;
+            }
+            return false;
+        }
+
         _schedule_local_queue_st_::_schedule_local_queue_st_() {
             _queue = new wsq_task_queue_type(M_MAX_LOCAL_TASK_QUEUE);
         }
@@ -47,6 +74,7 @@ namespace cgo {
             task_type* task = new task_type(f);
             // Only the owner thread can insert an item to the queue.
             _queue->push(task);
+            record();
         }
 
         void _schedule_local_queue_st_::enqueue(task_type* f, bool& forward) {
@@ -62,6 +90,7 @@ namespace cgo {
 
             f = *opt.value();
             delete opt.value();
+            unrecord();
             return true;
         }
 
@@ -79,6 +108,7 @@ namespace cgo {
                     delete opt.value();
                 }
             }
+            unrecord();
         }
 
         _schedule_global_queue_st_::_schedule_global_queue_st_() {
@@ -95,15 +125,19 @@ namespace cgo {
 
         void _schedule_global_queue_st_::enqueue(const task_type& f) {
             assert(_queue->enqueue(f));
+            record();
         }
 
         void _schedule_global_queue_st_::enqueue(task_type* f, bool& forward) {
             assert(_queue->enqueue(*f));
             forward = false;
+            record();
         }
 
         bool _schedule_global_queue_st_::try_dequeue(task_type& f) {
-            return _queue->try_dequeue(f);
+            auto ret = _queue->try_dequeue(f);
+            unrecord();
+            return ret;
         }
 
         void _schedule_global_queue_st_::steal(int32_t count, _schedule_base_queue_st_* to) {
@@ -115,6 +149,7 @@ namespace cgo {
                 }
                 to->enqueue(f);
             }
+            unrecord();
         }
 
         //////////////////////////////////////////////////////////////
@@ -186,20 +221,33 @@ namespace cgo {
             return true;
         }
 
-        void _scheduler_st_::start_thread() {
-            auto task_size = _global_tasks->size();
-            if (_thr_cnt >= _max_thr_cnt
-                || (_idle_thr_cnt != 0 && task_size < M_MAX_LOCAL_TASK_QUEUE)) {
+        void _scheduler_st_::start_thread(bool force) {
+            start_thread(force, nullptr);
+        }
+
+        void _scheduler_st_::start_thread(bool force, _schedule_base_queue_st_* fromq) {
+            if (_thr_cnt >= _max_thr_cnt) {
                 return;
+            }
+            if (!force) {
+                auto task_size = _global_tasks->size();
+                if (_idle_thr_cnt != 0 && task_size < M_MAX_LOCAL_TASK_QUEUE) {
+                    return;
+                }
             }
 
             std::unique_lock<std::mutex> scoped_lock(_thread_mu);
 
             // double check
-            task_size = _global_tasks->size();
-            if (_thr_cnt >= _max_thr_cnt
-                || (_idle_thr_cnt != 0 && task_size < M_MAX_LOCAL_TASK_QUEUE)) {
+            if (_thr_cnt >= _max_thr_cnt) {
                 return;
+            }
+
+            if (!force) {
+                auto task_size = _global_tasks->size();
+                if (_idle_thr_cnt != 0 && task_size < M_MAX_LOCAL_TASK_QUEUE) {
+                    return;
+                }
             }
 
             _idle_thr_cnt++;
@@ -210,6 +258,12 @@ namespace cgo {
             auto st = std::make_shared<_schedule_thread_st_>();
             st->_work_id = work_id;
             st->_scheduler = this;
+            st->_local_task.store(new _schedule_local_queue_st_);
+
+            if (fromq) {
+                st->_scheduler->steal_task(fromq, st->_local_task.load(), 0);
+            }
+
             _work_threads.emplace_back(st);
             std::function<void()> work = std::bind(thread_func, work_id, st.get());
             st->_thr = new std::thread(work);
@@ -240,13 +294,38 @@ namespace cgo {
             }
         }
 
+        void _scheduler_st_::steal_task(_schedule_base_queue_st_* from, _schedule_base_queue_st_* to, int32_t count) {
+            if (!from) {
+                return;
+            }
+
+            auto has = from->size();
+            if (has <= 0) {
+                return;
+            }
+
+            if (count != 0) {
+                from->steal(count, to);
+            } else {
+                has = has % 2 != 0 ? (has / 2) + 1 : has / 2;
+                int32_t need = M_MAX_LOCAL_TASK_QUEUE - (int32_t)to->size();
+                if (need <= 0) {
+                    return;
+                }
+
+                // (std::min) for windows
+                need = (std::min)(need, (int32_t)has);
+                from->steal(need, to);
+            }
+        }
+
         void _scheduler_st_::steal_task(_schedule_thread_st_* st) {
             // steal from global first
             // max local task queue: M_MAX_LOCAL_TASK_QUEUE
-            this->_global_tasks->steal(M_MAX_LOCAL_TASK_QUEUE, st->_local_task);
+            steal_task(this->_global_tasks, st->_local_task, M_MAX_LOCAL_TASK_QUEUE);
 
-            _schedule_base_queue_st_* to_local_task = st->_local_task;
-            if (_thr_cnt <= 1 || to_local_task->size() > 0) {
+            _schedule_base_queue_st_* to = st->_local_task;
+            if (_thr_cnt <= 1 || to->size() > 0) {
                 // can't steal from self
                 return;
             }
@@ -274,26 +353,13 @@ namespace cgo {
                     continue;
                 }
 
-                auto local_task = tmp_work_threads[(uint32_t)i]->_local_task.load();
-                if (!local_task) {
+                auto from = tmp_work_threads[(uint32_t)i]->_local_task.load();
+                if (!from) {
                     continue;
                 }
 
-                auto has = local_task->size();
-                if (has <= 0) {
-                    continue;
-                }
-
-                has = has % 2 != 0 ? (has / 2) + 1 : has / 2;
-                int32_t need = M_MAX_LOCAL_TASK_QUEUE - (int32_t)to_local_task->size();
-                if (need <= 0) {
-                    continue;
-                }
-
-                // (std::min) for windows
-                need = (std::min)(need, (int32_t)has);
-                local_task->steal(need, to_local_task);
-                if (to_local_task->size() > 0) {
+                steal_task(from, to, 0);
+                if (to->size() > 0) {
                     break;
                 }
             }
@@ -357,16 +423,20 @@ namespace cgo {
         }
 
         void add_global_task(task_type&& f) {
+            bool delay = false;
             if (glocal_task_queue == gglobal_task_queue) {
                 glocal_task_queue->enqueue(f);
+                delay = glocal_task_queue->delay();
             } else {
                 if (glocal_task_queue->size() >= M_MAX_LOCAL_TASK_QUEUE) {
                     gglobal_task_queue->enqueue(f);
+                    delay = gglobal_task_queue->delay();
                 } else {
                     glocal_task_queue->enqueue(f);
+                    delay = glocal_task_queue->delay();
                 }
             }
-            trigger_new_thread();
+            trigger_new_thread(delay);
         }
 
         void add_local_task(task_type&& f, bool nosteal) {
@@ -374,7 +444,7 @@ namespace cgo {
                 assert(false);
             } else {
                 glocal_task_queue->enqueue(f);
-                trigger_new_thread();
+                trigger_new_thread(glocal_task_queue->delay());
             }
         }
 
@@ -388,8 +458,8 @@ namespace cgo {
             add_global_task(std::move(f));
         }
 
-        void trigger_new_thread() {
-            scheduler_inst().start_thread();
+        void trigger_new_thread(bool force) {
+            scheduler_inst().start_thread(force);
         }
 
         void schedule_yield(void*& data, const task_type& after) {
@@ -407,8 +477,8 @@ namespace cgo {
         void thread_func(int work_id, _schedule_thread_st_* st) {
             M_CO_DEBUG_PRINT("start cgo working thread:%d\n", work_id);
 
-            st->_local_task.store(new _schedule_local_queue_st_);
             glocal_task_queue = st->_local_task;
+            _schedule_base_queue_st_* local_q = st->_local_task.load();
 
             int64_t idle_beg_time = 0;
             bool idle_quit = false;
@@ -419,7 +489,7 @@ namespace cgo {
 
                 // run local task
                 task_type task;
-                while (glocal_task_queue->try_dequeue(task)) {
+                while (local_q->try_dequeue(task)) {
                     idle_beg_time = 0;
                     idles = 0;
                     st->_scheduler->_idle_thr_cnt--;
@@ -430,12 +500,16 @@ namespace cgo {
                     if (st->_scheduler->_stop) {
                         break;
                     }
+
+                    if (local_q->delay()) {
+                        st->_scheduler->start_thread(true, local_q);
+                    }
                 }
 
-                if (glocal_task_queue->size() == 0) {
+                if (local_q->size() == 0) {
                     // steal from the other queue
                     st->_scheduler->steal_task(st);
-                    if (glocal_task_queue->size() == 0) {
+                    if (local_q->size() == 0) {
                         // idle
                         idles++;
                         if (idle_beg_time == 0) {
@@ -446,6 +520,10 @@ namespace cgo {
                             std::this_thread::sleep_for(std::chrono::milliseconds(10));
                         }
                     }
+                }
+
+                if (gglobal_task_queue->delay()) {
+                    st->_scheduler->start_thread(true, gglobal_task_queue);
                 }
 
                 if (st->_scheduler->_stop) {

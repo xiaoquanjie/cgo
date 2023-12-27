@@ -8,7 +8,7 @@
 //----------------------------------------------------------------*/
 
 
-#include "../coroutine/macro.h"
+#include "common/macro.h"
 
 #ifdef __GNUC__
 

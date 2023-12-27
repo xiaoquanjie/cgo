@@ -9,7 +9,7 @@
 
 #pragma once
 
-#include "../coroutine/macro.h"
+#include "../common/macro.h"
 #include "../common/time_pool.h"
 #include "../common/print.h"
 #include "../common/concurrentqueue.h"
@@ -26,6 +26,13 @@ namespace cgo {
         struct _scheduler_st_;
 
         struct _schedule_base_queue_st_ {
+            using time_point = std::chrono::time_point<std::chrono::steady_clock>;
+            time_point _clock;
+
+            void record();
+            void unrecord();
+            bool delay();
+
             virtual ~_schedule_base_queue_st_() {}
             virtual std::size_t size() = 0;
             virtual void enqueue(const task_type& f) = 0;
@@ -107,11 +114,15 @@ namespace cgo {
 
             bool run();
 
-            void start_thread();
+            void start_thread(bool force);
+
+            void start_thread(bool force, _schedule_base_queue_st_* newq);
 
             bool try_dead_thread();
 
             void dead_thread(_schedule_thread_st_* st);
+
+            void steal_task(_schedule_base_queue_st_* from, _schedule_base_queue_st_* to, int32_t count);
 
             void steal_task(_schedule_thread_st_* st);
 
@@ -137,7 +148,7 @@ namespace cgo {
         void cgo_stop();
         void print_debug_info();
         // try to start a new thread
-        void trigger_new_thread();
+        void trigger_new_thread(bool force);
         void thread_func(int work_id, _schedule_thread_st_* st);
     }
 }

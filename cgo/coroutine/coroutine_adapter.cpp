@@ -7,7 +7,7 @@
 
 #if defined(USE_CGO_COROUTINE)
 #include "coroutine.h"
-#include "macro.h"
+#include "common/macro.h"
 #elif defined(USE_MINI_CORO)
 #define MINICORO_IMPL
 #include "minicoro.h"
