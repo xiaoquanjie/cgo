@@ -19,16 +19,6 @@
 #include <vector>
 
 namespace cgo {
-    namespace coro_adapter {
-        uint64_t create_co(std::function<void()> routine, int stack, const char* file, int line);
-        void resume_co(uint64_t co_id, void* data);
-        void yield_co(void*& data, const std::function<void()>& after);
-        void yield_co(void*& data);
-        void yield_co();
-        void run_co(std::function<void()> routine, int stack, const char* file, int line);
-        uint64_t cur_coid();
-    }
-
     namespace scheduler {
         using task_type = std::function<void()>;
         using concurrent_task_queue_type = moodycamel::ConcurrentQueue<task_type>;
@@ -134,6 +124,7 @@ namespace cgo {
         _scheduler_st_& scheduler_inst();
         void add_global_task(task_type&& f);
         void add_local_task(task_type&& f, bool nosteal);
+        uint64_t cur_coid();
         void schedule_task(const task_type& routine, int stack, const char* file, int line);
         void schedule_wait(int wait_mil);
         void schedule_yield(void*& data, const task_type& after);

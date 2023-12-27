@@ -13,6 +13,16 @@
 #include <string>
 
 namespace cgo {
+    namespace coro_adapter {
+        uint64_t create_co(std::function<void()> routine, int stack, const char* file, int line);
+        void resume_co(uint64_t co_id, void* data);
+        void yield_co(void*& data, const std::function<void()>& after);
+        void yield_co(void*& data);
+        void yield_co();
+        void run_co(std::function<void()> routine, int stack, const char* file, int line);
+        uint64_t cur_coid();
+    }
+
     namespace scheduler {
         _schedule_local_queue_st_::_schedule_local_queue_st_() {
             _queue = new wsq_task_queue_type(M_MAX_LOCAL_TASK_QUEUE);
@@ -366,6 +376,10 @@ namespace cgo {
                 glocal_task_queue->enqueue(f);
                 trigger_new_thread();
             }
+        }
+
+        uint64_t cur_coid() {
+            return coro_adapter::cur_coid();
         }
 
         // thread-safety

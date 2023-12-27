@@ -8,7 +8,7 @@ add_compile_options(-Wno-deprecated-declarations)
 
 include_directories(./)
 
-add_library("cgo"
+add_library(cgo
         coroutine/structure.cpp
         coroutine/coroutine.cpp
         coroutine/coroutine_linux2.cpp

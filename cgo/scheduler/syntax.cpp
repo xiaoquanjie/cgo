@@ -8,11 +8,15 @@
 //----------------------------------------------------------------*/
 
 #include "syntax.h"
+#include <stdint.h>
 
 namespace cgo {
     namespace scheduler {
+        uint64_t cur_coid();
         void schedule_task(const std::function<void()>& routine, int stack, const char* file, int line);
+        void schedule_yield();
         void schedule_wait(int wait_mil);
+        void schedule_co(uint64_t co_id, void*);
         void set_cgo_procs(int cnt);
         void set_cgo_core(int cnt);
         void cgo_add_loop(const std::function<void()>& f);
@@ -26,6 +30,18 @@ namespace cgo {
     _cgo_syntax_st_& _cgo_syntax_st_::operator >>(const _cgo_stack_st_& stack) {
         this->_stack = stack._stack;
         return *this;
+    }
+
+    unsigned long long cgo_cur_coid() {
+        return scheduler::cur_coid();
+    }
+
+    void cgo_resume(unsigned long long co_id) {
+        scheduler::schedule_co(co_id, 0);
+    }
+
+    void cgo_yield() {
+        scheduler::schedule_yield();
     }
 
     void cgo_wait(int wait_mil) {

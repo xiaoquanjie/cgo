@@ -59,7 +59,7 @@ inline fd_state* check_fd_state(int fd, int fs) {
 }
 
 inline bool canhook(int fd) {
-    if (cgo::coro_adapter::cur_coid() == -1) {
+    if (cgo::scheduler::cur_coid() == -1) {
         return false;
     }
 
@@ -142,7 +142,7 @@ int accept(int fd, struct sockaddr *addr, socklen_t *addrlen) {
         || EWOULDBLOCK == errno) {
         for (;;) {
             state->flag |= fd_state::accept;
-            state->co_id = cgo::coro_adapter::cur_coid();
+            state->co_id = cgo::scheduler::cur_coid();
             cgo::scheduler::schedule_yield();
             ret = accept_hook(fd, addr, addrlen);
             if (ret > 0) {
@@ -179,7 +179,7 @@ int connect(int fd, const struct sockaddr *address, socklen_t addrlen) {
         || EINTR == errno) {
         for (;;) {
             state->flag |= fd_state::connect;
-            state->co_id = cgo::coro_adapter::cur_coid();
+            state->co_id = cgo::scheduler::cur_coid();
             cgo::scheduler::schedule_yield();
             if (state->flag & fd_state::connecok) {
                 state->flag ^= fd_state::connecok;
@@ -227,7 +227,7 @@ ssize_t read(int fd, void *buf, size_t bytes) {
         || EWOULDBLOCK == errno) {
         for (;;) {
             state->flag |= fd_state::read;
-            state->co_id = cgo::coro_adapter::cur_coid();
+            state->co_id = cgo::scheduler::cur_coid();
             cgo::scheduler::schedule_yield();
             ret = read_hook(fd, buf, bytes);
             if (ret >= 0) {
@@ -263,7 +263,7 @@ ssize_t recv(int fd, void *buf, size_t len, int flags) {
         || EWOULDBLOCK == errno) {
         for (;;) {
             state->flag |= fd_state::read;
-            state->co_id = cgo::coro_adapter::cur_coid();
+            state->co_id = cgo::scheduler::cur_coid();
             cgo::scheduler::schedule_yield();
             ret = recv_hook(fd, buf, len, flags);
             if (ret >= 0) {
@@ -299,7 +299,7 @@ ssize_t send(int fd, const void *buf, size_t len, int flags) {
         || EWOULDBLOCK == errno) {
         for (;;) {
             state->flag |= fd_state::write;
-            state->co_id = cgo::coro_adapter::cur_coid();
+            state->co_id = cgo::scheduler::cur_coid();
             cgo::scheduler::schedule_yield();
             ret = send_hook(fd, buf, len, flags);
             if (ret >= 0) {
@@ -335,7 +335,7 @@ ssize_t write(int fd, const void *buf, size_t bytes) {
         || EWOULDBLOCK == errno) {
         for (;;) {
             state->flag |= fd_state::write;
-            state->co_id = cgo::coro_adapter::cur_coid();
+            state->co_id = cgo::scheduler::cur_coid();
             cgo::scheduler::schedule_yield();
             ret = write_hook(fd, buf, bytes);
             if (ret >= 0) {
@@ -371,7 +371,7 @@ ssize_t sendto(int fd, const void *buf, size_t len, int flags, const struct sock
         || EWOULDBLOCK == errno) {
         for (;;) {
             state->flag |= fd_state::write;
-            state->co_id = cgo::coro_adapter::cur_coid();
+            state->co_id = cgo::scheduler::cur_coid();
             cgo::scheduler::schedule_yield();
             ret = sendto_hook(fd, buf, len, flags, dstaddr, addrlen);
             if (ret >= 0) {
@@ -407,7 +407,7 @@ ssize_t recvfrom(int fd, void *buf, size_t len, int flags, struct sockaddr *srca
         || EWOULDBLOCK == errno) {
         for (;;) {
             state->flag |= fd_state::read;
-            state->co_id = cgo::coro_adapter::cur_coid();
+            state->co_id = cgo::scheduler::cur_coid();
             cgo::scheduler::schedule_yield();
             ret = recvfrom_hook(fd, buf, len, flags, srcaddr, addrlen);
             if (ret >= 0) {
@@ -434,7 +434,7 @@ struct hostent* gethostbyname(const char *name) {
 typedef unsigned int(*sleep_hook_t)(unsigned int seconds);
 static sleep_hook_t sleep_hook = (sleep_hook_t)dlsym(RTLD_NEXT,"sleep");
 unsigned int sleep(unsigned int seconds) {
-    if (cgo::coro_adapter::cur_coid() == -1) {
+    if (cgo::scheduler::cur_coid() == -1) {
         return sleep_hook(seconds);
     }
 
@@ -446,7 +446,7 @@ unsigned int sleep(unsigned int seconds) {
 typedef int (*usleep_hook_t)(useconds_t usec);
 static usleep_hook_t usleep_hook = (usleep_hook_t)dlsym(RTLD_NEXT, "usleep");
 int usleep(useconds_t microseconds) {
-    if (cgo::coro_adapter::cur_coid() == -1) {
+    if (cgo::scheduler::cur_coid() == -1) {
         return usleep_hook(microseconds);
     }
 
@@ -599,7 +599,7 @@ SOCKET PASCAL FAR hook_accept (
         ov->c_fd = c_fd;
 
         auto state = check_fd_state((int)s, fd_state::accept);
-        state->co_id = cgo::coro_adapter::cur_coid();
+        state->co_id = cgo::scheduler::cur_coid();
         state->flag |= fd_state::accept;
 
         void* data;
@@ -618,7 +618,7 @@ SOCKET PASCAL FAR hook_accept (
                 if (err == ERROR_IO_PENDING) {}
                 else {
                     ov->err = err;
-                    cgo::coro_adapter::resume_co(state->co_id, 0);
+                    cgo::scheduler::schedule_co(state->co_id, 0);
                 }
             }
         });
@@ -673,7 +673,7 @@ int PASCAL FAR hook_connect (
         ov->namelen = namelen;
 
         auto state = check_fd_state((int)s, fd_state::connect);
-        state->co_id = cgo::coro_adapter::cur_coid();
+        state->co_id = cgo::scheduler::cur_coid();
         state->flag |= fd_state::connect;
 
         void* data = 0;
@@ -684,7 +684,7 @@ int PASCAL FAR hook_connect (
                 if (err == ERROR_IO_PENDING) {}
                 else {
                     ov->err = err;
-                    cgo::coro_adapter::resume_co(state->co_id, 0);
+                    cgo::scheduler::schedule_co(state->co_id, 0);
                 }
             }
         });
@@ -743,7 +743,7 @@ int PASCAL FAR hook_sendto (
         ov->namelen = tolen;
 
         auto state = check_fd_state((int)s, fd_state::write);
-        state->co_id = cgo::coro_adapter::cur_coid();
+        state->co_id = cgo::scheduler::cur_coid();
         state->flag |= fd_state::write;
 
         void* data = 0;
@@ -754,7 +754,7 @@ int PASCAL FAR hook_sendto (
                 if (err == ERROR_IO_PENDING) {}
                 else {
                     ov->err = err;
-                    cgo::coro_adapter::resume_co(state->co_id, 0);
+                    cgo::scheduler::schedule_co(state->co_id, 0);
                 }
             }
         });
@@ -802,7 +802,7 @@ int PASCAL FAR hook_recvfrom (
         ov->namelen = fromlen;
 
         auto state = check_fd_state((int)s, fd_state::read);
-        state->co_id = cgo::coro_adapter::cur_coid();
+        state->co_id = cgo::scheduler::cur_coid();
         state->flag |= fd_state::read;
 
         void* data = 0;
@@ -814,7 +814,7 @@ int PASCAL FAR hook_recvfrom (
                 if (err == ERROR_IO_PENDING) {}
                 else {
                     ov->err = err;
-                    cgo::coro_adapter::resume_co(state->co_id, 0);
+                    cgo::scheduler::schedule_co(state->co_id, 0);
                 }
             }
         });
@@ -857,7 +857,7 @@ int PASCAL FAR hook_send (
         ov->buf[0].len = len;
 
         auto state = check_fd_state((int)s, fd_state::write);
-        state->co_id = cgo::coro_adapter::cur_coid();
+        state->co_id = cgo::scheduler::cur_coid();
         state->flag |= fd_state::write;
 
         void* data = 0;
@@ -868,7 +868,7 @@ int PASCAL FAR hook_send (
                 if (err == ERROR_IO_PENDING) {}
                 else {
                     ov->err = err;
-                    cgo::coro_adapter::resume_co(state->co_id, 0);
+                    cgo::scheduler::schedule_co(state->co_id, 0);
                 }
             }
         });
@@ -911,7 +911,7 @@ int PASCAL FAR hook_recv (
         ov->buf[0].len = len;
 
         auto state = check_fd_state((int)s, fd_state::read);
-        state->co_id = cgo::coro_adapter::cur_coid();
+        state->co_id = cgo::scheduler::cur_coid();
         state->flag |= fd_state::read;
 
         void* data = 0;
@@ -923,7 +923,7 @@ int PASCAL FAR hook_recv (
                 if (err == ERROR_IO_PENDING) {}
                 else {
                     ov->err = err;
-                    cgo::coro_adapter::resume_co(state->co_id, 0);
+                    cgo::scheduler::schedule_co(state->co_id, 0);
                 }
             }
         });
@@ -951,7 +951,7 @@ struct hostent FAR * PASCAL FAR hook_gethostbyname(_In_z_ const char FAR * name)
 typedef void (WINAPI *sleep_hook_t)(_In_ DWORD dwMilliseconds);
 static sleep_hook_t sleep_hook = 0;
 void WINAPI hook_sleep(_In_ DWORD dwMilliseconds) {
-    if (cgo::coro_adapter::cur_coid() == -1) {
+    if (cgo::scheduler::cur_coid() == -1) {
         sleep_hook(dwMilliseconds);
     }
     else {

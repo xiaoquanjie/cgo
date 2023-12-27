@@ -49,7 +49,7 @@ namespace cgo {
             }
 
             bool recv(void* v) {
-                auto co_id = coro_adapter::cur_coid();
+                auto co_id = scheduler::cur_coid();
                 if (co_id == M_INVALID_COROUTINE_ID) {
                     throw "not allow to read chan in non-coroutine";
                 }
@@ -96,7 +96,7 @@ namespace cgo {
             }
 
             bool send(const void* v) override {
-                auto co_id = coro_adapter::cur_coid();
+                auto co_id = scheduler::cur_coid();
                 if (co_id == M_INVALID_COROUTINE_ID) {
                     throw "not allow to write chan in non-coroutine";
                 }

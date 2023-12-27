@@ -29,6 +29,12 @@ namespace cgo {
         _cgo_syntax_st_& operator=(const _cgo_syntax_st_&) = delete;
     };
 
+    unsigned long long cgo_cur_coid();
+
+    void cgo_resume(unsigned long long co_id);
+
+    void cgo_yield();
+
     void cgo_wait(int wait_mil);
 
     void cgo_procs(int cnt);
@@ -58,3 +64,12 @@ namespace cgo {
 
 #undef cgoloop
 #define cgoloop cgo::cgo_add_loop
+
+#undef cgocoid
+#define cgocoid cgo::cgo_cur_coid
+
+#undef cgoyield
+#define cgoyield cgo::cgo_yield
+
+#undef cgoresume
+#define cgoresume cgo::cgo_resume

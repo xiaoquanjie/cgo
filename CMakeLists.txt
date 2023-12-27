@@ -7,16 +7,6 @@ add_compile_options(-Wno-error=deprecated-declarations)
 add_compile_options(-Wno-deprecated-declarations)
 
 add_subdirectory(./cgo)
+add_subdirectory(./example)
+add_subdirectory(./thirdparty/co_grpc)
 
-add_executable(cgo_exmaple
-        example/main.cpp
-        example/test.cpp)
-
-if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
-elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MinGw")
-else()
-    target_link_libraries(cgo_exmaple
-            cgo
-            pthread
-            dl)
-endif()
