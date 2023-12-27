@@ -302,7 +302,7 @@ public:
 
         writer_.AsyncFinish([waiter, cb_status, cb_res](::grpc::Status s, Response& res) {
             *cb_status = s;
-            cb_res.swap(&res);
+            cb_res->Swap(&res);
             waiter.Resume();
         });
 

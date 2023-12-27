@@ -64,10 +64,87 @@ void unary_test() {
     }
 }
 
+void client_stream_test() {
+    GreeterClient client;
+    client.Bind("0.0.0.0:50051", "");
+
+    helloworld::HelloReply rsp;
+    auto writer = client.ClientStreamSayHello(nullptr, &rsp);
+    if (!writer) {
+        print_withtime("get writer error");
+        return;
+    }
+
+    helloworld::HelloRequest req;
+    req.set_name("jack");
+    writer->Write(req);
+
+    auto status = writer->Finish();
+    if (GRPC_OK(status)) {
+        print_withtime(rsp.message().c_str());
+    } else {
+        print_withtime("write error");
+    }
+}
+
+void server_stream_test() {
+    GreeterClient client;
+    client.Bind("0.0.0.0:50051", "");
+
+    helloworld::HelloRequest req;
+    req.set_name("jack");
+    req.set_count(2);
+
+    auto reader = client.ServerStreamSayHello(nullptr, req);
+    if (!reader) {
+        print_withtime("get reader error");
+        return;
+    }
+
+    helloworld::HelloReply rsp;
+    while (reader->Read(&rsp)) {
+        print_withtime(rsp.message().c_str());
+    }
+
+    reader->Finish();
+}
+
+void double_stream_test() {
+    GreeterClient client;
+    client.Bind("0.0.0.0:50051", "");
+
+    auto rw = client.ListName(nullptr);
+    if (!rw) {
+        print_withtime("get rw error");
+        return;
+    }
+
+    go [rw]() {
+        for (int i = 0; i < 10; i++) {
+            helloworld::FamilyRequest req;
+            req.set_family("jack family");
+            if (!rw->Write(req)) {
+                break;
+            }
+        }
+    };
+
+    go [rw]() {
+        helloworld::FamilyResponse rsp;
+        while (rw->Read(&rsp)) {
+            break;
+        }
+        rw->Close();
+    };
+}
+
 int main() {
-    for (int i = 0; i < 1000; i++) {
+    for (int i = 0; i < 1; i++) {
         go gostack(1024*1024) []() {
-            unary_test();
+            //unary_test();
+            //client_stream_test();
+            //server_stream_test();
+            double_stream_test();
         };
     }
 
