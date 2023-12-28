@@ -39,7 +39,7 @@ enum CoroutineStatus {
 #define M_CORE_POOL_FACTOR (0.3)
 
 #undef M_MAX_PROCS_FACTOR
-#define M_MAX_PROCS_FACTOR (1.5)
+#define M_MAX_PROCS_FACTOR (1)
 
 #undef M_MAX_LOCAL_TASK_QUEUE
 #define M_MAX_LOCAL_TASK_QUEUE (256)
