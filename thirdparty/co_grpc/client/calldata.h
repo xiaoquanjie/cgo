@@ -274,15 +274,16 @@ public:
         }
 
         co_grpc::CoWaiter waiter;
-        auto result = std::make_shared<bool>();
+        auto cb_ok = std::make_shared<bool>();
 
-        this->writer_.AsyncWrite(req, [result, waiter](bool ok) {
-            *result = ok;
+        // 回调不应比waiter.wait执行的还要快
+        this->writer_.AsyncWrite(req, [cb_ok, waiter](bool ok) {
+            *cb_ok = ok;
             waiter.Resume();
         });
 
         waiter.wait(nullptr);
-        return *result;
+        return *cb_ok;
     }
 
     // 非协程安全接口，同时只能有一个协程在调用
@@ -300,13 +301,14 @@ public:
         auto cb_status = std::make_shared<::grpc::Status>();
         auto cb_res = std::make_shared<Response>();
 
-        writer_.AsyncFinish([waiter, cb_status, cb_res](::grpc::Status s, Response& res) {
-            *cb_status = s;
-            cb_res->Swap(&res);
-            waiter.Resume();
+        waiter.wait([this, waiter, cb_status, cb_res] {
+            writer_.AsyncFinish([waiter, cb_status, cb_res](::grpc::Status s, Response& res) {
+                *cb_status = s;
+                cb_res->Swap(&res);
+                waiter.Resume();
+            });
         });
 
-        waiter.wait(nullptr);
         rsp_->Swap(cb_res.get());
         return *cb_status;
     }
@@ -319,15 +321,17 @@ private:
         }
 
         co_grpc::CoWaiter waiter;
-        auto result = std::make_shared<bool>();
+        auto cb_ok = std::make_shared<bool>();
 
-        writer_.AsyncStart([result, waiter](bool ok) {
-            *result = ok;
-            waiter.Resume();
+        waiter.wait([this, cb_ok, waiter] {
+            this->writer_.AsyncStart([cb_ok, waiter](bool ok) {
+                *cb_ok = ok;
+                waiter.Resume();
+            });
+
         });
 
-        waiter.wait(nullptr);
-        return *result;
+        return *cb_ok;
     }
 
     // 协程写结束，只能在协程里调用
@@ -337,15 +341,15 @@ private:
         }
 
         co_grpc::CoWaiter waiter;
-        auto result = std::make_shared<bool>();
+        auto cb_ok = std::make_shared<bool>();
 
-        writer_.AsyncWritesDone([result, waiter](bool ok) {
-            *result = ok;
-            waiter.Resume();
+        waiter.wait([this, cb_ok, waiter]() {
+            writer_.AsyncWritesDone([cb_ok, waiter](bool ok) {
+                *cb_ok = ok;
+                waiter.Resume();
+            });
         });
-
-        waiter.wait(nullptr);
-        return *result;
+        return *cb_ok;
     }
 };
 
@@ -480,13 +484,14 @@ public:
         auto cb_ok = std::make_shared<bool>();
         auto cb_rsp = std::make_shared<Response>();
 
-        reader_.AsyncRead([waiter, cb_ok, cb_rsp](bool ok, Response& rsp) {
-            *cb_ok = ok;
-            cb_rsp->Swap(&rsp);
-            waiter.Resume();
+        waiter.wait([this, waiter, cb_ok, cb_rsp]() {
+            reader_.AsyncRead([waiter, cb_ok, cb_rsp](bool ok, Response& rsp) {
+                *cb_ok = ok;
+                cb_rsp->Swap(&rsp);
+                waiter.Resume();
+            });
         });
 
-        waiter.wait(nullptr);
         rsp->Swap(cb_rsp.get());
         return *cb_ok;
     }
@@ -500,12 +505,13 @@ public:
         co_grpc::CoWaiter waiter;
         auto cb_status = std::make_shared<::grpc::Status>();
 
-        reader_.AsyncFinish([waiter, cb_status](::grpc::Status s) {
-            *cb_status = s;
-            waiter.Resume();
+        waiter.wait([this, waiter, cb_status] {
+            reader_.AsyncFinish([waiter, cb_status](::grpc::Status s) {
+                *cb_status = s;
+                waiter.Resume();
+            });
         });
 
-        waiter.wait(nullptr);
         return *cb_status;
     }
 
@@ -516,15 +522,16 @@ protected:
         }
 
         co_grpc::CoWaiter waiter;
-        auto result = std::make_shared<bool>();
+        auto cb_ok = std::make_shared<bool>();
 
-        reader_.AsyncStart([waiter, result](bool ok) {
-            *result = ok;
-            waiter.Resume();
+        waiter.wait([this, waiter, cb_ok]() {
+            reader_.AsyncStart([waiter, cb_ok](bool ok) {
+                *cb_ok = ok;
+                waiter.Resume();
+            });
         });
 
-        waiter.wait(nullptr);
-        return *result;
+        return *cb_ok;
     }
 };
 
@@ -646,13 +653,16 @@ public:
     }
 
     // 写数据
-    bool Write(const Request& req) {
+    // 大于0表示成功发到缓存
+    // 等于0表示发到缓存失败
+    // 小于0表示链接被关闭了
+    int Write(const Request& req) {
         if (this->closing_flag_ > 0) {
-            return false;
+            return -1;
         }
 
         if (req_count_ >= 20000) {
-            return false;
+            return 0;
         }
 
         req_count_ += 1;
@@ -661,7 +671,7 @@ public:
         req_list_.push_back(nreq);
 
         _TryWrite();
-        return true;
+        return 1;
     }
 
     // 此异步cb被回调的时候才可以认为close结束，才能释放掉本对象
@@ -739,9 +749,18 @@ protected:
 
 template<class Request, class Response>
 class CoClientStreamReaderWriter {
+public:
     typedef typename ClientStreamReaderWriter<Request, Response>::Responder Responder;
     typedef typename ClientStreamReaderWriter<Request, Response>::Context Context;
     typedef typename ClientStreamReaderWriter<Request, Response>::ONREAD_CALL ONREAD_CALL;
+
+    struct helper {
+        helper() {}
+
+        bool operator()(CoClientStreamReaderWriter* writer) {
+            return writer->Start();
+        }
+    };
 
 protected:
     ClientStreamReaderWriter<Request, Response> rw_;
@@ -749,73 +768,74 @@ protected:
 
 public:
     CoClientStreamReaderWriter(Context ctx, Responder responder)
-        : rw_(ctx, std::move(responder)) {}
+        : rw_(ctx, std::move(responder)) {
+    }
 
-    // 是协程安全的接口
-    bool Write(const Request& req) {
+    // 是协程安全的接口，此返回值为false不能代表链接是否断开
+    // 写数据
+    // 大于0表示成功发到缓存
+    // 等于0表示发到缓存失败
+    // 小于0表示链接被关闭了
+    int Write(const Request& req) {
         std::unique_lock<std::mutex> lock(mu_);
-
-        if (!rw_.OnceStart()) {
-            if (!Start()) {
-                return false;
-            }
-        }
-
+        // 以下代码调用不能引起协程挂起
         return rw_.Write(req);
     }
 
     // 非协程安全接口，同时只能有一个协程在调用
+    // 读失败表示链接断开
     bool Read(Response* rsp) {
-        {
-            std::unique_lock<std::mutex> lock(mu_);
-
-            if (rw_.OnceClose()) {
-                return false;
-            }
-
-            if (!rw_.OnceStart()) {
-                if (!Start()) {
-                    return false;
-                }
-            }
+        if (rw_.OnceClose()) {
+            return false;
         }
 
         co_grpc::CoWaiter waiter;
         auto cb_ok = std::make_shared<bool>();
         auto cb_rsp = std::make_shared<Response>();
 
-        rw_.AsyncRead([waiter, cb_ok, cb_rsp](bool ok, Response& rsp) {
-            *cb_ok = ok;
-            cb_rsp->Swap(&rsp);
-            waiter.Resume();
+        waiter.wait([this, waiter, cb_ok, cb_rsp] {
+            mu_.lock();
+            auto ret = rw_.AsyncRead([waiter, cb_ok, cb_rsp](bool ok, Response& rsp) {
+                *cb_ok = ok;
+                cb_rsp->Swap(&rsp);
+                waiter.Resume();
+            });
+            if (!ret) {
+                mu_.unlock();
+                waiter.Resume();
+            } else {
+                mu_.unlock();
+            }
         });
 
-        waiter.wait(nullptr);
         rsp->Swap(cb_rsp.get());
         return *cb_ok;
     }
 
     // 非协程安全接口，同时只能有一个协程在调用
+    // 不能与read同时发起
     ::grpc::Status Close() {
+        if (rw_.OnceClose()) {
+            return ::grpc::Status::CANCELLED;
+        }
+
         co_grpc::CoWaiter waiter;
         auto cb_status = std::make_shared<::grpc::Status>();
 
-        {
-            std::unique_lock<std::mutex> lock(mu_);
-            if (!rw_.OnceStart()) {
-                return ::grpc::Status::CANCELLED;
-            }
-            if (rw_.OnceClose()) {
-                return ::grpc::Status::CANCELLED;
-            }
-
-            rw_.AsyncClose([waiter, cb_status](::grpc::Status s) {
+        waiter.wait([this, waiter, cb_status] {
+            mu_.lock();
+            auto ret = rw_.AsyncClose([waiter, cb_status](::grpc::Status s) {
                 *cb_status = s;
                 waiter.Resume();
             });
-        }
+            if (!ret) {
+                mu_.unlock();
+                waiter.Resume();
+            } else {
+                mu_.unlock();
+            }
+        });
 
-        waiter.wait(nullptr);
         return *cb_status;
     }
 
@@ -827,14 +847,16 @@ protected:
         }
 
         co_grpc::CoWaiter waiter;
-        auto result = std::make_shared<bool>();
+        auto cb_ok = std::make_shared<bool>();
 
-        rw_.AsyncStart([waiter, result](bool ok) {
-            *result = ok;
-            waiter.Resume();
+        waiter.wait([this, waiter, cb_ok] {
+            rw_.AsyncStart([waiter, cb_ok](bool ok) {
+                *cb_ok = ok;
+                waiter.Resume();
+            });
         });
 
-        return *result;
+        return *cb_ok;
     }
 };
 

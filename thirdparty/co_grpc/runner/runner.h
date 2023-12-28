@@ -23,9 +23,9 @@ struct CoWaiter {
 
     // 此操作必须在协程里
     template<class Func>
-    void wait(Func op) {
-        //if (op) op();
-        cgoyield();
+    void wait(Func after) {
+        void* data = 0;
+        cgoyield(data, after);
     }
 
     void Resume() const {

@@ -31,21 +31,22 @@ namespace cgo {
         }
 
         void _schedule_base_queue_st_::unrecord() {
-            if (this->size() == 0 || this->_clock.time_since_epoch().count() == 0) {
+            if (this->size() == 0) {
                 this->_clock = time_point();
             }
         }
 
+        // 在规定时间内没有清空队列，就会被判定为队列堆积
         bool _schedule_base_queue_st_::delay() {
-            if (this->size() == 0) {
+            if (this->size() == 0 || this->_clock.time_since_epoch().count() == 0) {
                 return false;
             }
 
             auto now = std::chrono::steady_clock::now();
             auto expire = (std::chrono::duration_cast<std::chrono::milliseconds>(now - this->_clock)).count();
-            //M_CO_DEBUG_PRINT("delay:%ld clock:%ld \n", expire, this->_clock.time_since_epoch().count());
 
             if (expire >= M_QUEUE_DELAY_TIME) {
+                //M_CO_DEBUG_PRINT("delay:%ld clock:%ld size:%ld addr:%p \n", expire, this->_clock.time_since_epoch().count(), this->size(), this);
                 return true;
             }
             return false;
@@ -71,13 +72,14 @@ namespace cgo {
         }
 
         void _schedule_local_queue_st_::enqueue(const std::function<void()>& f) {
+            record();
             task_type* task = new task_type(f);
             // Only the owner thread can insert an item to the queue.
             _queue->push(task);
-            record();
         }
 
         void _schedule_local_queue_st_::enqueue(task_type* f, bool& forward) {
+            record();
             _queue->push(f);
             forward = true;
         }
@@ -124,14 +126,14 @@ namespace cgo {
         }
 
         void _schedule_global_queue_st_::enqueue(const task_type& f) {
-            assert(_queue->enqueue(f));
             record();
+            assert(_queue->enqueue(f));
         }
 
         void _schedule_global_queue_st_::enqueue(task_type* f, bool& forward) {
+            record();
             assert(_queue->enqueue(*f));
             forward = false;
-            record();
         }
 
         bool _schedule_global_queue_st_::try_dequeue(task_type& f) {
@@ -225,36 +227,51 @@ namespace cgo {
             start_thread(force, nullptr);
         }
 
-        void _scheduler_st_::start_thread(bool force, _schedule_base_queue_st_* fromq) {
+        bool _scheduler_st_::can_start(bool force) {
             if (_thr_cnt >= _max_thr_cnt) {
-                return;
+                return false;
             }
-            if (!force) {
+
+            if (force) {
+                return true;
+            }
+
+            bool inCo = cur_coid() != M_INVALID_COROUTINE_ID;
+            if (!inCo) {
                 auto task_size = _global_tasks->size();
-                if (_idle_thr_cnt != 0 && task_size < M_MAX_LOCAL_TASK_QUEUE) {
-                    return;
+                auto idle_thr_cnt = _idle_thr_cnt.load();
+                if (idle_thr_cnt > 0 && task_size < M_MAX_LOCAL_TASK_QUEUE) {
+                    return false;
                 }
+            } else {
+                auto task_size = glocal_task_queue->size();
+                if (task_size < M_MAX_LOCAL_TASK_QUEUE) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        void _scheduler_st_::start_thread(bool force, _schedule_base_queue_st_* fromq) {
+            if (!can_start(force)) {
+                return;
             }
 
             std::unique_lock<std::mutex> scoped_lock(_thread_mu);
 
-            // double check
-            if (_thr_cnt >= _max_thr_cnt) {
+            //auto idle_thr_cnt = _idle_thr_cnt.load();
+            //auto task_size = _global_tasks->size();
+            //M_CO_DEBUG_PRINT("idle_thr_cnt:%d force:%d \n", _idle_thr_cnt.load(), force);
+
+            if (!can_start(force)) {
                 return;
             }
 
-            if (!force) {
-                auto task_size = _global_tasks->size();
-                if (_idle_thr_cnt != 0 && task_size < M_MAX_LOCAL_TASK_QUEUE) {
-                    return;
-                }
-            }
-
             _idle_thr_cnt++;
-            //M_CO_DEBUG_PRINT("idle_thr_cnt:%d\n", _idle_thr_cnt.load());
             _thr_cnt++;
-            auto work_id = generate_work_id++;
 
+            auto work_id = generate_work_id++;
             auto st = std::make_shared<_schedule_thread_st_>();
             st->_work_id = work_id;
             st->_scheduler = this;
@@ -495,14 +512,13 @@ namespace cgo {
                     st->_scheduler->_idle_thr_cnt--;
                     st->_scheduler->_task_op_cnt++;
                     st->_task_op_cnt++;
+                    if (local_q->delay()) {
+                        st->_scheduler->start_thread(true, local_q);
+                    }
                     task();
                     st->_scheduler->_idle_thr_cnt++;
                     if (st->_scheduler->_stop) {
                         break;
-                    }
-
-                    if (local_q->delay()) {
-                        st->_scheduler->start_thread(true, local_q);
                     }
                 }
 

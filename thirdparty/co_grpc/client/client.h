@@ -285,6 +285,7 @@ public:
         auto cb_res = std::make_shared<Response>();
 
         auto responder = method(context.get(), request, cq_);
+        // 回调不应比waiter.wait执行的还要快
         new ClientData<Request, Response>(context, std::move(responder), [waiter, cb_status, cb_res](::grpc::Status s, Response& r) {
             *cb_status = s;
             cb_res->Swap(&r);
@@ -358,6 +359,10 @@ public:
 
         auto responder = method(context.get(), cq_);
         auto rw = std::make_shared<CoClientStreamReaderWriter<Request, Response>>(context, std::move(responder));
+        typename CoClientStreamReaderWriter<Request, Response>::helper help;
+        if (!help(rw.get())) {
+            return nullptr;
+        }
         return rw;
     }
 };

@@ -114,6 +114,8 @@ namespace cgo {
 
             bool run();
 
+            bool can_start(bool force);
+
             void start_thread(bool force);
 
             void start_thread(bool force, _schedule_base_queue_st_* newq);

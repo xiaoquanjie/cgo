@@ -15,6 +15,7 @@ namespace cgo {
         uint64_t cur_coid();
         void schedule_task(const std::function<void()>& routine, int stack, const char* file, int line);
         void schedule_yield();
+        void schedule_yield(void*& data, const std::function<void()>& after);
         void schedule_wait(int wait_mil);
         void schedule_co(uint64_t co_id, void*);
         void set_cgo_procs(int cnt);
@@ -42,6 +43,10 @@ namespace cgo {
 
     void cgo_yield() {
         scheduler::schedule_yield();
+    }
+
+    void cgo_yield(void*& data, const std::function<void()>& after) {
+        scheduler::schedule_yield(data, after);
     }
 
     void cgo_wait(int wait_mil) {
