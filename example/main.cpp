@@ -285,6 +285,9 @@ void test(std::atomic_int& c) {
 
 #include "../cgo/coroutine/coroutine.h"
 void performance_base_test() {
+    /*
+     *  100w次平均700毫秒, 这个已是系统协程库的切换性能极致
+     * */
     for (int j = 0; j < 3; j++) {
         print_withtime("base test begin");
         std::atomic_int count = 0;
@@ -300,7 +303,36 @@ void performance_base_test() {
         while (count != total_count) {
         }
 
-        print_withtime("base test end");
+        auto end = std::chrono::steady_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - beg);
+        print_withtime(std::string("base test end: ") + std::to_string(elapsed.count()));
+        std::cout << "==============\n";
+    }
+}
+
+#include "../cgo/coroutine/coroutine_adapter.h"
+void performance_base_test2() {
+    /*  use mincoro
+     *  100w次平均1100毫秒
+     * */
+    for (int j = 0; j < 3; j++) {
+        print_withtime("base test2 begin");
+        std::atomic_int count = 0;
+        auto beg = std::chrono::steady_clock::now();
+        const int total_count = 1000000;
+
+        for (int i = 0; i < total_count; i++) {
+            cgo::coro_adapter::run_co([&count]() {
+                count++;
+            });
+        }
+
+        while (count != total_count) {
+        }
+
+        auto end = std::chrono::steady_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - beg);
+        print_withtime(std::string("base 2 end: ") + std::to_string(elapsed.count()));
         std::cout << "==============\n";
     }
 }
@@ -1031,6 +1063,7 @@ int main()
     enum test_type {
         t_work_steal_queue_test = 0,
         t_performance_base_test,
+        t_performance_base_test2,
         t_performance_test2,
         t_performance_test3,
         t_time_pool_test,
@@ -1047,12 +1080,15 @@ int main()
         t_hook_udp_connect,
     };
 
-    switch (t_hook_udp_connect) {
+    switch (t_performance_base_test2) {
         case t_work_steal_queue_test:
             work_steal_queue_test();
             break;
         case t_performance_base_test:
             performance_base_test();
+            break;
+        case t_performance_base_test2:
+            performance_base_test2();
             break;
         case t_performance_test2:
             performance_test2();

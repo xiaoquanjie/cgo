@@ -34,6 +34,7 @@ namespace cgo {
         };
 #endif
 
+        // 曾考虑过这里是否要使用协程池，但经过测试发现协程池也只能提升10%左右的性能(只测试了linux下的性能)，因此暂时没有动机添加协程池
         uint64_t create_co(std::function<void()> routine, int stack, const char* file, int line) {
 #if defined(USE_CGO_COROUTINE)
             auto co_id = coroutine::create(routine, stack, file, line);

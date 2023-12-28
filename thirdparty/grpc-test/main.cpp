@@ -119,27 +119,37 @@ void double_stream_test() {
         return;
     }
 
-    go [rw]() {
-        for (int i = 0; i < 10; i++) {
+    go gostack(16*1024) [rw]() {
+        for (;;) {
             helloworld::FamilyRequest req;
             req.set_family("jack family");
-            if (!rw->Write(req)) {
+            if (rw->Write(req) < 0) {
                 break;
             }
+            gowait(1000);
         }
     };
 
-    go [rw]() {
+    go gostack(16*1024) [rw]() {
         helloworld::FamilyResponse rsp;
         while (rw->Read(&rsp)) {
-            break;
+            //print_withtime(rsp.ShortDebugString());
         }
+        print_withtime("close");
         rw->Close();
     };
+
+    go gostack(16*1024) [rw]() {
+        gowait(5000);
+        rw->Close();
+    };
+
+    //msleep(10000);
 }
 
 int main() {
-    for (int i = 0; i < 1; i++) {
+    cgoprocs(2);
+    for (int i = 0; i < 100; i++) {
         go gostack(1024*1024) []() {
             //unary_test();
             //client_stream_test();
