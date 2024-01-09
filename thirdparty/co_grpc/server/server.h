@@ -11,39 +11,32 @@
 #include <functional>
 #include "../runner/runner.h"
 #include "./calldata.h"
+#include "./server_builder.h"
 #include "../log.h"
 
 namespace co_grpc {
 
-template<class T, class Runner = CoRunner>
-class Server {
+template<class T, class Runner>
+class BaseServer : public IServer {
 public:
-    typedef T ServiceType;
     typedef typename T::AsyncService AsyncServiceType;
-    typedef Runner RunnerType;
 
-    Server() {
-        cq_ = nullptr;
+protected:
+    AsyncServiceType service_;
+    ::grpc::ServerCompletionQueue* cq_;
+
+    BaseServer(const BaseServer&)  = delete;
+    BaseServer& operator= (const BaseServer&) = delete;
+
+public:
+    BaseServer() {
+        this->cq_ = DefSrvBuilder()->GetQueue();
     }
 
-    Server(::grpc::ServerCompletionQueue* cq) {
-        cq_ = cq;
-    }
-
-    virtual ~Server() {}
-
-    AsyncServiceType* GetService() {
+    ::grpc::Service* GetService() override {
         return &service_;
     }
 
-    // 子类需要实现
-    virtual void InitMethod() = 0;
-
-    void SetQueue(::grpc::ServerCompletionQueue* cq) {
-        cq_ = cq;
-    }
-
-    // 调用此接口前一定要先调用listen
     template<class Request, class Response, class GRPC_FUNC, class ON_CALL>
     void RegMethod(GRPC_FUNC func, ON_CALL oncall) {
         if (!cq_) {
@@ -62,7 +55,6 @@ public:
         new ServerData<Request, Response, Runner>(cq_, method, oncall);
     }
 
-    // 调用此接口前一定要先调用listen
     template<class Request, class Response, class GRPC_FUNC, class ON_CALL>
     void RegCSMethod(GRPC_FUNC func, ON_CALL oncall) {
         if (!cq_) {
@@ -77,10 +69,9 @@ public:
                                 std::placeholders::_3,
                                 std::placeholders::_4,
                                 std::placeholders::_5);
-       new ServerStreamReader<Request, Response, Runner>(cq_, method, oncall);
+        new ServerStreamReader<Request, Response, Runner>(cq_, method, oncall);
     }
 
-    // 调用此接口前一定要先调用listen
     template<class Request, class Response, class GRPC_FUNC, class ON_CALL>
     void RegSSMethod(GRPC_FUNC func, ON_CALL oncall) {
         if (!cq_) {
@@ -116,16 +107,25 @@ public:
                                 std::placeholders::_5);
         new ServerStreamReaderWriter<Request, Response, Runner>(cq_, method, oncall);
     }
-
-protected:
-    Server(const Server&)  = delete;
-    Server& operator= (const Server&) = delete;
-
-private:
-    AsyncServiceType service_;
-    ::grpc::ServerCompletionQueue* cq_;
 };
 
+template<typename T>
+class AsyncServer : public BaseServer<T, NormalRunner> {
+public:
+    AsyncServer() {
+    }
+};
+
+template<typename T>
+class CoServer : public BaseServer<T, CoRunner> {
+public:
+    CoServer() {
+    }
+};
+
+// alias
+template<typename T>
+using Server = CoServer<T>;
 
 }
 

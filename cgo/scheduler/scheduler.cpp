@@ -423,6 +423,7 @@ namespace cgo {
 
         void cgo_add_loop(const task_type& f) {
             scheduler_inst()._loops.push_back(f);
+            trigger_new_thread(false);
         }
 
         void cgo_stop() {

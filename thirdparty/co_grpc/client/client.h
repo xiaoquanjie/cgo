@@ -6,6 +6,7 @@
 
 #include <grpc/support/log.h>
 #include <grpcpp/grpcpp.h>
+#include <grpcpp/completion_queue.h>
 #include <string>
 #include <memory>
 #include <functional>

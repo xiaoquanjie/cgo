@@ -9,9 +9,16 @@
 
 namespace co_grpc {
 
+struct NormalRunner {
+    void operator()(std::function<void()> op) {
+        op();
+    }
+};
+
 struct CoRunner {
     void operator()(std::function<void()> op) {
-        go op;
+        // 默认使用64k栈
+        go gostack(1024*64) op;
     }
 };
 

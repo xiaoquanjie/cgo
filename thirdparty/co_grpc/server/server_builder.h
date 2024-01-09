@@ -6,9 +6,9 @@
 #pragma once
 
 #include <grpcpp/grpcpp.h>
-#include <grpcpp/xds_server_builder.h>
 #include <grpcpp/ext/proto_server_reflection_plugin.h>
 #include <grpcpp/health_check_service_interface.h>
+#include <grpcpp/completion_queue.h>
 #include <unordered_map>
 #include <memory>
 #include <string>
@@ -35,36 +35,10 @@ std::once_flag GrpcInitOnce<T>::f_;
 
 class IServer {
 public:
-    virtual ~IServer() {}
-
+    // 子类需要实现
     virtual void InitMethod() = 0;
 
     virtual ::grpc::Service* GetService() = 0;
-
-    virtual void SetQueue(::grpc::ServerCompletionQueue* cq) = 0;
-};
-
-template<typename T>
-class ServerImpl : public IServer {
-public:
-    ServerImpl() {
-        t_ = std::make_shared<T>();
-    }
-
-    void InitMethod() override {
-        t_->InitMethod();
-    }
-
-    ::grpc::Service* GetService() override {
-        return (::grpc::Service*)t_->GetService();
-    }
-
-    void SetQueue(::grpc::ServerCompletionQueue* cq) override {
-        t_->SetQueue(cq);
-    }
-
-private:
-    std::shared_ptr<T> t_;
 };
 
 class ServerBuilder {
@@ -75,6 +49,11 @@ public:
 
     ServerBuilder() {
         GrpcInitOnce<ServerBuilder>::Init();
+        cq_ = builder_.AddCompletionQueue();
+    }
+
+    ::grpc::ServerCompletionQueue* GetQueue() {
+        return cq_.get();
     }
 
     // 设置消息的最大大小, 单位字节
@@ -91,21 +70,18 @@ public:
     }
 
     template<class T>
-    bool RegisterService(bool use_xds = false) {
-        if (start_) {
-            return false;
-        }
-
+    bool RegisterService() {
         std::string name = typeid(T).name();
         auto iter = service_map_.find(name);
         if (iter != service_map_.end()) {
             return false;
         }
 
-        std::shared_ptr<IServer> p = std::make_shared<ServerImpl<T>>();
+        std::shared_ptr<IServer> p = std::make_shared<T>();
         service_map_[name] = p;
 
-        OnReg(p);
+        // 注册服务
+        builder_.RegisterService(p->GetService());
         return true;
     }
 
@@ -114,16 +90,14 @@ public:
         interceptor_methods_vec_.push_back(m);
     }
 
-    bool Loop(uint32_t mil) {
-        ServerStatistics();
-        if (!start_) {
-            start_ = true;
-            OnStart();
-        }
-        if (cq_) {
-            return _Loop(cq_.get(), mil);
-        }
-        return false;
+    void Run() {
+        std::call_once(once_, [this]() {
+            this->OnStart();
+            CoLooper()([this]() {
+                ServerStatistics();
+                this->Loop(0);
+            });
+        });
     }
 
     void Stop() {
@@ -131,16 +105,7 @@ public:
     }
 
 protected:
-    virtual void OnReg(std::shared_ptr<IServer> p) {
-        // 初始化队列
-        OnInitQueue();
-        // 设置队列
-        p->SetQueue(cq_.get());
-        // 注册服务
-        builder_.RegisterService(p->GetService());
-    }
-
-    virtual void OnStart() {
+    void OnStart() {
         // 添加拦截器
         auto creators = InterceptorCreators(interceptor_methods_vec_);
         builder_.experimental().SetInterceptorCreators(std::move(creators));
@@ -155,12 +120,6 @@ protected:
         }
     }
 
-    virtual void OnInitQueue() {
-        if (!cq_) {
-            cq_ = builder_.AddCompletionQueue();
-        }
-    }
-
     virtual void OnStop() {
         if (server_) {
             server_->Shutdown();
@@ -170,11 +129,7 @@ protected:
         }
     }
 
-    bool _Loop(::grpc::ServerCompletionQueue* cq, uint32_t mil) {
-        if (!cq) {
-            return false;
-        }
-
+    bool Loop(uint32_t mil) {
         // uniquely identifies a request.
         void* tag = 0;
         bool ok = false;
@@ -185,10 +140,10 @@ protected:
             deadline.tv_sec = 0;
             deadline.tv_nsec = 0;
             deadline.clock_type = GPR_CLOCK_MONOTONIC;
-            status = cq->AsyncNext(&tag, &ok, deadline);
+            status = this->cq_->AsyncNext(&tag, &ok, deadline);
         } else {
             auto deadline = std::chrono::system_clock::now() + std::chrono::milliseconds(mil);
-            status = cq->AsyncNext(&tag, &ok, deadline);
+            status = cq_->AsyncNext(&tag, &ok, deadline);
         }
 
         if (status == grpc::CompletionQueue::TIMEOUT) {
@@ -232,57 +187,16 @@ protected:
     std::unordered_map<std::string, std::shared_ptr<IServer>> service_map_;
     // 拦截器方法集合
     std::vector<InterceptorMethod> interceptor_methods_vec_;
+    std::once_flag once_;
 };
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
-
-class XdsServerBuilder : public ServerBuilder {
-public:
-    void AddListeningPort(const std::string& addr_uri) override {
-        if (addr_uri.size()) {
-            xds_builder_.AddListeningPort(addr_uri,
-                                          ::grpc::InsecureServerCredentials(),
-                                          nullptr);
-        }
-    }
-
-protected:
-    void OnReg(std::shared_ptr<IServer> p) override {
-        // 初始化队列
-        OnInitQueue();
-        // 设置队列
-        p->SetQueue(cq_.get());
-        // 注册服务
-        xds_builder_.RegisterService(p->GetService());
-    }
-
-    void OnInitQueue() override {
-        if (!cq_) {
-            cq_ = xds_builder_.AddCompletionQueue();
-        }
-    }
-
-    void OnStart() override {
-        server_ = xds_builder_.BuildAndStart();
-        for (auto& mp : service_map_) {
-            mp.second->InitMethod();
-        }
-    }
-
-protected:
-    ::grpc::XdsServerBuilder xds_builder_;
-    std::unique_ptr<::grpc::Server> xds_server_;
-};
 
 inline ServerBuilder* DefSrvBuilder() {
     static ServerBuilder *builder = new ServerBuilder;
     return builder;
 }
 
-inline XdsServerBuilder* DefXdsSrvBuilder() {
-    static XdsServerBuilder builder;
-    return &builder;
-}
 
 }
 

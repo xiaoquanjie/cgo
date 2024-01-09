@@ -45,6 +45,54 @@ public:
     GRPC_CLIENT_CO_BS_METHOD(ListName, helloworld::FamilyRequest, helloworld::FamilyResponse);
 };
 
+class GreeterServer : public co_grpc::Server<helloworld::Greeter> {
+public:
+    void InitMethod() override {
+        GRPC_SRV_CO_UNARY_METHOD(SayHello, helloworld::HelloRequest, helloworld::HelloReply);
+        GRPC_SRV_CO_CS_METHOD(ClientStreamSayHello, helloworld::HelloRequest, helloworld::HelloReply);
+        GRPC_SRV_CO_SS_METHOD(ServerStreamSayHello, helloworld::HelloRequest, helloworld::HelloReply);
+        GRPC_SRV_CO_BS_METHOD(ListName, helloworld::FamilyRequest, helloworld::FamilyResponse);
+    }
+
+    // 一元类
+    ::grpc::Status SayHello(::grpc::ServerContext* ctx,
+                            const helloworld::HelloRequest* req,
+                            helloworld::HelloReply* rsp) {
+        rsp->set_message("hello, this is server");
+        return ::grpc::Status::OK;
+    }
+
+    // 客户端流
+    ::grpc::Status ClientStreamSayHello(::grpc::ServerContext* ctx,
+                                        GRPC_SERVER_STREAM_READER(helloworld::HelloRequest, helloworld::HelloReply) *reader,
+                                        helloworld::HelloReply* rsp) {
+        helloworld::HelloRequest req;
+        while (reader->Read(&req)) {
+            print_withtime(std::string("server recv:") + req.ShortDebugString());
+        }
+
+        rsp->set_message("server send: this is server");
+        return ::grpc::Status::OK;
+    }
+
+    //  服务器端流
+    ::grpc::Status ServerStreamSayHello(::grpc::ServerContext* ctx,
+                                        const helloworld::HelloRequest* req,
+                                        GRPC_SERVER_STREAM_WRITER(helloworld::HelloRequest, helloworld::HelloReply) *writer) {
+        print_withtime(std::string("server recv:") + req->ShortDebugString());
+        helloworld::HelloReply rsp;
+        rsp.set_message("server send: this is server");
+        writer->Write(rsp);
+        return ::grpc::Status::OK;
+    }
+
+    // 双流
+    void ListName(::grpc::ServerContext* ctx,
+                  GRPC_SERVER_STREAM_READER_WRITER(helloworld::FamilyRequest, helloworld::FamilyResponse) *rw) {
+
+    }
+};
+
 void unary_test() {
     GreeterClient client;
     client.Bind("0.0.0.0:50051", "");
@@ -147,16 +195,31 @@ void double_stream_test() {
     //msleep(10000);
 }
 
+void grpc_listen() {
+    co_grpc::DefSrvBuilder()->RegisterService<GreeterServer>();
+    co_grpc::DefSrvBuilder()->AddListeningPort("0.0.0.0:50051");
+    co_grpc::DefSrvBuilder()->Run();
+}
+
 int main() {
-    cgoprocs(2);
-    for (int i = 0; i < 100; i++) {
-        go gostack(1024*1024) []() {
-            //unary_test();
-            //client_stream_test();
-            //server_stream_test();
-            double_stream_test();
-        };
-    }
+    grpc_listen();
+
+    //msleep(1000);
+
+    go gostack(1024*1024) []() {
+        //unary_test();
+        //client_stream_test();
+        server_stream_test();
+    };
+
+//    for (int i = 0; i < 100; i++) {
+//        go gostack(1024*1024) []() {
+//            //unary_test();
+//            //client_stream_test();
+//            //server_stream_test();
+//            double_stream_test();
+//        };
+//    }
 
     while (true) {
         msleep(1000);
