@@ -337,7 +337,6 @@ void performance_base_test2() {
     }
 }
 
-#include "../cgo/scheduler/scheduler.h"
 void performance_copool_base_test() {
 }
 

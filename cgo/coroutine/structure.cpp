@@ -7,7 +7,7 @@
 // Created by xiaoqj on 2023/11/03
 //----------------------------------------------------------------*/
 
-#include "../common/print.h"
+#include "common/print.h"
 #include "structure.h"
 #include <assert.h>
 #include <string.h>

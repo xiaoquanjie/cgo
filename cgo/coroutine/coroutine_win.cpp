@@ -12,7 +12,7 @@
 #ifdef _MSC_VER
 
 #include "structure.h"
-#include "../common/print.h"
+#include "common/print.h"
 #include <assert.h>
 
 namespace cgo {

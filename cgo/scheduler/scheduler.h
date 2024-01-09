@@ -29,11 +29,11 @@
 
 #pragma once
 
-#include "../common/macro.h"
-#include "../common/time_pool.h"
-#include "../common/print.h"
-#include "../common/concurrentqueue.h"
-#include "../common/work_steal_queue.hpp"
+#include "common/macro.h"
+#include "common/time_pool.h"
+#include "common/print.h"
+#include "common/concurrentqueue.h"
+#include "common/work_steal_queue.hpp"
 #include <thread>
 #include <condition_variable>
 #include <vector>

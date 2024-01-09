@@ -23,3 +23,8 @@ add_library(cgo
         sync/channel.cpp
         hook/hook.cpp
 )
+
+target_link_libraries(cgo
+        pthread
+        dl
+)

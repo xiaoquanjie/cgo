@@ -21,13 +21,8 @@ enum CoroutineStatus {
 #undef M_INVALID_COROUTINE_ID
 #define M_INVALID_COROUTINE_ID (uint64_t)(-1)
 
-// for linux public stack
-#undef M_PUBLIC_STACK_SIZE
-#define M_PUBLIC_STACK_SIZE  1*1024*1024
-
-// for windows stack
 #undef M_PRIVATE_STACK_SIZE
-#define M_PRIVATE_STACK_SIZE 1024*8
+#define M_PRIVATE_STACK_SIZE 1024*64
 
 #undef GROWUP_COROUTINE
 #define GROWUP_COROUTINE (1024*100)

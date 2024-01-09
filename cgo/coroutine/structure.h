@@ -10,7 +10,7 @@
 #pragma once
 
 #include "common/macro.h"
-#include "../common/concurrentqueue.h"
+#include "common/concurrentqueue.h"
 #include <functional>
 #include <atomic>
 #include <shared_mutex>
