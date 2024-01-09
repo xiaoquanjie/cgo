@@ -46,3 +46,9 @@ namespace co_redis {
 
 #undef M_ERR_REDIS_AUTH_FAIL
 #define M_ERR_REDIS_AUTH_FAIL ("redis auth fail")
+
+#undef M_ERR_REDIS_INVALID_CONNECTION
+#define M_ERR_REDIS_INVALID_CONNECTION ("invalid redis connection")
+
+#undef M_ERR_REDIS_CONNECT_CLOSED
+#define M_ERR_REDIS_CONNECT_CLOSED ("redis connection closed")

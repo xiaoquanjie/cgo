@@ -9,8 +9,21 @@
 #include <unordered_map>
 #include <list>
 #include <string.h>
+#include <sstream>
 #include <hiredis/hiredis.h>
 #include "cgo/cgo.h"
+
+// 检查context
+#undef M_CHECK_REDIS_CONTEXT
+#define M_CHECK_REDIS_CONTEXT() \
+if (!ctx_ || !ctx_->ctx_) throw RedisException(M_ERR_REDIS_INVALID_CONNECTION); cgo_hook_fd(ctx_->ctx_->fd);
+
+// 检查返回值
+#undef M_CHECK_REDIS_REPLY
+#define M_CHECK_REDIS_REPLY(reply) \
+if (!reply) {ctx_->err_ = true; err = RedisException(M_ERR_REDIS_CONNECT_CLOSED); freeReplyObject(reply); throw err;} \
+if (reply->type == REDIS_REPLY_ERROR) { err = RedisException(reply->str); freeReplyObject(reply); throw err; }
+
 
 namespace co_redis {
     struct _redisctx_ {
@@ -33,12 +46,10 @@ namespace co_redis {
     }
 
     bool getReplyOkFree(redisReply* reply) {
-        if (!reply) {
-            return false;
-        }
-
         auto r = getReplyOk(reply);
-        freeReplyObject(reply);
+        if (reply) {
+            freeReplyObject(reply);
+        }
         return r;
     }
 
@@ -53,6 +64,29 @@ namespace co_redis {
         return "";
     }
 
+    bool checkReplyError(redisReply* reply) {
+        if (!reply) {
+            return true;
+        }
+        return reply->type == REDIS_REPLY_ERROR;
+    }
+
+    long long getReplyInteger(redisReply* reply) {
+        if (reply->type == REDIS_REPLY_INTEGER) {
+            return reply->integer;
+        }
+        return 0;
+    }
+
+    long long getReplyIntegerFree(redisReply* reply) {
+        auto r = getReplyInteger(reply);
+        if (reply) {
+            freeReplyObject(reply);
+        }
+        return r;
+    }
+
+    //=====================================================
     class _redispool_ {
     private:
         struct ContextSet {
@@ -91,9 +125,7 @@ namespace co_redis {
         }
 
     public:
-        _redispool_() {
-
-        }
+        _redispool_() {}
 
         ~_redispool_() {
             std::scoped_lock<std::mutex> lock(mu_);
@@ -140,12 +172,20 @@ namespace co_redis {
             if (!cs->ctxs.empty()) {
                 ctx = cs->ctxs.front();
                 cs->ctxs.pop_front();
-                cs->unlock();
-                return ctx;
+                goto redisok;
             }
 
             // 超过最大连接数
             if (max_conns_ != 0 && cs->conns >= max_conns_) {
+                if (timeout != 0) {
+                    gowait(timeout*1000);
+                }
+                if (!cs->ctxs.empty()) {
+                    ctx = cs->ctxs.front();
+                    cs->ctxs.pop_front();
+                    goto redisok;
+                }
+
                 err = RedisException(M_ERR_REDIS_TOO_MANY_CONNECTION);
                 goto rediserr;
             }
@@ -193,13 +233,21 @@ rediserr:
                 freeReplyObject(reply);
             }
             throw err;
+
+redisok:
+            cs->unlock();
+            return ctx;
         }
 
         void ReturnContext(_redisctx_* ctx) {
             ContextSet* cs = GetContextSet(ctx->id_);
             cs->lock();
             if (ctx->err_) {
-
+                redisFree(ctx->ctx_);
+                delete ctx;
+                cs->conns--;
+            } else {
+                cs->ctxs.push_back(ctx);
             }
             cs->unlock();
         }
@@ -214,6 +262,7 @@ rediserr:
         return &p;
     }
 
+    //=====================================================
     class RedisConnection {
         friend class RedisPool;
 
@@ -249,9 +298,66 @@ rediserr:
             return ctx_ != nullptr;
         }
 
+        // 设置超时,秒数
+        // 返回1设置成功，返回0表示key不存在
+        int Expire(const std::string& key, time_t expire) {
+            return this->Expire(key.c_str(), expire);
+        }
+        int Expire(const char* key, time_t expire) {
+            M_CHECK_REDIS_CONTEXT();
 
+            RedisException err;
+            redisReply* reply = (redisReply*)redisCommand(ctx_->ctx_, "EXPIRE %s %d", key, expire);
+            M_CHECK_REDIS_REPLY(reply);
+
+            return getReplyIntegerFree(reply);
+        }
+
+        // 删除key
+        // 返回删除成功key的个数，返回0表示key不存在
+        int Del(const std::string& key) {
+            std::list<std::string> keys;
+            keys.push_back(key);
+            return this->Del(keys);
+        }
+        int Del(const char* key) {
+            std::list<std::string> keys;
+            keys.push_back(key);
+            return this->Del(keys);
+        }
+        template<class T>
+        int Del(const T& keys) {
+            M_CHECK_REDIS_CONTEXT();
+
+            std::string cmd = "DEL ";
+            for (auto& k : keys) {
+                cmd += k + " ";
+            }
+
+            RedisException err;
+            redisReply* reply = (redisReply*)redisCommand(ctx_->ctx_, cmd.c_str());
+            M_CHECK_REDIS_REPLY(reply);
+
+            return getReplyIntegerFree(reply);
+        }
+
+        // 设置string
+        // 返回true表示设置成功，返回false表示设置失败
+        bool Set(const std::string& key, const std::string& val, time_t timeout = 0) {
+            return this->Set(key.c_str(), val.c_str(), timeout);
+        }
+        template<typename T>
+        bool Set(const char* key, T value, time_t timeout = 0) {
+            std::ostringstream oss;
+            oss << value;
+            return this->Set(key, oss.str().c_str(), timeout);
+        }
+        bool Set(const char* key, const char* value, time_t timeout = 0) {
+            return false;
+        }
     };
 
+    //=====================================================
     class RedisPool {
     public:
         // 设置最大连接数
