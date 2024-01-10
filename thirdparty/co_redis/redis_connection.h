@@ -267,6 +267,10 @@ redisok:
         }
 
         void ReturnContext(_redisctx_* ctx) {
+            if (!ctx) {
+                return;
+            }
+            assert(ctx->ctx_ != 0);
             ContextSet* cs = GetContextSet(ctx->id_);
             cs->lock();
             if (ctx->err_) {
