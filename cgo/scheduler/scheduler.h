@@ -168,6 +168,8 @@ namespace cgo {
         void set_cgo_core(int cnt);
         void cgo_add_loop(const task_type& f);
         void cgo_stop();
+        void co_hook(bool enable);
+        bool co_hook();
         void print_debug_info();
         // try to start a new thread
         void trigger_new_thread(bool force);

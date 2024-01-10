@@ -30,5 +30,9 @@ namespace cgo {
         void run_co(std::function<void()> routine, int stack = 0, const char* file = 0, int line = 0);
 
         uint64_t cur_coid();
+
+        void co_hook(bool enable);
+
+        bool co_hook();
     }
 }

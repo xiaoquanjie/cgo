@@ -10,4 +10,5 @@ add_subdirectory(./cgo)
 add_subdirectory(./example)
 add_subdirectory(./thirdparty/grpc-test)
 add_subdirectory(./thirdparty/redis-test)
+add_subdirectory(./thirdparty/curl-test)
 

@@ -22,13 +22,25 @@
 #undef msleep
 #define msleep cgo::hook::mSleep
 
-// hook some fd
+
+/*
+ * hook的规则：
+ * 当设置了cgo_global_hook时，可以不用设置其他hook
+ * 当设置了cgo_hook_fd时，只是某个fd有hook
+ * 当设置了cgo_hook_poll_select时，只是接下来调用的poll/select这两个函数有hook，有效范围是调用此函数的协程
+ * */
+
+// hook a fd
 #undef cgo_hook_fd
 #define cgo_hook_fd cgo::hook::hook_fd
 
 // set global hook flag
 #undef cgo_global_hook
 #define cgo_global_hook cgo::hook::set_global_hook
+
+// hook select/poll function
+#undef cgo_hook_poll_select
+#define cgo_hook_poll_select cgo::hook::hook_poll_select
 
 #undef CGO_MAX_HOOK_FD
 #define CGO_MAX_HOOK_FD 1024*100
@@ -42,6 +54,9 @@ namespace cgo {
 
         // default disable global hook
         void set_global_hook(bool hook);
+
+        // hook select/poll function
+        void hook_poll_select(bool hook);
     }
 }
 

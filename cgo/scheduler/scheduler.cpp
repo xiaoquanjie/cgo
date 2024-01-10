@@ -21,6 +21,8 @@ namespace cgo {
         void yield_co();
         void run_co(std::function<void()> routine, int stack, const char* file, int line);
         uint64_t cur_coid();
+        void co_hook(bool enable);
+        bool co_hook();
     }
 
     namespace scheduler {
@@ -429,6 +431,14 @@ namespace cgo {
         void cgo_stop() {
             M_CO_DEBUG_PRINT("cgo stop\n");
             scheduler_inst().stop();
+        }
+
+        void co_hook(bool enable) {
+            coro_adapter::co_hook(enable);
+        }
+
+        bool co_hook() {
+            return coro_adapter::co_hook();
         }
 
         void print_debug_info() {

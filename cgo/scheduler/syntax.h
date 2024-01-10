@@ -58,6 +58,9 @@ namespace cgo {
 #undef gowait
 #define gowait cgo::cgo_wait
 
+#undef gosleep
+#define gosleep cgo::cgo_wait
+
 #undef cgoprocs
 #define cgoprocs cgo::cgo_procs
 

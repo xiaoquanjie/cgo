@@ -19,6 +19,7 @@ namespace cgo {
         struct co_adapter_info {
             std::function<void()> routine;
             std::function<void()> after;
+            volatile bool hook = false;
         };
 
         void minicoro_routine(mco_coro* co) {
@@ -31,6 +32,7 @@ namespace cgo {
         struct co_adapter_info {
             std::function<void()> after;
             void* volatile data = 0;
+            volatile bool hook = false;
         };
 #endif
 
@@ -99,16 +101,16 @@ namespace cgo {
 
         void yield_co(void*& data, const std::function<void()>& after) {
 #if defined(USE_CGO_COROUTINE)
-            auto co2 = coroutine::curid();
-            co_adapter_info* info = (co_adapter_info*)coroutine::get_udata(co2);
+            auto co_id = coroutine::curid();
+            co_adapter_info* info = (co_adapter_info*)coroutine::get_udata(co_id);
             info->after = after;
             coroutine::yield();
             data = info->data;
 #elif defined(USE_MINI_CORO)
-            auto co2 = mco_running();
-            co_adapter_info* info = (co_adapter_info*)mco_get_user_data(co2);
+            auto co_id = mco_running();
+            co_adapter_info* info = (co_adapter_info*)mco_get_user_data(co_id);
             info->after = after;
-            mco_yield(co2);
+            mco_yield(co_id);
             auto co = mco_running();
             mco_pop(co, &data, sizeof(void*));
 #else
@@ -142,6 +144,31 @@ namespace cgo {
 #else
 #pragma message("no coroutine implement")
 #endif
+        }
+
+        void co_hook(bool enable) {
+#if defined(USE_CGO_COROUTINE)
+            auto co_id = coroutine::curid();
+            co_adapter_info* info = (co_adapter_info*)coroutine::get_udata(co_id);
+            info->hook = enable;
+#elif defined(USE_MINI_CORO)
+            auto co_id = mco_running();
+            co_adapter_info* info = (co_adapter_info*)mco_get_user_data(co_id);
+            info->hook = enable;
+#endif
+        }
+
+        bool co_hook() {
+#if defined(USE_CGO_COROUTINE)
+            auto co_id = coroutine::curid();
+            co_adapter_info* info = (co_adapter_info*)coroutine::get_udata(co_id);
+            return info->hook;
+#elif defined(USE_MINI_CORO)
+            auto co_id = mco_running();
+            co_adapter_info* info = (co_adapter_info*)mco_get_user_data(co_id);
+            return info->hook;
+#endif
+            return false;
         }
     }
 }

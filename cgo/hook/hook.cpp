@@ -75,10 +75,19 @@ inline bool canhook(int fd) {
     return false;
 }
 
+inline bool canhook_poll_select() {
+    if (cgo::scheduler::cur_coid() == -1) {
+        return false;
+    }
+    return (g_global_hook || cgo::scheduler::co_hook());
+}
+
 #ifdef __GNUC__
 
 #include <fcntl.h>
 #include <sys/epoll.h>
+#include <sys/poll.h>
+#include <sys/select.h>
 
 static int g_epoll_fd = -1;
 
@@ -198,13 +207,12 @@ int connect(int fd, const struct sockaddr *address, socklen_t addrlen) {
 typedef int (*close_hook_t)(int fd);
 static close_hook_t close_hook = (close_hook_t)dlsym(RTLD_NEXT,"close");
 int close(int fd) {
-    hook_debug(__FUNCTION__);
     auto state = get_fd_state(fd);
     if (state->flag & fd_state::set) {
+        hook_debug(__FUNCTION__);
         clear_fd_state(fd);
         remove_fd(fd);
     }
-
     return close_hook(fd);
 }
 
@@ -453,6 +461,117 @@ int usleep(useconds_t microseconds) {
     hook_debug(__FUNCTION__);
     cgo::scheduler::schedule_wait(microseconds/1000);
     return 0;
+}
+
+typedef int (*poll_hook_t)(struct pollfd *fdarray,unsigned long nfds,int timeout);
+static poll_hook_t poll_hook = (poll_hook_t)dlsym(RTLD_NEXT,"poll");
+int poll(struct pollfd *fdarray, unsigned long nfds, int timeout) {
+    auto can = canhook_poll_select();
+
+    //if (!can || timeout == 0) {
+    if (!can) {
+        return poll_hook(fdarray, nfds, timeout);
+    }
+
+    hook_debug(__FUNCTION__);
+
+    // 切割轮询次数，精度是10毫秒，目前的实现方案性能不太好，只解决了使用的问题
+    int loops = 0;
+    if (timeout < 0) {
+        loops = -1;
+    } else if (timeout == 0) {
+        // timeout为0，在外部往往都是一个while循环，所以为了避免线程阻塞，需要强制gosleep
+        loops = 1;
+    } else if (timeout < 10) {
+        loops = 1;
+    } else {
+        loops = timeout % 10 == 0 ? (timeout / 10) : (timeout / 10 + 1);
+    }
+
+    for (int i = 0; i < loops || loops == -1; i++) {
+        // 内循环1毫秒
+        for (int j = 0; j < 10; j++) {
+            int r = poll_hook(fdarray, nfds, 0);
+            if (r != 0) {
+                return r;
+            }
+            usleep_hook(100);
+        }
+        //hook_debug("poll wait");
+        cgo::scheduler::schedule_wait(10);
+    }
+
+    return poll_hook(fdarray, nfds, 0);
+}
+
+typedef int (*select_hook_t)(int maxfd, fd_set *readfds, fd_set *writefds, fd_set *exceptfds, struct timeval *timeout);
+static select_hook_t select_hook = (select_hook_t)dlsym(RTLD_NEXT,"select");
+int select(int maxfd, fd_set *readfds, fd_set *writefds, fd_set *exceptfds, struct timeval *timeout) {
+    auto can = canhook_poll_select();
+
+    if (!can) {
+        return select_hook(maxfd, readfds, writefds, exceptfds, timeout);
+    }
+
+    hook_debug(__FUNCTION__);
+
+    // 切割轮询次数，精度是10毫秒，目前的实现方案性能不太好，只解决了使用的问题
+    int loops = 0;
+    if (!timeout) {
+        loops = -1;
+    } else {
+        time_t mills = timeout->tv_sec*1000 + timeout->tv_usec/1000;
+        if (mills < 10) {
+            loops = 1;
+        } else {
+            loops = mills % 10 == 0 ? (mills / 10) : (mills / 10 + 1);
+        }
+    }
+
+    auto op_select = [maxfd, readfds, writefds, exceptfds]()->int {
+        fd_set rfs, wfs, efs;
+        FD_ZERO(&rfs);
+        FD_ZERO(&wfs);
+        FD_ZERO(&efs);
+
+        if (readfds) {
+            rfs = *readfds;
+        }
+        if (writefds) {
+            wfs = *writefds;
+        }
+        if (exceptfds) {
+            efs = *exceptfds;
+        }
+
+        int r = select_hook(maxfd, readfds ? &rfs : 0, writefds ? &wfs : 0, exceptfds ? &efs : 0, 0);
+        if (r != 0) {
+            if (readfds) {
+                *readfds = rfs;
+            }
+            if (writefds) {
+                *writefds = wfs;
+            }
+            if (exceptfds) {
+                *exceptfds = efs;
+            }
+        }
+        return r;
+    };
+
+    for (int i = 0; i < loops || loops == -1; i++) {
+        // 内循环1毫秒
+        for (int j = 0; j < 10; j++) {
+            int r = op_select();
+            if (r != 0) {
+                return r;
+            }
+            usleep_hook(100);
+        }
+        cgo::scheduler::schedule_wait(10);
+    }
+
+    return op_select();
 }
 
 void linux_hook_init() {
@@ -705,9 +824,9 @@ int PASCAL FAR hook_connect (
 typedef int (PASCAL FAR* closesocket_hook_t)(IN SOCKET s);
 static closesocket_hook_t closesocket_hook = 0;
 int PASCAL FAR hook_closesocket (IN SOCKET s) {
-    hook_debug(__FUNCTION__);
     auto state = get_fd_state((int)s);
     if (state->flag & fd_state::set) {
+        hook_debug(__FUNCTION__);
         clear_fd_state(s);
     }
     return closesocket_hook(s);
@@ -1108,6 +1227,10 @@ namespace cgo {
         // default disable global hook
         void set_global_hook(bool hook) {
             g_global_hook = hook;
+        }
+
+        void hook_poll_select(bool hook) {
+            scheduler::co_hook(hook);
         }
     }
 }
