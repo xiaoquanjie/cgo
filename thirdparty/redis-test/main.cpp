@@ -10,8 +10,9 @@
 
 int main() {
     //co_redis::RedisPool::SetMaxConnection(2);
+    //co_redis::RedisPool::GetConnection("192.168.102.26", "rwSlXLlwgaqvi4pSGrW3", 6379);
 
-    for (int i = 0; i < 1; i++) {
+    for (int i = 0; i < 2; i++) {
         go []() {
             try {
                 auto c = co_redis::RedisPool::GetConnection("192.168.102.26", "rwSlXLlwgaqvi4pSGrW3", 6379);
@@ -33,6 +34,7 @@ int main() {
                 std::cout << "getset:" << c.GetSet("mystring", "myvalue2", val) << "\n";
 
                 std::cout << "strlen:" << c.Strlen("mystring") << "\n";
+
             } catch (co_redis::RedisException& e) {
                 std::cout << e.What() << "\n";
             }

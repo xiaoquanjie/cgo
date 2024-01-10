@@ -179,6 +179,11 @@ namespace co_redis {
 
         // @timeout 精度是秒
         _redisctx_* BorrowContext(const std::string& ip, unsigned short port, const std::string& auth, unsigned short db, unsigned short timeout) {
+            if (cgocoid() == -1) {
+                assert(false && "not in coroutine");
+                throw "not in coroutine";
+            }
+
             std::string id;
             CalcId(ip, port, auth, db, id);
 
@@ -241,6 +246,7 @@ namespace co_redis {
             ctx = new _redisctx_;
             ctx->ctx_ = rctx;
             ctx->id_ = id;
+            ctx->err_ = false;
             cs->conns++;
             cs->unlock();
             return ctx;
@@ -531,6 +537,7 @@ redisok:
         }
 
         // @timeout 精度是秒
+        // 需要在协程中才能使用
         static RedisConnection GetConnection(const std::string& ip, unsigned short port = 6379, unsigned short db = 0, unsigned short timeout = 3) {
             auto ctx = getPool()->BorrowContext(ip, port, "", db, timeout);
             if (ctx) {
@@ -540,6 +547,7 @@ redisok:
         }
 
         // @timeout 精度是秒
+        // 需要在协程中才能使用
         static RedisConnection GetConnection(const std::string& ip, const std::string& auth, unsigned short port = 6379, unsigned short db = 0, unsigned short timeout = 3) {
             auto ctx = getPool()->BorrowContext(ip, port, auth, db, timeout);
             if (ctx) {
