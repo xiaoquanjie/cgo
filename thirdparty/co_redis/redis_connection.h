@@ -86,6 +86,27 @@ namespace co_redis {
         return r;
     }
 
+    const char* getReplyString(redisReply* reply, int& len) {
+        len = 0;
+        if (reply->type == REDIS_REPLY_STRING) {
+            len = reply->len;
+            return reply->str;
+        }
+        return "";
+    }
+
+    void getReplyStringFree(redisReply* reply, std::string& v) {
+        int len = 0;
+        auto r = getReplyString(reply, len);
+        if (r) {
+            v.clear();
+            v.append(r, len);
+        }
+        if (reply) {
+            freeReplyObject(reply);
+        }
+    }
+
     //=====================================================
     class _redispool_ {
     private:
@@ -300,10 +321,10 @@ redisok:
 
         // 设置超时,秒数
         // 返回1设置成功，返回0表示key不存在
-        int Expire(const std::string& key, time_t expire) {
+        long long Expire(const std::string& key, time_t expire) {
             return this->Expire(key.c_str(), expire);
         }
-        int Expire(const char* key, time_t expire) {
+        long long Expire(const char* key, time_t expire) {
             M_CHECK_REDIS_CONTEXT();
 
             RedisException err;
@@ -315,18 +336,18 @@ redisok:
 
         // 删除key
         // 返回删除成功key的个数，返回0表示key不存在
-        int Del(const std::string& key) {
+        long long Del(const std::string& key) {
             std::list<std::string> keys;
             keys.push_back(key);
             return this->Del(keys);
         }
-        int Del(const char* key) {
+        long long  Del(const char* key) {
             std::list<std::string> keys;
             keys.push_back(key);
             return this->Del(keys);
         }
         template<class T>
-        int Del(const T& keys) {
+        long long  Del(const T& keys) {
             M_CHECK_REDIS_CONTEXT();
 
             std::string cmd = "DEL ";
@@ -341,19 +362,162 @@ redisok:
             return getReplyIntegerFree(reply);
         }
 
-        // 设置string
-        // 返回true表示设置成功，返回false表示设置失败
-        bool Set(const std::string& key, const std::string& val, time_t timeout = 0) {
-            return this->Set(key.c_str(), val.c_str(), timeout);
+        // 设置string, @timeout代表毫秒
+        void Set(const std::string& key, const std::string& val, time_t timeout = 0) {
+            this->Set(key.c_str(), val.c_str(), timeout);
         }
         template<typename T>
-        bool Set(const char* key, T value, time_t timeout = 0) {
+        void Set(const char* key, T value, time_t timeout = 0) {
             std::ostringstream oss;
             oss << value;
-            return this->Set(key, oss.str().c_str(), timeout);
+            this->Set(key, oss.str().c_str(), timeout);
         }
-        bool Set(const char* key, const char* value, time_t timeout = 0) {
-            return false;
+        void Set(const char* key, const char* value, time_t timeout = 0) {
+            M_CHECK_REDIS_CONTEXT();
+
+            RedisException err;
+            redisReply* reply;
+
+            if (timeout == 0) {
+                reply = (redisReply*)redisCommand(ctx_->ctx_, "SET %s %s", key, value);
+            } else {
+                reply = (redisReply*)redisCommand(ctx_->ctx_, "SET %s %s PX %d", key, value, timeout);
+            }
+
+            M_CHECK_REDIS_REPLY(reply);
+            getReplyOkFree(reply);
+        }
+
+        // 不存在时设置string, @timeout代表毫秒
+        // 返回true表示设置成功，返回false表示设置失败
+        bool SetNx(const std::string& key, const std::string& val, time_t timeout = 0) {
+            return this->SetNx(key, val, timeout);
+        }
+        template<typename T>
+        bool SetNx(const char* key, T value, time_t timeout = 0) {
+            std::ostringstream oss;
+            oss << value;
+            return this->SetNx(key, oss.str().c_str(), timeout);
+        }
+        bool SetNx(const char* key, const char* value, time_t timeout = 0) {
+            M_CHECK_REDIS_CONTEXT();
+
+            RedisException err;
+            redisReply* reply;
+
+            if (timeout == 0) {
+                reply = (redisReply*)redisCommand(ctx_->ctx_, "SET %s %s NX", key, value);
+            } else {
+                reply = (redisReply*)redisCommand(ctx_->ctx_, "SET %s %s PX %d NX", key, value, timeout);
+            }
+
+            M_CHECK_REDIS_REPLY(reply);
+            return getReplyOkFree(reply);
+        }
+
+        // 存在时才设置string, @timeout代表毫秒
+        // 返回true表示设置成功，返回false表示设置失败
+        bool SetXx(const std::string& key, const std::string& val, time_t timeout = 0) {
+            return this->SetXx(key, val, timeout);
+        }
+        template<typename T>
+        bool SetXx(const char* key, T value, time_t timeout = 0) {
+            std::ostringstream oss;
+            oss << value;
+            return this->SetXx(key, oss.str().c_str(), timeout);
+        }
+        bool SetXx(const char* key, const char* value, time_t timeout = 0) {
+            M_CHECK_REDIS_CONTEXT();
+
+            RedisException err;
+            redisReply* reply;
+
+            if (timeout == 0) {
+                reply = (redisReply*)redisCommand(ctx_->ctx_, "SET %s %s XX", key, value);
+            } else {
+                reply = (redisReply*)redisCommand(ctx_->ctx_, "SET %s %s PX %d XX", key, value, timeout);
+            }
+
+            M_CHECK_REDIS_REPLY(reply);
+            return getReplyOkFree(reply);
+        }
+
+        // 获取string, @exist允许为空，为true表示数据存在，为false表示数据不存在
+        template<typename T>
+        T& Get(const char* key, T& val, bool* exist = 0) {
+            std::string v;
+            bool check = false;
+            this->Get(key, v, &check);
+
+            if (check) {
+                std::istringstream iss(v);
+                iss >> val;
+            }
+            if (exist) {
+                *exist = check;
+            }
+            return val;
+        }
+        std::string& Get(const std::string& key, std::string& val, bool* exist = 0) {
+            return this->Get(key.c_str(), val, exist);
+        }
+        std::string& Get(const char* key, std::string& val, bool* exist = 0) {
+            M_CHECK_REDIS_CONTEXT();
+
+            RedisException err;
+            redisReply* reply = (redisReply*)redisCommand(ctx_->ctx_, "GET %s", key);
+            M_CHECK_REDIS_REPLY(reply);
+
+            getReplyStringFree(reply, val);
+            if (exist) {
+                *exist = !val.empty();
+            }
+            return val;
+        }
+
+        // 设置新的string,并获取旧的string值
+        // 返回true表示设置成功，返回false表示设置失败
+        template<typename T>
+        T& GetSet(const std::string& key, T val, T& oldval, bool* exist = 0, time_t timeout = 0) {
+            std::ostringstream oss;
+            oss << val;
+            std::string oldvalstr;
+            this->GetSet(key, oss.str().c_str(), oldvalstr, exist, timeout);
+            if (!oldvalstr.empty()) {
+                std::istringstream iss(oldvalstr);
+                iss >> oldval;
+            }
+            return oldval;
+        }
+        std::string& GetSet(const std::string& key, const std::string& val, std::string& oldval, bool* exist = 0, time_t timeout = 0) {
+            M_CHECK_REDIS_CONTEXT();
+
+            RedisException err;
+            redisReply* reply;
+
+            if (timeout == 0) {
+                reply = (redisReply*)redisCommand(ctx_->ctx_, "SET %s %s GET", key.c_str(), val.c_str());
+            } else {
+                reply = (redisReply*)redisCommand(ctx_->ctx_, "SET %s %s GET PX %d", key.c_str(), val.c_str(), timeout);
+            }
+
+            M_CHECK_REDIS_REPLY(reply);
+            getReplyStringFree(reply, oldval);
+            return oldval;
+        }
+
+        // 获取字符串长度
+        long long  Strlen(const std::string& key) {
+            return this->Strlen(key.c_str());
+        }
+        long long  Strlen(const char* key) {
+            M_CHECK_REDIS_CONTEXT();
+
+            RedisException err;
+            redisReply* reply = (redisReply*)redisCommand(ctx_->ctx_, "STRLEN %s", key);
+
+            M_CHECK_REDIS_REPLY(reply);
+            return getReplyIntegerFree(reply);
         }
     };
 
