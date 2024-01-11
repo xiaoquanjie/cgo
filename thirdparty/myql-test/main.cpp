@@ -8,7 +8,7 @@
 #include "co_mysql/co_mysql.h"
 
 int main() {
-    // 为了测试是否成功hook了libcurl，把cgo的并发线程限制1个
+    // 为了测试是否成功hook了mysql c driver，把cgo的并发线程限制1个
     cgoprocs(1);
 
     for (int i = 0; i < 1; i++) {

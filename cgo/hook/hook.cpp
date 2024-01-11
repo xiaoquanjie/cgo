@@ -9,6 +9,7 @@
 #include "scheduler/scheduler.h"
 #include <stdio.h>
 #include <atomic>
+#include <assert.h>
 
 #define hook_debug //_hook_debug
 

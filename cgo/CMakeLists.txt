@@ -16,8 +16,6 @@ add_library(cgo
         coroutine/coroutine_adapter.cpp
         scheduler/syntax.cpp
         scheduler/scheduler.cpp
-        scheduler/scheduler_linux.cpp
-        scheduler/scheduler_win.cpp
 
         common/time_pool.cpp
         sync/channel.cpp

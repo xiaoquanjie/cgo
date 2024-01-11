@@ -8,9 +8,10 @@
 //----------------------------------------------------------------*/
 
 #include "channel.h"
-#include "../scheduler/scheduler.h"
-#include "../common/circle_queue.h"
-#include "../common/slist.h"
+#include "scheduler/scheduler.h"
+#include "common/macro.h"
+#include "common/circle_queue.h"
+#include "common/slist.h"
 #include <mutex>
 
 namespace cgo {
