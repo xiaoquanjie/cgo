@@ -10,6 +10,7 @@
 #include <functional>
 #include <mysql/mysql.h>
 
+// 采用fd hook的方式
 #undef M_CHECK_MYSQL_CONTEXT
 #define M_CHECK_MYSQL_CONTEXT() \
 if (!ctx_ || !ctx_->mysql_) throw MysqlException("invalid mysql connection"); cgo_hook_fd(ctx_->mysql_->net.fd);

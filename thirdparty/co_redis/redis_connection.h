@@ -13,7 +13,7 @@
 #include <hiredis/hiredis.h>
 #include "cgo/cgo.h"
 
-// 检查context
+// 检查context, 采用fd hook的方式
 #undef M_CHECK_REDIS_CONTEXT
 #define M_CHECK_REDIS_CONTEXT() \
 if (!ctx_ || !ctx_->ctx_) throw RedisException(M_ERR_REDIS_INVALID_CONNECTION); cgo_hook_fd(ctx_->ctx_->fd);
