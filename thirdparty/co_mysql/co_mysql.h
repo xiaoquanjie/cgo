@@ -1,0 +1,359 @@
+//
+// Created by xiaoqj on 2024/1/11.
+//
+
+#pragma once
+
+#include <mutex>
+#include <unordered_map>
+#include <list>
+#include <functional>
+#include <mysql/mysql.h>
+
+#undef M_CHECK_MYSQL_CONTEXT
+#define M_CHECK_MYSQL_CONTEXT() \
+if (!ctx_ || !ctx_->mysql_) throw MysqlException("invalid mysql connection"); cgo_hook_fd(ctx_->mysql_->net.fd);
+
+#undef M_CHECK_MYSQL_ERROR
+#define M_CHECK_MYSQL_ERROR() \
+{                             \
+    auto errn = mysql_errno(ctx_->mysql_); \
+    if (errn == CR_SERVER_LOST  \
+        || errn == CR_SERVER_LOST_EXTENDED \
+        || errn == CR_SERVER_GONE_ERROR) { \
+            ctx_->err_ = true;             \
+    }                                      \
+    throw MysqlException(mysql_error(ctx_->mysql_));  \
+}
+
+namespace co_mysql {
+    struct MysqlException {
+    protected:
+        std::shared_ptr<std::string> what_;
+
+    public:
+        MysqlException() {}
+
+        MysqlException(const char* what) {
+            what_.reset(new std::string(what));
+        }
+
+        MysqlException(const std::string& what) {
+            what_.reset(new std::string(what));
+        }
+
+        std::string What()const {
+            if (!what_)
+                return std::string();
+            return *what_;
+        }
+
+        bool Empty()const {
+            return (!what_);
+        }
+    };
+
+    struct _mysqlctx_ {
+        MYSQL* mysql_;
+        bool err_;          // 代表连接出错
+        std::string id_;
+    };
+
+    //=====================================================
+    class _mysqlpool_ {
+    private:
+        struct ContextSet {
+            unsigned int conns; // 已有的连接数
+            cgo::chan<int> ch_;
+            std::list<_mysqlctx_*> ctxs;
+
+            ContextSet() {
+                ch_ = makechan<int>(1);
+            }
+
+            ~ContextSet() {
+                if (ch_.use_count() == 1) {
+                    closechan(ch_);
+                }
+            }
+
+            void lock() {
+                ch_ >> 1;
+            }
+
+            void unlock() {
+                int t = 0;
+                ch_ << t;
+            }
+        };
+
+    protected:
+        unsigned int max_conns_ = 0;
+        std::mutex mu_;
+        std::unordered_map<std::string, ContextSet> ctx_map_;
+
+        std::string& CalcId(const std::string& host,
+                            const std::string& user,
+                            const std::string& pwd,
+                            const std::string db,
+                            unsigned short port,
+                            std::string& id) {
+            id = host + ":" + user + ":" + pwd + ":" + db + ":" + std::to_string(port);
+            return id;
+        }
+
+    public:
+        _mysqlpool_() {}
+
+        ~_mysqlpool_() {
+            std::scoped_lock<std::mutex> lock(mu_);
+
+            for (auto& kv : ctx_map_) {
+                kv.second.lock();
+                for (auto& ctx : kv.second.ctxs) {
+                    mysql_close(ctx->mysql_);
+                    delete ctx;
+                }
+                kv.second.ctxs.clear();
+                kv.second.unlock();
+            }
+
+            ctx_map_.clear();
+        }
+
+        void SetMaxConnection(unsigned int c) {
+            max_conns_ = c;
+        }
+
+        ContextSet* GetContextSet(const std::string& id) {
+            std::scoped_lock<std::mutex> lock(mu_);
+            auto iter = ctx_map_.find(id);
+            if (iter == ctx_map_.end()) {
+                ContextSet cs;
+                cs.conns = 0;
+                iter = ctx_map_.insert(std::make_pair(id, cs)).first;
+            }
+            ContextSet* cs = &iter->second;
+            return cs;
+        }
+
+        _mysqlctx_* BorrowContext(const std::string& host,
+                                  const std::string& user,
+                                  const std::string& pwd,
+                                  const std::string& db,
+                                  unsigned short port,
+                                  unsigned short timeout) {
+            if (cgocoid() == -1) {
+                assert(false && "not in coroutine");
+                throw MysqlException("not in coroutine");
+            }
+
+            std::string id;
+            CalcId(host, user, pwd, db, port, id);
+
+            ContextSet* cs = GetContextSet(id);
+            MysqlException err;
+            _mysqlctx_* ctx = nullptr;
+            MYSQL* mysql = nullptr;
+
+            cs->lock();
+
+            if (!cs->ctxs.empty()) {
+                ctx = cs->ctxs.front();
+                cs->ctxs.pop_front();
+                goto mysqlok;
+            }
+
+            // 超过最大连接数
+            if (max_conns_ != 0 && cs->conns >= max_conns_) {
+                if (timeout != 0) {
+                    gowait(timeout*1000);
+                }
+                if (!cs->ctxs.empty()) {
+                    ctx = cs->ctxs.front();
+                    cs->ctxs.pop_front();
+                    goto mysqlok;
+                }
+
+                err = MysqlException("over mysql connection count limit");
+                goto mysqlerr;
+            }
+
+            mysql = mysql_init(NULL);
+            if (!mysql) {
+                err = MysqlException("");
+                goto mysqlerr;
+            }
+
+            // 设置连接超时, 毫秒
+            timeout *= 1000;
+            mysql_options(mysql, MYSQL_OPT_CONNECT_TIMEOUT, &timeout);
+
+            if (!mysql_real_connect(mysql, host.c_str(), user.c_str(), pwd.c_str(), db.c_str(), port, NULL, 0)) {
+                err = MysqlException(mysql_error(mysql));
+                goto mysqlerr;
+            }
+
+            ctx = new _mysqlctx_;
+            ctx->mysql_ = mysql;
+            ctx->id_ = id;
+            ctx->err_ = false;
+            cs->conns++;
+            goto mysqlok;
+
+mysqlok:
+            cs->unlock();
+            return ctx;
+
+mysqlerr:
+            cs->unlock();
+            if (mysql) {
+                mysql_close(mysql);
+            }
+            throw err;
+        }
+
+        void ReturnContext(_mysqlctx_* ctx) {
+            if (!ctx) {
+                return;
+            }
+
+            assert(ctx->mysql_ != 0);
+            ContextSet* cs = GetContextSet(ctx->id_);
+            cs->lock();
+            if (ctx->err_) {
+                mysql_close(ctx->mysql_);
+                delete ctx;
+                cs->conns--;
+            } else {
+                cs->ctxs.push_back(ctx);
+            }
+            cs->unlock();
+        }
+    };
+
+    inline _mysqlpool_* getPool() {
+        static _mysqlpool_ pool;
+        return &pool;
+    }
+
+    //=====================================================
+    class MysqlConnection {
+        friend class MysqlPool;
+
+    protected:
+        _mysqlctx_* ctx_;
+
+        MysqlConnection() : ctx_(0) {}
+
+        MysqlConnection(_mysqlctx_* ctx) : ctx_(ctx) {}
+
+        MysqlConnection& operator=(const MysqlConnection&) = delete;
+        MysqlConnection(const MysqlConnection&) = delete;
+
+    public:
+        ~MysqlConnection() {
+            if (ctx_) {
+                getPool()->ReturnContext(ctx_);
+            }
+        }
+
+        // 判断连接是否有效
+        // 连接无效返回真
+        bool operator!() {
+            return ctx_ == nullptr;
+        }
+
+        // 判断连接是否有效
+        // 连接有效返回真
+        bool operator()() {
+            return ctx_ != nullptr;
+        }
+
+        // 执行sql语句
+        // @timeout 精度是秒
+        // @return  影响的行数
+        unsigned long long Execute(const std::string& sql, time_t timeout = 3) {
+            M_CHECK_MYSQL_CONTEXT();
+
+            // 设置超时
+            timeout *= 1000;
+            mysql_options(ctx_->mysql_, MYSQL_OPT_READ_TIMEOUT, &timeout);
+            mysql_options(ctx_->mysql_, MYSQL_OPT_WRITE_TIMEOUT, &timeout);
+
+            if (mysql_query(ctx_->mysql_, sql.c_str())) {
+                M_CHECK_MYSQL_ERROR();
+            }
+            // 查询影响的行数
+            return mysql_affected_rows(ctx_->mysql_);
+        }
+
+        // 查询sql语句
+        // @cb是回调函数：@row代表一行数据, @row_num代表共几行, @col_num共几列, @row_idx当前是第几行，当row_idx等于row_num时遍历结束
+        void Query(const std::string& sql,
+                   const std::function<void(MYSQL_ROW row,
+                           unsigned long long row_num,
+                           unsigned int col_num,
+                           unsigned long long row_idx)>& cb,
+                   time_t timeout = 3) {
+            auto res = Query(sql, timeout);
+            auto row_num = mysql_num_rows(res);
+            auto col_num = mysql_num_fields(res);
+
+            unsigned long long idx = 1;
+            for (MYSQL_ROW row = mysql_fetch_row(res); row != 0; row = mysql_fetch_row(res)) {
+                cb(row, row_num, col_num, idx++);
+            }
+
+            // 释放结果集
+            mysql_free_result(res);
+        }
+
+        // 查询sql语句
+        // @return 返回结果集
+        MYSQL_RES* Query(const std::string& sql, time_t timeout = 3) {
+            M_CHECK_MYSQL_CONTEXT();
+
+            // 设置超时
+            timeout *= 1000;
+            mysql_options(ctx_->mysql_, MYSQL_OPT_READ_TIMEOUT, &timeout);
+            mysql_options(ctx_->mysql_, MYSQL_OPT_WRITE_TIMEOUT, &timeout);
+
+            if (mysql_query(ctx_->mysql_, sql.c_str())) {
+                M_CHECK_MYSQL_ERROR();
+            }
+
+            // 一次性获取所有的结果集
+            auto res = mysql_store_result(ctx_->mysql_);
+            if (!res) {
+                M_CHECK_MYSQL_ERROR();
+            }
+            return res;
+        }
+    };
+
+    //=====================================================
+    class MysqlPool {
+    public:
+        // 设置最大连接数
+        // 默认是无限制
+        static void SetMaxConnection(unsigned int c) {
+            getPool()->SetMaxConnection(c);
+        }
+
+        // @timeout 精度是秒
+        // 需要在协程中才能使用
+        static MysqlConnection GetConnection(const std::string& host,
+                                             const std::string& user,
+                                             const std::string& pwd,
+                                             const std::string& db,
+                                             unsigned short port = 3306,
+                                             unsigned short timeout = 3) {
+            auto ctx = getPool()->BorrowContext(host, user, pwd, db, port, timeout);
+            if (ctx) {
+                return MysqlConnection(ctx);
+            }
+            return MysqlConnection();
+        }
+    };
+}

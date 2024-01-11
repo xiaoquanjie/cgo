@@ -17,6 +17,11 @@ public:
         METHOD_PUT,
     };
 
+    struct Option {
+        unsigned int op_timeout = 15 * 1000;        // 执行最长时间, 毫秒
+        unsigned int conn_timeout = 15 * 1000;      // 连接最长时间，毫秒
+    };
+
     struct Response {
         std::string value;
         int curl_code = 0;      // curl操作的错误码, 成功为CURLE_OK
@@ -28,13 +33,19 @@ public:
     };
 
     // 返回nullptr说明curl库出错
-    static std::shared_ptr<Response> Get(const std::string& url, const std::unordered_map<std::string, std::string>& headers = {}) {
-        return doQuest(METHOD_GET, url, "", headers);
+    static std::shared_ptr<Response> Get(const std::string& url,
+                                         const std::unordered_map<std::string,
+                                         std::string>& headers = {},
+                                         const Option* opt = 0) {
+        return doQuest(METHOD_GET, url, "", headers, opt);
     }
 
     // 返回nullptr说明curl库出错
-    static std::shared_ptr<Response> Post(const std::string& url, const std::string& content, const std::unordered_map<std::string, std::string>& headers = {}) {
-        return doQuest(METHOD_POST, url, content, headers);
+    static std::shared_ptr<Response> Post(const std::string& url,
+                                          const std::string& content,
+                                          const std::unordered_map<std::string, std::string>& headers = {},
+                                          const Option* opt = 0) {
+        return doQuest(METHOD_POST, url, content, headers, opt);
     }
 
 protected:
@@ -43,7 +54,11 @@ protected:
     co_curl& operator=(const co_curl&) = delete;
     ~co_curl() = delete;
 
-    static std::shared_ptr<Response> doQuest(HTTP_METHOD method, const std::string& url, const std::string& content, const std::unordered_map<std::string, std::string>& headers = {}) {
+    static std::shared_ptr<Response> doQuest(HTTP_METHOD method,
+                                             const std::string& url,
+                                             const std::string& content,
+                                             const std::unordered_map<std::string, std::string>& headers = {},
+                                             const Option* opt = 0) {
         init();
 
         CURL *curl = curl_easy_init();
@@ -59,8 +74,8 @@ protected:
         curl_easy_setopt(curl, CURLOPT_VERBOSE, 0);
         curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
         curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1);
-        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 15);
-        curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 15);
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, opt ? opt->op_timeout : 15 * 1000);
+        curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, opt ? opt->conn_timeout : 15 * 1000);
         curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, true);
         curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, false);
         curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, false);

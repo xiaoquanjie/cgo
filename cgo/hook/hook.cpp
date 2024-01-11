@@ -234,6 +234,7 @@ ssize_t read(int fd, void *buf, size_t bytes) {
     if (EAGAIN == errno
         || EWOULDBLOCK == errno) {
         for (;;) {
+            //hook_debug("read wait");
             state->flag |= fd_state::read;
             state->co_id = cgo::scheduler::cur_coid();
             cgo::scheduler::schedule_yield();
@@ -1208,6 +1209,9 @@ namespace cgo {
 
         // hook a fd
         void hook_fd(int fd) {
+            if (fd == 0) {
+                return;
+            }
             auto state = get_fd_state(fd);
             if ((state->flag & fd_state::set) == 1) {
                 return;

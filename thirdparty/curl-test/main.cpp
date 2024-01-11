@@ -10,7 +10,6 @@
 int main() {
     // 为了测试是否成功hook了libcurl，把cgo的并发线程限制1个
     cgoprocs(1);
-    cgo_global_hook(true);
 
     for (int i = 0; i < 1; i++) {
         go []() {

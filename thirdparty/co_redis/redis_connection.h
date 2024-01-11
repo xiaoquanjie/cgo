@@ -181,7 +181,7 @@ namespace co_redis {
         _redisctx_* BorrowContext(const std::string& ip, unsigned short port, const std::string& auth, unsigned short db, unsigned short timeout) {
             if (cgocoid() == -1) {
                 assert(false && "not in coroutine");
-                throw "not in coroutine";
+                throw RedisException("not in coroutine");
             }
 
             std::string id;
@@ -248,8 +248,7 @@ namespace co_redis {
             ctx->id_ = id;
             ctx->err_ = false;
             cs->conns++;
-            cs->unlock();
-            return ctx;
+            goto redisok;
 
 rediserr:
             cs->unlock();
