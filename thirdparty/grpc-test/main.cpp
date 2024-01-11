@@ -35,14 +35,17 @@ class GreeterClient : public co_grpc::CoClient<helloworld::Greeter> {
 public:
     //typedef std::shared_ptr<::grpc::ClientContext> ClientContextPtr;
 
-    // 一元类
     GRPC_CLIENT_CO_UNARY_METHOD(SayHello, helloworld::HelloRequest, helloworld::HelloReply);
+
+    GRPC_CLIENT_CO_UNARY_METHOD(GetName, helloworld::FamilyRequest, helloworld::FamilyResponse);
+
+    GRPC_CLIENT_CO_BS_METHOD(ListName, helloworld::FamilyRequest, helloworld::FamilyResponse);
 
     GRPC_CLIENT_CO_CS_METHOD(ClientStreamSayHello, helloworld::HelloRequest, helloworld::HelloReply);
 
     GRPC_CLIENT_CO_SS_METHOD(ServerStreamSayHello, helloworld::HelloRequest, helloworld::HelloReply);
 
-    GRPC_CLIENT_CO_BS_METHOD(ListName, helloworld::FamilyRequest, helloworld::FamilyResponse);
+
 };
 
 class GreeterServer : public co_grpc::Server<helloworld::Greeter> {
@@ -64,7 +67,7 @@ public:
 
     // 客户端流
     ::grpc::Status ClientStreamSayHello(::grpc::ServerContext* ctx,
-                                        GRPC_SERVER_STREAM_READER(helloworld::HelloRequest, helloworld::HelloReply) *reader,
+                                        GRPC_SRV_CO_READER(helloworld::HelloRequest, helloworld::HelloReply) *reader,
                                         helloworld::HelloReply* rsp) {
         helloworld::HelloRequest req;
         while (reader->Read(&req)) {
@@ -78,7 +81,7 @@ public:
     //  服务器端流
     ::grpc::Status ServerStreamSayHello(::grpc::ServerContext* ctx,
                                         const helloworld::HelloRequest* req,
-                                        GRPC_SERVER_STREAM_WRITER(helloworld::HelloRequest, helloworld::HelloReply) *writer) {
+                                        GRPC_SRV_CO_WRITER(helloworld::HelloRequest, helloworld::HelloReply) *writer) {
         print_withtime(std::string("server recv:") + req->ShortDebugString());
         helloworld::HelloReply rsp;
         rsp.set_message("server send: this is server");
@@ -88,7 +91,7 @@ public:
 
     // 双流
     void ListName(::grpc::ServerContext* ctx,
-                  GRPC_SERVER_STREAM_READER_WRITER(helloworld::FamilyRequest, helloworld::FamilyResponse) *rw) {
+                  GRPC_SRV_CO_RW(helloworld::FamilyRequest, helloworld::FamilyResponse) *rw) {
 
     }
 };

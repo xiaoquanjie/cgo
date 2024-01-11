@@ -67,9 +67,9 @@
 //////////////////////////////////////////////// 服务器相关的宏 end //////////////////////////////////////
 
 //////////////////////////////////////////////// 服务器stream相关的宏 begin //////////////////////////////////////
-#define GRPC_SERVER_STREAM_READER(request, response) co_grpc::ServerStreamReader<request, response, co_grpc::CoRunner>
-#define GRPC_SERVER_STREAM_WRITER(request, response) co_grpc::ServerStreamWriter<request, response, co_grpc::CoRunner>
-#define GRPC_SERVER_STREAM_READER_WRITER(request, response) co_grpc::ServerStreamReaderWriter<request, response, co_grpc::CoRunner>
+#define GRPC_SRV_CO_READER(request, response) co_grpc::ServerStreamReader<request, response, co_grpc::CoRunner>
+#define GRPC_SRV_CO_WRITER(request, response) co_grpc::ServerStreamWriter<request, response, co_grpc::CoRunner>
+#define GRPC_SRV_CO_RW(request, response) co_grpc::ServerStreamReaderWriter<request, response, co_grpc::CoRunner>
 //////////////////////////////////////////////// 服务器stream相关的宏 end   //////////////////////////////////////
 
 ///////////////////////////////////////////////  客户端返回值相关的宏 begin ///////////////////////////////
