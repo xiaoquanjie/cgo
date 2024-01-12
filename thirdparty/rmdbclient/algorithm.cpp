@@ -207,6 +207,9 @@ const char* bsonBytes(void* b, int* len) {
 
 bool BsonBytes2Kv(const std::string& data, std::unordered_map<std::string, std::string>& value) {
     auto b = bson_new_from_data((const uint8_t*)data.c_str(), data.size());
+    if (!b) {
+        return false;
+    }
 
     bson_iter_t iter;
     bson_iter_init(&iter, b);
