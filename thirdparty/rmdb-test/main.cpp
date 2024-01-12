@@ -15,18 +15,32 @@ int main() {
             while (true) {
                 auto ptr = rmdbclient::GetClient(1);
                 if (ptr) {
+                    auto ret = ptr->SetString("TestTable", {
+                            {"id", "123456"},
+                            {"name", "string"}
+                    }, "this is a rmdb test");
+
+                    if (M_RMDB_OK(ret)) {
+                        std::cout << "set data ok\n";
+                    }
+                    else if (M_RMDB_IOCODE(ret) != 0) {
+                        std::cout << "failed to setstring, iocode:" << M_RMDB_IOCODE(ret) << "\n";
+                    } else {
+                        std::cout << "failed to setstring:" << M_RMDB_CODE(ret) << "\n";
+                    }
+
                     std::string val;
-                    auto ret = ptr->GetString("TestTable", {
+                    ret = ptr->GetString("TestTable", {
                             {"id", "123456"},
                             {"name", "string"}
                     }, val);
 
                     if (M_RMDB_OK(ret)) {
-                        std::cout << "data:" << val << "\n";
+                        std::cout << "get data:" << val << "\n";
                     } else if (M_RMDB_IOCODE(ret) != 0) {
-                        std::cout << "failed to getkv, iocode:" << M_RMDB_IOCODE(ret) << "\n";
+                        std::cout << "failed to getstring, iocode:" << M_RMDB_IOCODE(ret) << "\n";
                     } else {
-                        std::cout << "failed to getkv:" << M_RMDB_CODE(ret) << "\n";
+                        std::cout << "failed to getstring:" << M_RMDB_CODE(ret) << "\n";
                     }
                 }
 
