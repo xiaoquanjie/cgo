@@ -4,7 +4,7 @@
 
 #include "./helloworld.grpc.pb.h"
 #include "../../cgo/cgo.h"
-#include "../co_grpc/macro.h"
+#include "co_grpc/macro.h"
 #include <memory>
 #include <iostream>
 #include <iomanip>

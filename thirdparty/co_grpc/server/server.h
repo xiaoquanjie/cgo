@@ -9,10 +9,10 @@
 #include <string>
 #include <memory>
 #include <functional>
-#include "../runner/runner.h"
-#include "./calldata.h"
-#include "./server_builder.h"
-#include "../log.h"
+#include "co_grpc/runner/runner.h"
+#include "co_grpc/server/calldata.h"
+#include "co_grpc/server/server_builder.h"
+#include "co_grpc/log.h"
 
 namespace co_grpc {
 

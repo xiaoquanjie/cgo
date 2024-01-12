@@ -9,8 +9,8 @@
 #include <memory>
 #include <list>
 #include <mutex>
-#include "../log.h"
-#include "../runner/runner.h"
+#include "co_grpc/log.h"
+#include "co_grpc/runner/runner.h"
 
 namespace co_grpc {
 

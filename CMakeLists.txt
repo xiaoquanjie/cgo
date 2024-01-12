@@ -12,4 +12,5 @@ add_subdirectory(./thirdparty/grpc-test)
 add_subdirectory(./thirdparty/redis-test)
 add_subdirectory(./thirdparty/curl-test)
 add_subdirectory(./thirdparty/myql-test)
-
+add_subdirectory(./thirdparty/rmdbclient)
+add_subdirectory(./thirdparty/rmdb-test)

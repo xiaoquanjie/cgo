@@ -25,7 +25,7 @@ struct CoRunner {
 struct CoWaiter {
     CoWaiter() {
         co_id_ = cgocoid();
-        assert(co_id_ != -1);
+        assert(co_id_ != (uint64_t)-1);
     }
 
     // 此操作必须在协程里

@@ -8,8 +8,8 @@
 #include <grpcpp/grpcpp.h>
 #include <list>
 #include <memory>
-#include "../runner/runner.h"
-#include "../log.h"
+#include "co_grpc/runner/runner.h"
+#include "co_grpc/log.h"
 
 namespace co_grpc {
 

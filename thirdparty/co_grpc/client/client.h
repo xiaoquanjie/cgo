@@ -11,11 +11,11 @@
 #include <memory>
 #include <functional>
 #include <chrono>
-#include "./channel.h"
-#include "./calldata.h"
-#include "./client_builder.h"
-#include "../log.h"
-#include "../runner/runner.h"
+#include "co_grpc/client/channel.h"
+#include "co_grpc/client/calldata.h"
+#include "co_grpc/client/client_builder.h"
+#include "co_grpc/log.h"
+#include "co_grpc/runner/runner.h"
 
 namespace co_grpc {
 
@@ -27,7 +27,18 @@ public:
 protected:
     std::unique_ptr<Stub> stub_;
 
+    // 限制客户端之间拷贝
+    BaseClient(const BaseClient&) = delete;
+    BaseClient& operator=(const BaseClient&) = delete;
+
 public:
+    BaseClient() {}
+
+    // 判断客户端是否有效
+    bool Valid() {
+        return stub_ != 0;
+    }
+
     // 绑定通道
     void Bind(std::shared_ptr<::grpc::Channel> channel) {
         if (stub_) {

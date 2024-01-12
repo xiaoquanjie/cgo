@@ -13,8 +13,8 @@
 #include <memory>
 #include <string>
 #include <chrono>
-#include "./calldata.h"
-#include "./interceptor.h"
+#include "co_grpc/server/calldata.h"
+#include "co_grpc/server/interceptor.h"
 
 namespace co_grpc {
 

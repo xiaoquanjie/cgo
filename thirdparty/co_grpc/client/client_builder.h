@@ -11,9 +11,9 @@
 #include <cassert>
 #include <memory>
 #include <chrono>
-#include "./calldata.h"
-#include "./channel.h"
-#include "../runner/runner.h"
+#include "co_grpc/client/calldata.h"
+#include "co_grpc/client/channel.h"
+#include "co_grpc/runner/runner.h"
 
 namespace co_grpc {
 

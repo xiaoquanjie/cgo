@@ -5,12 +5,12 @@
 
 #pragma once
 
-#include "./server/server.h"
-#include "./server/calldata.h"
-#include "./client/client.h"
-#include "./client/calldata.h"
-#include "./client/client_builder.h"
-#include "./traits.h"
+#include "server/server.h"
+#include "server/calldata.h"
+#include "client/client.h"
+#include "client/calldata.h"
+#include "client/client_builder.h"
+
 
 //////////////////////////////////////////////// 服务器相关的宏 begin //////////////////////////////////////
 // 注册服务器一元类方法：类内部调用

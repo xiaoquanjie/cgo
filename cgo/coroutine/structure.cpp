@@ -11,8 +11,7 @@
 #include "structure.h"
 #include <assert.h>
 #include <string.h>
-#include <mutex>
-#include <shared_mutex>
+
 
 namespace cgo {
     namespace coroutine {
