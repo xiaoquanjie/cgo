@@ -10,5 +10,6 @@
 #pragma once
 
 #include "scheduler/syntax.h"
+#include "sync/mutex.h"
 #include "sync/channel.h"
 #include "hook/hook.h"

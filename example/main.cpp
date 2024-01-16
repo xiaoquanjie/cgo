@@ -356,7 +356,8 @@ void performance_test2() {
      *      自由线程: 600ms
      * */
 
-    //cgoprocs(3);
+    //cgoprocs(1);
+    cgocore(1);
     for (int j = 0; j < 3; j++) {
         print_withtime("begin");
         std::atomic_int count = 0;
@@ -379,6 +380,11 @@ void performance_test2() {
         auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - beg);
         print_withtime(std::string("end: ") + std::to_string(elapsed.count()));
         std::cout << "==============\n";
+    }
+
+    while (true) {
+        cgo::cgo_print_debug_info();
+        msleep(1000 * 60);
     }
 }
 
@@ -1057,6 +1063,37 @@ void hook_udp_connect() {
     }
 }
 
+void mutex_test() {
+    cgo::mutex mu;
+
+    go [&] {
+        while (true) {
+            msleep(1000);
+            //std::scoped_lock<cgo::mutex> sl(mu);
+            mu.lock();
+            print_withtime("coroutine0");
+            mu.unlock();
+        }
+    };
+
+    go [&] {
+        while (true) {
+            msleep(1000);
+            std::scoped_lock<cgo::mutex> sl(mu);
+            print_withtime("coroutine1");
+        }
+    };
+
+    while (true) {
+        //std::scoped_lock<cgo::mutex> sl(mu);
+        mu.lock();
+        print_withtime("main coroutine");
+        //cgo::cgo_print_debug_info();
+        mu.unlock();
+        msleep(2000);
+    }
+}
+
 int main()
 {
     enum test_type {
@@ -1077,9 +1114,11 @@ int main()
         t_hook_connect_test,
         t_hook_accept_test,
         t_hook_udp_connect,
+        t_mutex_test,
+        t_concurrentqueue_test,
     };
 
-    switch (t_performance_base_test2) {
+    switch (t_performance_test2) {
         case t_work_steal_queue_test:
             work_steal_queue_test();
             break;
@@ -1131,11 +1170,16 @@ int main()
         case t_hook_udp_connect:
             hook_udp_connect();
             break;
+        case t_mutex_test:
+            mutex_test();
+            break;
+        case t_concurrentqueue_test:
+            concurrentqueue_test();
+            break;
         default:
             break;
     }
 
-    //concurrentqueue_test();
     //slist_test();
     //mutex_slist_test();
     //cqueue_test();

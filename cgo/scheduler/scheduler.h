@@ -40,7 +40,6 @@ namespace cgo {
 
         _scheduler_st_& scheduler_inst();
         void add_global_task(task_type&& f);
-        void add_local_task(task_type&& f, bool nosteal);
         uint64_t cur_coid();
         void schedule_task(const task_type& routine, int stack, const char* file, int line);
         void schedule_wait(int wait_mil);
@@ -55,8 +54,5 @@ namespace cgo {
         void co_hook(bool enable);
         bool co_hook();
         void print_debug_info();
-        // try to start a new thread
-        void trigger_new_thread(bool force);
-        void thread_func(int work_id, _schedule_thread_st_* st);
     }
 }

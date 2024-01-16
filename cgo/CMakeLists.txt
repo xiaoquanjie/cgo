@@ -18,6 +18,7 @@ add_library(cgo
         scheduler/scheduler.cpp
 
         common/time_pool.cpp
+        sync/mutex.cpp
         sync/channel.cpp
         hook/hook.cpp
 )

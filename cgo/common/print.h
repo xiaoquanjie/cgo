@@ -9,8 +9,26 @@
 
 #pragma once
 
+#include <chrono>
+#include <utility>
+
 // 日志
 #ifndef M_CO_DEBUG_PRINT
 #include <stdio.h>
-#define M_CO_DEBUG_PRINT printf
+#define M_CO_DEBUG_PRINT co_printf
 #endif
+
+template<typename... Args>
+void co_printf(const char* format, Args&&... args) {
+    std::chrono::system_clock::time_point now = std::chrono::system_clock::now();
+    std::time_t now_c = std::chrono::system_clock::to_time_t(now);
+    std::tm* timeinfo = std::localtime(&now_c);
+
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
+
+    char buffer[80];
+    std::strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", timeinfo);
+
+    printf("%s.%ld ", buffer, ms.count());
+    printf(format, std::forward<Args&&>(args)...);
+}

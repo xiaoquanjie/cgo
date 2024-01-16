@@ -39,8 +39,9 @@ enum CoroutineStatus {
 #undef M_MAX_LOCAL_TASK_QUEUE
 #define M_MAX_LOCAL_TASK_QUEUE (256)
 
+// microseconds
 #undef M_QUEUE_DELAY_TIME
-#define M_QUEUE_DELAY_TIME (1)
+#define M_QUEUE_DELAY_TIME (5000)
 
 #undef M_MAX_CO_WAIT_TIME
 #define M_MAX_CO_WAIT_TIME (1800)
