@@ -45,7 +45,7 @@ namespace cgo {
 
     void cgo_add_loop(const std::function<void()>& f);
 
-    void cgo_print_debug_info();
+    void cgo_print_debug_info(bool enable = true);
 }
 
 // learn from libgo

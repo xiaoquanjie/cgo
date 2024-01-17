@@ -39,6 +39,8 @@ void pause2() {
 
 void cgo_test() {
     //cgoprocs(1);
+    cgocore(2);
+
     bool* stop = new bool(true);
 
     go [stop]() {
@@ -87,6 +89,7 @@ void cgo_test() {
         }
     };*/
 
+    cgo::cgo_print_debug_info();
     while (true) {
         int input = 0;
         std::cout << "input count:\n";
@@ -371,7 +374,7 @@ void performance_test2() {
         }
 
         while (count != total_count) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            std::this_thread::sleep_for(std::chrono::microseconds(10));
             //cgo::cgo_print_debug_info();
             //std::cout << count << "\n";
         }
@@ -389,7 +392,7 @@ void performance_test2() {
 }
 
 void performance_test3() {
-    //cgoprocs(2);
+    //cgoprocs(1);
     go []() {
         print_withtime("start");
 
@@ -407,10 +410,8 @@ void performance_test3() {
 
             print_withtime("post over");
             cgo::cgo_print_debug_info();
-
             while (count != total_count) {
-                std::this_thread::sleep_for(std::chrono::milliseconds(2000));
-                cgo::cgo_print_debug_info();
+                std::this_thread::sleep_for(std::chrono::microseconds(10));
             }
 
             auto end = std::chrono::steady_clock::now();
@@ -1118,7 +1119,7 @@ int main()
         t_concurrentqueue_test,
     };
 
-    switch (t_performance_test2) {
+    switch (t_performance_test3) {
         case t_work_steal_queue_test:
             work_steal_queue_test();
             break;

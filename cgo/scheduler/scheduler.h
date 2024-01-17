@@ -53,6 +53,6 @@ namespace cgo {
         void cgo_stop();
         void co_hook(bool enable);
         bool co_hook();
-        void print_debug_info();
+        void print_debug_info(bool enable);
     }
 }

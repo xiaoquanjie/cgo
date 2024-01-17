@@ -21,7 +21,7 @@ namespace cgo {
         void set_cgo_procs(int cnt);
         void set_cgo_core(int cnt);
         void cgo_add_loop(const std::function<void()>& f);
-        void print_debug_info();
+        void print_debug_info(bool enable);
     }
 
     void _cgo_syntax_st_::operator >>(const std::function<void()>& routine) {
@@ -68,7 +68,7 @@ namespace cgo {
         scheduler::cgo_add_loop(f);
     }
 
-    void cgo_print_debug_info() {
-        scheduler::print_debug_info();
+    void cgo_print_debug_info(bool enable) {
+        scheduler::print_debug_info(enable);
     }
 }

@@ -15,7 +15,7 @@
 // 日志
 #ifndef M_CO_DEBUG_PRINT
 #include <stdio.h>
-#define M_CO_DEBUG_PRINT co_printf
+#define M_CO_DEBUG_PRINT co_printf //printf //
 #endif
 
 template<typename... Args>

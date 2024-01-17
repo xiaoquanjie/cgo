@@ -65,6 +65,7 @@ namespace cgo {
             }
 
             bool delay();
+            bool emergency();
 
             virtual ~_schedule_base_queue_st_() {}
             virtual bool is_init() { return true; }
@@ -164,7 +165,7 @@ namespace cgo {
 
             bool can_start();
 
-            void start_thread(_schedule_base_queue_st_* newq);
+            bool start_thread(_schedule_base_queue_st_* newq);
 
             void steal_task(_schedule_base_queue_st_* from, _schedule_base_queue_st_* to, int32_t count);
 
@@ -205,6 +206,23 @@ namespace cgo {
 
             if (expire >= M_QUEUE_DELAY_TIME) {
                 //M_CO_DEBUG_PRINT("delay:%ld clock:%ld size:%ld addr:%p \n", expire, this->_clock.time_since_epoch().count(), this->size(), this);
+                return true;
+            }
+            return false;
+        }
+
+        bool _schedule_base_queue_st_::emergency() {
+            if (!this->is_init()
+                || this->size() == 0
+                || this->_clock.time_since_epoch().count() == 0) {
+                return false;
+            }
+
+            auto now = std::chrono::steady_clock::now();
+            auto expire = (std::chrono::duration_cast<std::chrono::microseconds>(now - this->_clock)).count();
+
+            // over 10 seconds
+            if (expire >= 10 * 1000 * 1000) {
                 return true;
             }
             return false;
@@ -356,12 +374,12 @@ namespace cgo {
         }
 
         void _schedule_thread_st_::on_init() {
-            M_CO_DEBUG_PRINT("start cgo working thread:%d\n", this->_work_id);
+            M_CO_DEBUG_PRINT("[cgo debug] start working thread:%d\n", this->_work_id);
             glocal_task_queue = this->_local_task;
         }
 
         void _schedule_thread_st_::on_release() {
-            M_CO_DEBUG_PRINT("quit cgo working thread:%d\n", this->_work_id);
+            M_CO_DEBUG_PRINT("[cgo debug] quit working thread:%d\n", this->_work_id);
 
             glocal_task_queue = nullptr;
 
@@ -549,15 +567,15 @@ namespace cgo {
             return true;
         }
 
-        void _scheduler_st_::start_thread(_schedule_base_queue_st_* fromq) {
+        bool _scheduler_st_::start_thread(_schedule_base_queue_st_* fromq) {
             if (!can_start()) {
-                return;
+                return false;
             }
 
             this->_thrs_mu.lock();
             if (!can_start()) {
                 this->_thrs_mu.unlock();
-                return;
+                return false;
             }
 
             this->_idle_thr_cnt++;
@@ -568,6 +586,7 @@ namespace cgo {
             std::function<void()> work = std::bind(&_scheduler_st_::work_func, st);
             st->_thr = new std::thread(work);
             this->add_work_thread(st);
+            return true;
         }
 
         void _scheduler_st_::steal_task(_schedule_base_queue_st_* from, _schedule_base_queue_st_* to, int32_t count) {
@@ -577,7 +596,7 @@ namespace cgo {
 
             auto has = from->size();
             if (from != gglobal_task_queue) {
-                if (has <= 1 || !from->delay()) {
+                if (/*has <= 1 ||*/ !from->delay()) {
                     return;
                 }
             } else if (has <= 0) {
@@ -716,13 +735,6 @@ namespace cgo {
                 st->on_run();
 
                 if (st->_scheduler->_global_tasks->size() == 0) {
-                    // spin
-                    for (int i = 0; i < 4000; i++) {
-                        if (st->_scheduler->_global_tasks->size() > 0) {
-                            break;
-                        }
-                    }
-
                     // 进入空闲线程队列
                     st->_scheduler->add_idle_thread(st);
                     // 将线程挂起来
@@ -765,24 +777,30 @@ namespace cgo {
                 std::vector<schedule_thread_st_type> idle_thrs;
                 st.get_work_idle_threads(work_thrs, idle_thrs);
 
-                std::vector<schedule_thread_st_type> thrs;
-                for (auto thr : work_thrs) {
-                    thrs.push_back(thr);
-                }
-                for (auto thr : idle_thrs) {
-                    thrs.push_back(thr);
+                for (int i = 0; i < 2; i++) {
+                    std::vector<schedule_thread_st_type>* thrs = 0;
+                    if (i == 0 && !work_thrs.empty()) {
+                        thrs = &work_thrs;
+                        output += "working threads:\n";
+                    }
+                    if (i == 1 && !idle_thrs.empty()) {
+                        thrs = &idle_thrs;
+                        output += "idle threads:\n";
+                    }
+
+                    if (!thrs) { continue; }
+                    for (auto thr : *thrs) {
+                        auto local_task = thr->_local_task;
+                        if (!local_task) {
+                            continue;
+                        }
+                        output += std::string("work_id:") + std::to_string(thr->_work_id) + std::string(" local queue count:") + std::to_string(local_task->size());
+                        output += std::string(", local task operation count:") + std::to_string(thr->_task_op_cnt);
+                        output += std::string("\n");
+                    }
                 }
 
-                for (schedule_thread_st_type thr : thrs) {
-                    auto local_task = thr->_local_task;
-                    if (!local_task) {
-                        continue;
-                    }
-                    output += std::string("work id:") + std::to_string(thr->_work_id) + std::string(" local queue count:") + std::to_string(local_task->size());
-                    output += std::string(", local task operation count:") + std::to_string(thr->_task_op_cnt);
-                    output += std::string("\n");
-                }
-                M_CO_DEBUG_PRINT("%s\n", output.c_str());
+                M_CO_DEBUG_PRINT("[cgo debug] %s\n", output.c_str());
             };
 
             for (;;) {
@@ -793,8 +811,8 @@ namespace cgo {
                 if (st._print_debug_info) {
                     debug_info();
                 }
-                st.run();
 
+                st.run();
                 qlist.clear();
                 st.get_work_idle_threads(work_thrs, idle_thrs);
 
@@ -815,7 +833,9 @@ namespace cgo {
                         st.remove_idle_thread(thr);
                         thr->resume(que);
                     } else {
-                        st.start_thread(que);
+                        if (!st.start_thread(que) && que->emergency()) {
+                            M_CO_DEBUG_PRINT("[cgo warning!!!] all working threads were occupied for a long time(over ten seconds), maybe dead lock or being blocked\n");
+                        }
                     }
                 }
 
@@ -834,6 +854,7 @@ namespace cgo {
                             if (!thr) {
                                 break;
                             }
+                            st._thr_cnt--;
                             st.delete_idle_thread(thr);
                             thr->stop();
                         }
@@ -871,7 +892,7 @@ namespace cgo {
         }
 
         void cgo_stop() {
-            M_CO_DEBUG_PRINT("cgo stop\n");
+            M_CO_DEBUG_PRINT("[cgo debug] cgo stop\n");
             scheduler_inst().stop();
         }
 
@@ -883,7 +904,7 @@ namespace cgo {
             return coro_adapter::co_hook();
         }
 
-        void print_debug_info() {
+        void print_debug_info(bool enable) {
             scheduler_inst().print_debug_info();
         }
 
