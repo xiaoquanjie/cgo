@@ -195,14 +195,16 @@ namespace cgo {
 
         // 在规定时间内没有清空队列，就会被判定为队列堆积
         bool _schedule_base_queue_st_::delay() {
+            // copy old time
+            auto old_time = this->_clock;
             if (!this->is_init()
                 || this->size() == 0
-                || this->_clock.time_since_epoch().count() == 0) {
+                || old_time.time_since_epoch().count() == 0) {
                 return false;
             }
 
             auto now = std::chrono::steady_clock::now();
-            auto expire = (std::chrono::duration_cast<std::chrono::microseconds>(now - this->_clock)).count();
+            auto expire = (std::chrono::duration_cast<std::chrono::microseconds>(now - old_time)).count();
 
             if (expire >= M_QUEUE_DELAY_TIME) {
                 //M_CO_DEBUG_PRINT("delay:%ld clock:%ld size:%ld addr:%p \n", expire, this->_clock.time_since_epoch().count(), this->size(), this);
@@ -212,14 +214,16 @@ namespace cgo {
         }
 
         bool _schedule_base_queue_st_::emergency() {
+            // copy old time
+            auto old_time = this->_clock;
             if (!this->is_init()
                 || this->size() == 0
-                || this->_clock.time_since_epoch().count() == 0) {
+                || old_time.time_since_epoch().count() == 0) {
                 return false;
             }
 
             auto now = std::chrono::steady_clock::now();
-            auto expire = (std::chrono::duration_cast<std::chrono::microseconds>(now - this->_clock)).count();
+            auto expire = (std::chrono::duration_cast<std::chrono::microseconds>(now - old_time)).count();
 
             // over 10 seconds
             if (expire >= 10 * 1000 * 1000) {
@@ -868,7 +872,7 @@ namespace cgo {
                 }
 
                 if (idles >= 500) {
-                    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+                    std::this_thread::sleep_for(std::chrono::microseconds (500));
                 }
             }
         }
