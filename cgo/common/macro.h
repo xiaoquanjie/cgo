@@ -41,7 +41,11 @@ enum CoroutineStatus {
 
 // microseconds
 #undef M_QUEUE_DELAY_TIME
-#define M_QUEUE_DELAY_TIME (5000)
+#define M_QUEUE_DELAY_TIME (500)
+
+// microseconds
+#undef M_QUEUE_SECONDCLASS_DELAY_TIME
+#define M_QUEUE_SECONDCLASS_DELAY_TIME (2000)
 
 #undef M_MAX_CO_WAIT_TIME
 #define M_MAX_CO_WAIT_TIME (1800)

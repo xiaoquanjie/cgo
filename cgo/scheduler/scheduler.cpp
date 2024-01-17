@@ -64,8 +64,45 @@ namespace cgo {
                 this->_clock = time_point();
             }
 
-            bool delay();
-            bool emergency();
+            inline uint64_t delay_delta() {
+                // copy old time
+                auto old_time = this->_clock;
+                if (!this->is_init()
+                    || this->size() == 0
+                    || old_time.time_since_epoch().count() == 0) {
+                    return 0;
+                }
+
+                auto now = std::chrono::steady_clock::now();
+                auto expire = (std::chrono::duration_cast<std::chrono::microseconds>(now - old_time)).count();
+                return expire;
+            }
+
+            // 在规定时间内没有清空队列，就会被判定为队列堆积
+            inline bool delay() {
+                auto delta = delay_delta();
+                if (delta >= M_QUEUE_DELAY_TIME) {
+                    return true;
+                }
+                return false;
+            }
+
+            inline bool secondclass_delay() {
+                auto delta = delay_delta();
+                if (delta >= M_QUEUE_SECONDCLASS_DELAY_TIME) {
+                    return true;
+                }
+                return false;
+            }
+
+            inline bool emergency() {
+                auto delta = delay_delta();
+                // over 10 seconds
+                if (delta >= 10 * 1000 * 1000) {
+                    return true;
+                }
+                return false;
+            }
 
             virtual ~_schedule_base_queue_st_() {}
             virtual bool is_init() { return true; }
@@ -192,45 +229,6 @@ namespace cgo {
 
             static void watch_func();
         };
-
-        // 在规定时间内没有清空队列，就会被判定为队列堆积
-        bool _schedule_base_queue_st_::delay() {
-            // copy old time
-            auto old_time = this->_clock;
-            if (!this->is_init()
-                || this->size() == 0
-                || old_time.time_since_epoch().count() == 0) {
-                return false;
-            }
-
-            auto now = std::chrono::steady_clock::now();
-            auto expire = (std::chrono::duration_cast<std::chrono::microseconds>(now - old_time)).count();
-
-            if (expire >= M_QUEUE_DELAY_TIME) {
-                //M_CO_DEBUG_PRINT("delay:%ld clock:%ld size:%ld addr:%p \n", expire, this->_clock.time_since_epoch().count(), this->size(), this);
-                return true;
-            }
-            return false;
-        }
-
-        bool _schedule_base_queue_st_::emergency() {
-            // copy old time
-            auto old_time = this->_clock;
-            if (!this->is_init()
-                || this->size() == 0
-                || old_time.time_since_epoch().count() == 0) {
-                return false;
-            }
-
-            auto now = std::chrono::steady_clock::now();
-            auto expire = (std::chrono::duration_cast<std::chrono::microseconds>(now - old_time)).count();
-
-            // over 10 seconds
-            if (expire >= 10 * 1000 * 1000) {
-                return true;
-            }
-            return false;
-        }
 
         _schedule_local_queue_st_::_schedule_local_queue_st_() {
             _queue = new wsq_task_queue_type(M_MAX_LOCAL_TASK_QUEUE);
@@ -751,7 +749,6 @@ namespace cgo {
             auto& st = scheduler_inst();
             std::vector<schedule_thread_st_type> work_thrs;
             std::vector<schedule_thread_st_type> idle_thrs;
-            std::vector<_schedule_base_queue_st_*> qlist;
             int64_t idle_beg_time = 0;
             int idles = 0;
 
@@ -807,6 +804,23 @@ namespace cgo {
                 M_CO_DEBUG_PRINT("[cgo debug] %s\n", output.c_str());
             };
 
+            auto dispatch = [&st, &idle_thrs](_schedule_base_queue_st_* q) {
+                if (!idle_thrs.empty()) {
+                    // 分配空闲线程
+                    auto thr = idle_thrs.back();
+                    idle_thrs.pop_back();
+                    st.remove_idle_thread(thr);
+                    thr->resume(q);
+                } else {
+                    if (q->secondclass_delay()) {
+                        // 新起线程
+                        if (!st.start_thread(q) && q->emergency()) {
+                            M_CO_DEBUG_PRINT("[cgo warning!!!] all working threads were occupied for a long time(over ten seconds), maybe dead lock or being blocked\n");
+                        }
+                    }
+                }
+            };
+
             for (;;) {
                 if (st._stop) {
                     break;
@@ -817,35 +831,23 @@ namespace cgo {
                 }
 
                 st.run();
-                qlist.clear();
                 st.get_work_idle_threads(work_thrs, idle_thrs);
 
-                if (st._global_tasks->size()) {
-                    qlist.push_back(st._global_tasks);
+                if (st._global_tasks->delay()) {
+                    dispatch(st._global_tasks);
                 }
 
                 for (auto& thr : work_thrs) {
                     if (thr->_local_task->delay()) {
-                        qlist.push_back(thr->_local_task);
-                    }
-                }
-
-                // 分配空闲线程
-                for (auto que : qlist) {
-                    schedule_thread_st_type thr = get_idle();
-                    if (thr) {
-                        st.remove_idle_thread(thr);
-                        thr->resume(que);
-                    } else {
-                        if (!st.start_thread(que) && que->emergency()) {
-                            M_CO_DEBUG_PRINT("[cgo warning!!!] all working threads were occupied for a long time(over ten seconds), maybe dead lock or being blocked\n");
-                        }
+                        dispatch(thr->_local_task);
                     }
                 }
 
                 if (idle_thrs.empty()) {
                     idle_beg_time = 0;
+                    idles = 0;
                 } else {
+                    idles++;
                     auto now = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
                     if (idle_beg_time == 0) {
                         idle_beg_time = now;
@@ -863,12 +865,6 @@ namespace cgo {
                             thr->stop();
                         }
                     }
-                }
-
-                if (qlist.empty()) {
-                    idles++;
-                } else {
-                    idles = 0;
                 }
 
                 if (idles >= 500) {
