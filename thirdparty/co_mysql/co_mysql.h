@@ -9,6 +9,7 @@
 #include <list>
 #include <functional>
 #include <mysql/mysql.h>
+#include "cgo/cgo.h"
 
 // 采用fd hook的方式
 #undef M_CHECK_MYSQL_CONTEXT
@@ -65,33 +66,24 @@ namespace co_mysql {
     private:
         struct ContextSet {
             unsigned int conns; // 已有的连接数
-            cgo::chan<int> ch_;
+            cgo::mutex mu;
             std::list<_mysqlctx_*> ctxs;
 
-            ContextSet() {
-                ch_ = makechan<int>(1);
-            }
-
-            ~ContextSet() {
-                if (ch_.use_count() == 1) {
-                    closechan(ch_);
-                }
-            }
-
-            void lock() {
-                ch_ >> 1;
+            inline void lock() {
+                mu.lock();
             }
 
             void unlock() {
-                int t = 0;
-                ch_ << t;
+                mu.unlock();
             }
         };
 
+        using ContextSetPtr = std::shared_ptr<ContextSet>;
+
     protected:
         unsigned int max_conns_ = 0;
-        std::mutex mu_;
-        std::unordered_map<std::string, ContextSet> ctx_map_;
+        cgo::mutex mu_;
+        std::unordered_map<std::string, ContextSetPtr> ctx_map_;
 
         std::string& CalcId(const std::string& host,
                             const std::string& user,
@@ -107,16 +99,16 @@ namespace co_mysql {
         _mysqlpool_() {}
 
         ~_mysqlpool_() {
-            std::scoped_lock<std::mutex> lock(mu_);
+            std::scoped_lock<cgo::mutex> lock(mu_);
 
             for (auto& kv : ctx_map_) {
-                kv.second.lock();
-                for (auto& ctx : kv.second.ctxs) {
+                kv.second->lock();
+                for (auto& ctx : kv.second->ctxs) {
                     mysql_close(ctx->mysql_);
                     delete ctx;
                 }
-                kv.second.ctxs.clear();
-                kv.second.unlock();
+                kv.second->ctxs.clear();
+                kv.second->unlock();
             }
 
             ctx_map_.clear();
@@ -126,16 +118,15 @@ namespace co_mysql {
             max_conns_ = c;
         }
 
-        ContextSet* GetContextSet(const std::string& id) {
-            std::scoped_lock<std::mutex> lock(mu_);
+        ContextSetPtr GetContextSet(const std::string& id) {
+            std::scoped_lock<cgo::mutex> lock(mu_);
             auto iter = ctx_map_.find(id);
             if (iter == ctx_map_.end()) {
-                ContextSet cs;
-                cs.conns = 0;
+                auto cs = std::make_shared<ContextSet>();
+                cs->conns = 0;
                 iter = ctx_map_.insert(std::make_pair(id, cs)).first;
             }
-            ContextSet* cs = &iter->second;
-            return cs;
+            return iter->second;
         }
 
         _mysqlctx_* BorrowContext(const std::string& host,
@@ -152,7 +143,7 @@ namespace co_mysql {
             std::string id;
             CalcId(host, user, pwd, db, port, id);
 
-            ContextSet* cs = GetContextSet(id);
+            auto cs = GetContextSet(id);
             MysqlException err;
             _mysqlctx_* ctx = nullptr;
             MYSQL* mysql = nullptr;
@@ -220,7 +211,7 @@ mysqlerr:
             }
 
             assert(ctx->mysql_ != 0);
-            ContextSet* cs = GetContextSet(ctx->id_);
+            auto cs = GetContextSet(ctx->id_);
             cs->lock();
             if (ctx->err_) {
                 mysql_close(ctx->mysql_);

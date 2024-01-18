@@ -11,6 +11,7 @@
 #else
 #include <winbase.h>
 typedef void* sem_t;
+#define pthread_self GetCurrentThreadId
 #endif
 
 #define M_TASK_QUEUE(que) \
@@ -29,12 +30,13 @@ delete M_TASK_QUEUE(que)
 ((task_id*)own)
 
 #define M_INIT_OWNER(own) \
-((task_id*)own)->id = 0; ((task_id*)own)->is_co = false;
+((task_id*)own)->id = 0;
+
+#define M_GET_SELF(id) id = scheduler::cur_coid();
 
 namespace cgo {
     struct task_id {
         unsigned long long id;
-        bool is_co;
     };
 
     struct task_sem {
@@ -46,34 +48,11 @@ namespace cgo {
         void* sem;
     };
 
-    inline task_id get_self() {
+    inline void get_task(task_struct* t) {
         if (M_IN_CO()) {
-            return task_id {
-                    scheduler::cur_coid(),
-                    true
-            };
-        }
-#ifdef __GNUC__
-        auto tid = pthread_self();
-#else
-        auto tid = GetCurrentThreadId();
-#endif
-        return task_id {
-                (unsigned long long)tid,
-                false
-        };
-    }
-
-    inline bool task_id_equal(task_id* id1, task_id* id2) {
-        return (id1->is_co == id2->is_co) && (id1->id == id2->id);
-    }
-
-    inline task_struct get_task() {
-        if (M_IN_CO()) {
-            return task_struct {
-                    get_self(),
-                    0
-            };
+            t->sem = 0;
+            M_GET_SELF(t->tid.id);
+            return;
         }
 
 #ifdef __GNUC__
@@ -82,14 +61,13 @@ namespace cgo {
 #else
         auto sem = CreateSemaphore(NULL, 1, 0, NULL);
 #endif
-        return task_struct {
-            get_self(),
-            (void*)sem
-        };
+        t->sem = (void*)sem;
+        M_GET_SELF(t->tid.id);
+        return;
     }
 
     inline void release_task(task_struct* task) {
-        if (task->tid.is_co) {
+        if (task->tid.id != (unsigned long long)-1) {
             return;
         }
 #ifdef __GNUC__
@@ -102,7 +80,7 @@ namespace cgo {
     }
 
     inline void wait_task(task_struct* task) {
-        if (task->tid.is_co) {
+        if (task->tid.id != (unsigned long long)-1) {
             scheduler::schedule_yield();
             return;
         }
@@ -114,7 +92,7 @@ namespace cgo {
     }
 
     inline void resume_task(task_struct* task) {
-        if (task->tid.is_co) {
+        if (task->tid.id != (unsigned long long)-1) {
             scheduler::schedule_co(task->tid.id, 0);
             return;
         }
@@ -127,7 +105,7 @@ namespace cgo {
 
     co_mutex::co_mutex() {
         _task_queue = M_INIT_QUEUE();
-        _lock = false;
+        _lock.clear();
         _owner = malloc(sizeof(task_id));
         M_INIT_OWNER(_owner);
     }
@@ -142,12 +120,14 @@ namespace cgo {
             return;
         }
 
-        auto self = get_self();
-        if (task_id_equal(&self, M_OWNER(_owner))) {
+        task_id self;
+        M_GET_SELF(self.id);
+        if (self.id != M_OWNER(_owner)->id) {
             throw "not recursive lock";
         }
 
-        auto task = get_task();
+        task_struct task;
+        get_task(&task);
         M_TASK_QUEUE(_task_queue)->enqueue(task);
         wait_task(&task);
         release_task(&task);
@@ -155,17 +135,17 @@ namespace cgo {
 
     // 不允许重入
     bool co_mutex::try_lock() {
-        bool old = false;
-        if (_lock.compare_exchange_weak(old, true, std::memory_order_relaxed)) {
-            *M_OWNER(_owner) = get_self();
+        if (!_lock.test_and_set()) {
+            M_GET_SELF(M_OWNER(_owner)->id);
             return true;
         }
         return false;
     }
 
     void co_mutex::unlock() {
-        auto self = get_self();
-        if (!task_id_equal(&self, M_OWNER(_owner))) {
+        task_id self;
+        M_GET_SELF(self.id);
+        if (self.id != M_OWNER(_owner)->id) {
             throw "not lock owner";
         }
 
@@ -176,8 +156,7 @@ namespace cgo {
             resume_task(&task);
         } else {
             M_INIT_OWNER(_owner);
-            bool old = true;
-            _lock.compare_exchange_weak(old, false, std::memory_order_relaxed);
+            _lock.clear();
         }
     }
 }

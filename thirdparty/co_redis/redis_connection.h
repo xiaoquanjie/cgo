@@ -11,6 +11,7 @@
 #include <string.h>
 #include <sstream>
 #include <hiredis/hiredis.h>
+#include <memory>
 #include "cgo/cgo.h"
 
 // 检查context, 采用fd hook的方式
@@ -112,32 +113,22 @@ namespace co_redis {
     private:
         struct ContextSet {
             unsigned int conns; // 已有的连接数
-            cgo::chan<int> ch_;
+            cgo::mutex mu;
             std::list<_redisctx_*> ctxs;
 
-            ContextSet() {
-                ch_ = makechan<int>(1);
+            inline void lock() {
+                mu.lock();
             }
-
-            ~ContextSet() {
-                if (ch_.use_count() == 1) {
-                    closechan(ch_);
-                }
-            }
-
-            void lock() {
-                ch_ >> 1;
-            }
-
-            void unlock() {
-                int t = 0;
-                ch_ << t;
+            inline void unlock() {
+                mu.unlock();
             }
         };
 
+        using ContextSetPtr = std::shared_ptr<ContextSet>;
+
         unsigned int max_conns_ = 0;
-        std::mutex mu_;
-        std::unordered_map<std::string, ContextSet> ctx_map_;
+        cgo::mutex mu_;
+        std::unordered_map<std::string, ContextSetPtr> ctx_map_;
 
     protected:
         std::string& CalcId(const std::string& ip, unsigned short port, const std::string& auth, unsigned short db, std::string& id) {
@@ -149,32 +140,29 @@ namespace co_redis {
         _redispool_() {}
 
         ~_redispool_() {
-            std::scoped_lock<std::mutex> lock(mu_);
-
+            std::scoped_lock<cgo::mutex> lock(mu_);
             for (auto& kv : ctx_map_) {
-                kv.second.lock();
-                for (auto& ctx : kv.second.ctxs) {
+                kv.second->lock();
+                for (auto& ctx : kv.second->ctxs) {
                     redisFree(ctx->ctx_);
                     delete ctx;
                 }
-                kv.second.ctxs.clear();
-                kv.second.unlock();
+                kv.second->ctxs.clear();
+                kv.second->unlock();
 
             }
-
             ctx_map_.clear();
         }
 
-        ContextSet* GetContextSet(const std::string& id) {
-            std::scoped_lock<std::mutex> lock(mu_);
+        ContextSetPtr GetContextSet(const std::string& id) {
+            std::scoped_lock<cgo::mutex> lock(mu_);
             auto iter = ctx_map_.find(id);
             if (iter == ctx_map_.end()) {
-                ContextSet cs;
-                cs.conns = 0;
+                auto cs = std::make_shared<ContextSet>();
+                cs->conns = 0;
                 iter = ctx_map_.insert(std::make_pair(id, cs)).first;
             }
-            ContextSet* cs = &iter->second;
-            return cs;
+            return iter->second;
         }
 
         // @timeout 精度是秒
@@ -187,7 +175,7 @@ namespace co_redis {
             std::string id;
             CalcId(ip, port, auth, db, id);
 
-            ContextSet* cs = GetContextSet(id);
+            auto cs = GetContextSet(id);
             RedisException err;
             _redisctx_* ctx = nullptr;
             redisContext* rctx = nullptr;
@@ -270,7 +258,7 @@ redisok:
                 return;
             }
             assert(ctx->ctx_ != 0);
-            ContextSet* cs = GetContextSet(ctx->id_);
+            auto cs = GetContextSet(ctx->id_);
             cs->lock();
             if (ctx->err_) {
                 redisFree(ctx->ctx_);

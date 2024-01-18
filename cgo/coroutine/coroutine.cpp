@@ -31,14 +31,6 @@ namespace cgo {
             return 0;
         }
 
-        uint64_t curid() {
-            uint64_t id = gcurno;
-            if (id == M_INVALID_COROUTINE_ID) {
-                return id;
-            }
-            return id;
-        }
-
         int num() {
             return 0;
         }

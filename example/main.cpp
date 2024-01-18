@@ -394,7 +394,7 @@ void performance_test2() {
 void performance_test3() {
     //cgoprocs(1);
     go []() {
-        print_withtime("start");
+        //print_withtime("start");
 
         for (int j = 0; j < 3; j++) {
             print_withtime("begin");
@@ -1095,6 +1095,47 @@ void mutex_test() {
     }
 }
 
+void mutex_performance_test() {
+    std::mutex standard_mu;
+
+    //================= standard mutex test =============
+    auto beg = std::chrono::steady_clock::now();
+    const int total_count = 1000000;
+    for (int i = 0; i < total_count;) {
+        standard_mu.lock();
+        i++;
+        standard_mu.unlock();
+    }
+
+    auto end = std::chrono::steady_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - beg);
+    print_withtime(std::string("standard mutex in one thread: ") + std::to_string(elapsed.count()));
+    //================= standard mutex test end=============
+
+    //================= cgo mutex test =============
+    cgo::mutex cgo_mu;
+    go [&] {
+        beg = std::chrono::steady_clock::now();
+        for (int i = 0; i < total_count;) {
+            cgo_mu.lock();
+            //cgo_mu._lock.test_and_set();
+            i++;
+            //cgo_mu._lock.clear();
+            cgo_mu.unlock();
+        }
+
+        end = std::chrono::steady_clock::now();
+        elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - beg);
+        print_withtime(std::string("cgo mutex in one coroutine: ") + std::to_string(elapsed.count()));
+    };
+    //================= cgo mutex test end=============
+
+    //================= standard mutex in multi thread test =============
+
+
+    msleep(2000);
+}
+
 int main()
 {
     enum test_type {
@@ -1117,9 +1158,10 @@ int main()
         t_hook_udp_connect,
         t_mutex_test,
         t_concurrentqueue_test,
+        t_mutex_performance_test,
     };
 
-    switch (t_performance_test3) {
+    switch (t_mutex_test) {
         case t_work_steal_queue_test:
             work_steal_queue_test();
             break;
@@ -1176,6 +1218,9 @@ int main()
             break;
         case t_concurrentqueue_test:
             concurrentqueue_test();
+            break;
+        case t_mutex_performance_test:
+            mutex_performance_test();
             break;
         default:
             break;

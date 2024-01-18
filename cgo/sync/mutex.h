@@ -10,8 +10,8 @@ namespace cgo {
     // 不支持可重入
     // 不可以设置优先级，基本上是按顺序抢占
     class co_mutex {
-    protected:
-        std::atomic_bool _lock;
+    //public:
+        std::atomic_flag _lock;
         void* _task_queue;
         void* _owner;
 

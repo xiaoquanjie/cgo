@@ -11,7 +11,7 @@ int main() {
     // 为了测试是否成功hook了mysql c driver，把cgo的并发线程限制1个
     cgoprocs(1);
 
-    for (int i = 0; i < 1; i++) {
+    for (int i = 0; i < 10; i++) {
         go []() {
             try {
                 auto c = co_mysql::MysqlPool::GetConnection("192.168.204.61", "root", "root", "test");

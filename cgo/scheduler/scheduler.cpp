@@ -541,7 +541,7 @@ namespace cgo {
 
         bool _scheduler_st_::run() {
             _time_pool.update();
-            for (auto& f : _loops) {
+            for (auto f : _loops) {
                 f();
             }
             return true;

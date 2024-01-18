@@ -13,6 +13,8 @@
 
 namespace cgo {
     namespace coroutine {
+        extern thread_local volatile uint64_t gcurno;
+
         // create one new coroutine
         uint64_t create(std::function<void()> routine, int stack = 0, const char* file = 0, int line = 0);
 
@@ -26,7 +28,10 @@ namespace cgo {
         // yield
         void yield();
 
-        uint64_t curid();
+        inline uint64_t curid() {
+            uint64_t id = gcurno;
+            return id;
+        }
 
         // number of running coroutine
         int num();
