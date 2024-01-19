@@ -23,12 +23,12 @@
 
 namespace cgo {
     namespace coro_adapter {
-        uint64_t create_co(std::function<void()> routine, int stack, const char* file, int line);
+        uint64_t create_co(const std::function<void()>& routine, int stack, const char* file, int line);
         void resume_co(uint64_t co_id, void* data);
         void yield_co(void*& data, const std::function<void()>& after);
         void yield_co(void*& data);
         void yield_co();
-        void run_co(std::function<void()> routine, int stack, const char* file, int line);
+        void run_co(const std::function<void()>& routine, int stack, const char* file, int line);
         uint64_t cur_coid();
         void co_hook(bool enable);
         bool co_hook();
@@ -888,8 +888,9 @@ namespace cgo {
 
         // thread-safety
         void schedule_task(const task_type& routine, int stack, const char* file, int line) {
-            task_type f = std::bind(coro_adapter::run_co, routine, stack, file, line);
-            add_global_task(std::move(f));
+            add_global_task([routine, stack, file, line]() {
+                coro_adapter::run_co(routine, stack, file, line);
+            });
         }
 
         void schedule_yield(void*& data, const task_type& after) {
@@ -906,17 +907,17 @@ namespace cgo {
 
         // thread-safety
         void schedule_co(uint64_t co_id, void* data) {
-            std::function<void()> f = std::bind(coro_adapter::resume_co, co_id, data);
-            add_global_task(std::move(f));
+            add_global_task([co_id, data]() {
+                coro_adapter::resume_co(co_id, data);
+            });
         }
 
         void yield_after(uint64_t co_id, int wait_mil) {
-            std::function<void()> timer_func = [co_id]() {
-                std::function<void()> task = std::bind(coro_adapter::resume_co, co_id, (void*)0);
-                add_global_task(std::move(task));
-            };
-
-            scheduler_inst()._time_pool.async_add_timer(wait_mil, std::move(timer_func));
+            scheduler_inst()._time_pool.async_add_timer(wait_mil, [co_id] {
+                add_global_task([co_id] {
+                    coro_adapter::resume_co(co_id, (void*)0);
+                });
+            });
         }
 
         void schedule_wait(int wait_mil) {
@@ -926,9 +927,10 @@ namespace cgo {
                 return;
             }
 
-            std::function<void()> after = std::bind(yield_after, co_id, wait_mil);
             void* data = 0;
-            schedule_yield(data, after);
+            schedule_yield(data, [co_id, wait_mil] {
+                yield_after(co_id, wait_mil);
+            });
         }
     }
 }

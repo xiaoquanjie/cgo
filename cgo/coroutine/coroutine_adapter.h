@@ -17,7 +17,7 @@
 
 namespace cgo {
     namespace coro_adapter {
-        uint64_t create_co(std::function<void()> routine, int stack = 0, const char* file = 0, int line = 0);
+        uint64_t create_co(const std::function<void()>& routine, int stack = 0, const char* file = 0, int line = 0);
 
         void resume_co(uint64_t co_id, void* data);
 
@@ -27,7 +27,7 @@ namespace cgo {
 
         void yield_co();
 
-        void run_co(std::function<void()> routine, int stack = 0, const char* file = 0, int line = 0);
+        void run_co(const std::function<void()>& routine, int stack = 0, const char* file = 0, int line = 0);
 
         uint64_t cur_coid();
 

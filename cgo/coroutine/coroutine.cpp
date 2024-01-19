@@ -12,8 +12,6 @@
 
 namespace cgo {
     namespace coroutine {
-        uint64_t create(std::function<void()> routine, int stack, const char* file, int line);
-
         bool set_udata(uint64_t co_id, void* data) {
             auto co = _co_st_::get_co(co_id);
             if (co) {

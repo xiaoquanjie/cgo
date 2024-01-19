@@ -16,7 +16,7 @@ namespace cgo {
         extern thread_local volatile uint64_t gcurno;
 
         // create one new coroutine
-        uint64_t create(std::function<void()> routine, int stack = 0, const char* file = 0, int line = 0);
+        uint64_t create(const std::function<void()>& routine, int stack = 0, const char* file = 0, int line = 0);
 
         bool set_udata(uint64_t co_id, void* data);
 

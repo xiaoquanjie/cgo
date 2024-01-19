@@ -25,7 +25,7 @@ namespace cgo {
         }
 
         // create one new coroutine
-        uint64_t create(std::function<void()> routine, int stack, const char* file, int line) {
+        uint64_t create(const std::function<void()>& routine, int stack, const char* file, int line) {
             auto co = _co_st_::alloc(routine, stack, file, line);
             getcontext(&co->_ctx);
             //co->_ctx.uc_link = 0;

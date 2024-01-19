@@ -19,7 +19,7 @@ namespace cgo {
             return get_coid(this);
         }
 
-        _co_st_* _co_st_::alloc(std::function<void()> routine, int stack, const char* file, int line) {
+        _co_st_* _co_st_::alloc(const std::function<void()>& routine, int stack, const char* file, int line) {
             auto co = new _co_st_;
             assert(co != 0);
             if (stack <= 0) {
@@ -28,7 +28,7 @@ namespace cgo {
             return init(co, routine, stack, file, line);
         }
 
-        _co_st_* _co_st_::init(_co_st_* co, std::function<void()> routine, int stack, const char* file, int line) {
+        _co_st_* _co_st_::init(_co_st_* co, const std::function<void()>& routine, int stack, const char* file, int line) {
             co->_ssize = stack;
             co->_status = COROUTINE_READY;
             co->_routine = routine;

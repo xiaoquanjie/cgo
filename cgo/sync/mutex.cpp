@@ -23,9 +23,6 @@ typedef void* sem_t;
 #define M_RELEASE_QUEUE(que) \
 delete M_TASK_QUEUE(que)
 
-#define M_IN_CO() \
-(scheduler::cur_coid() != (uint64_t)-1)
-
 #define M_OWNER(own) \
 ((task_id*)own)
 
@@ -48,10 +45,9 @@ namespace cgo {
         void* sem;
     };
 
-    inline void get_task(task_struct* t) {
-        if (M_IN_CO()) {
+    inline void fill_task(task_struct* t) {
+        if (t->tid.id != (unsigned long long)-1) {
             t->sem = 0;
-            M_GET_SELF(t->tid.id);
             return;
         }
 
@@ -62,7 +58,6 @@ namespace cgo {
         auto sem = CreateSemaphore(NULL, 1, 0, NULL);
 #endif
         t->sem = (void*)sem;
-        M_GET_SELF(t->tid.id);
         return;
     }
 
@@ -120,14 +115,13 @@ namespace cgo {
             return;
         }
 
-        task_id self;
-        M_GET_SELF(self.id);
-        if (self.id != M_OWNER(_owner)->id) {
+        task_struct task;
+        M_GET_SELF(task.tid.id);
+        if (task.tid.id == M_OWNER(_owner)->id) {
             throw "not recursive lock";
         }
 
-        task_struct task;
-        get_task(&task);
+        fill_task(&task);
         M_TASK_QUEUE(_task_queue)->enqueue(task);
         wait_task(&task);
         release_task(&task);

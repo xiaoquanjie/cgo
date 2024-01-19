@@ -39,7 +39,7 @@ namespace cgo {
             }
         }
 
-        uint64_t create(std::function<void()> routine, int stack, const char* file, int line) {
+        uint64_t create(const std::function<void()>& routine, int stack, const char* file, int line) {
             win_init();
 
             auto co = new _co_st_;

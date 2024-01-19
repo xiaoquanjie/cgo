@@ -44,8 +44,8 @@ namespace cgo {
             char *_stack = 0;
 #endif
             uint64_t get_coid();
-            static _co_st_* alloc(std::function<void()> routine, int stack, const char* file, int line);
-            static _co_st_* init(_co_st_*, std::function<void()> routine, int stack, const char* file, int line);
+            static _co_st_* alloc(const std::function<void()>& routine, int stack, const char* file, int line);
+            static _co_st_* init(_co_st_*, const std::function<void()>& routine, int stack, const char* file, int line);
             static _co_st_* get_co(uint64_t co_id);
             static uint64_t get_coid(_co_st_*);
             static void free(_co_st_* co);
