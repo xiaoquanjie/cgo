@@ -30,7 +30,7 @@ void print_withtime(const std::string& msg) {
 
 void pause2() {
     while (true) {
-        std::this_thread::sleep_for(std::chrono::seconds(500));
+        std::this_thread::sleep_for(std::chrono::seconds(200));
         break;
     }
 
@@ -385,10 +385,7 @@ void performance_test2() {
         std::cout << "==============\n";
     }
 
-    while (true) {
-        cgo::cgo_print_debug_info();
-        msleep(1000 * 60);
-    }
+    cgo::cgo_print_debug_info();
 }
 
 void performance_test3() {
@@ -478,6 +475,7 @@ void atomic_test() {
 
 #include "../cgo/common/concurrentqueue.h"
 void concurrentqueue_test() {
+    // 需要200多毫秒
     moodycamel::ConcurrentQueue<int> q;
     std::vector<std::thread> thrs;
     std::atomic_int produce_count = 0;
@@ -1161,7 +1159,7 @@ int main()
         t_mutex_performance_test,
     };
 
-    switch (t_mutex_test) {
+    switch (t_performance_test2) {
         case t_work_steal_queue_test:
             work_steal_queue_test();
             break;

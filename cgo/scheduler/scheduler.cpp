@@ -13,19 +13,13 @@
 #include "common/print.h"
 #include "common/concurrentqueue.h"
 #include "common/work_steal_queue.hpp"
+#include "common/semaphore.h"
 #include <memory>
 #include <thread>
 #include <shared_mutex>
 #include <vector>
 #include <algorithm>
 #include <string>
-
-#ifdef __GNUC__
-#include <semaphore.h>
-#else
-#include <winbase.h>
-typedef void* sem_t;
-#endif
 
 namespace cgo {
     namespace coro_adapter {
@@ -152,7 +146,7 @@ namespace cgo {
             _schedule_base_queue_st_* _local_task = 0;
             std::uint64_t _task_op_cnt = 0;
             volatile bool _stop = false;
-            sem_t _sem;
+            Semaphore _sem;
             _schedule_thread_st_() = default;
             ~_schedule_thread_st_() = default;
             static _schedule_thread_st_* create(_scheduler_st_* s,
@@ -162,13 +156,20 @@ namespace cgo {
             void on_release();
             void on_run();
             void join();
-            void wait();
-            void resume(_schedule_base_queue_st_* from = 0);
-            bool in_wait();
-            bool is_stop();
+            inline void wait();
+            inline void resume(_schedule_base_queue_st_* from = 0);
+            inline bool is_stop();
             void stop();
             _schedule_thread_st_(const _schedule_thread_st_&) = delete;
             _schedule_thread_st_& operator=(const _schedule_thread_st_&) = delete;
+        };
+
+        struct _schedule_watch_thread_st_ {
+            std::thread _thr;
+            _schedule_watch_thread_st_(void(*f)()) : _thr(f) {}
+            inline void join() {
+                this->_thr.join();
+            }
         };
 
         using schedule_thread_st_type = _schedule_thread_st_*;
@@ -178,18 +179,17 @@ namespace cgo {
             std::vector<schedule_thread_st_type> _idle_threads; // 空闲的线程
             int generate_work_id = 1;
             std::shared_mutex _thrs_mu;
-
-            std::thread* _watch_thr;
+            _schedule_watch_thread_st_ _watcher;
 
             std::atomic_bool _stop = false;
             std::atomic_int _max_thr_cnt = 0;   // max thread count
             std::atomic_int _core_thr_cnt = 1;  // core thread count
-            std::atomic_int _idle_thr_cnt = 0;  // idle thread count
             std::atomic_int _thr_cnt = 0;       // current thread count
             std::atomic_uint64_t _task_op_cnt = 0;
 
             async_time_pool _time_pool;
             std::vector<task_type> _loops;
+            concurrent_task_queue_type _loops_buf;
             bool _print_debug_info = false;
 
             _scheduler_st_();
@@ -362,12 +362,6 @@ namespace cgo {
             st->_local_task = new _schedule_local_queue_st_;
             st->_scheduler = s;
 
-#ifdef __GNUC__
-            sem_init(&st->_sem, 0, 0);
-#else
-            st->_sem = CreateSemaphore(NULL, 1, 0, NULL);
-#endif
-
             if (fromq) {
                 s->steal_task(fromq, st->_local_task, 0);
             }
@@ -400,27 +394,19 @@ namespace cgo {
                 _thr = nullptr;
             }
 
-#ifdef __GNUC__
-            sem_destroy(&this->_sem);
-#else
-            CloseHandle((HANDLE)this->_sem);
-#endif
-
             // delete self
             delete this;
         }
 
         void _schedule_thread_st_::on_run() {
+            uint64_t task_op_cnt = 0;
             for (;;) {
                 if (this->is_stop()) {
-                    return;
+                    break;
                 }
 
                 // run local task
-                this->_scheduler->_idle_thr_cnt--;
-                uint64_t task_op_cnt = 0;
                 task_type task;
-
                 while (this->_local_task->try_dequeue(task)) {
                     task_op_cnt++;
                     task();
@@ -429,20 +415,19 @@ namespace cgo {
                     }
                 }
 
-                this->_scheduler->_idle_thr_cnt++;
-
-                if (task_op_cnt != 0) {
-                    // add task op count
-                    this->_scheduler->_task_op_cnt += task_op_cnt;
-                    this->_task_op_cnt += task_op_cnt;
-                }
                 if (this->_local_task->size() == 0) {
                     // steal from the other queue
                     this->_scheduler->steal_task(this);
                     if (this->_local_task->size() == 0) {
-                        return;
+                        break;
                     }
                 }
+            }
+
+            if (task_op_cnt != 0) {
+                // add task op count
+                this->_scheduler->_task_op_cnt += task_op_cnt;
+                this->_task_op_cnt += task_op_cnt;
             }
         }
 
@@ -453,36 +438,18 @@ namespace cgo {
             }
         }
 
-        void _schedule_thread_st_::wait() {
-#ifdef __GNUC__
-            sem_wait(&this->_sem);
-#else
-            WaitForSingleObject((HANDLE)this->_sem, INFINITE);
-#endif
+        inline void _schedule_thread_st_::wait() {
+            this->_sem.wait();
         }
 
-        void _schedule_thread_st_::resume(_schedule_base_queue_st_* from) {
+        inline void _schedule_thread_st_::resume(_schedule_base_queue_st_* from) {
             if (from) {
                 this->_scheduler->steal_task(from, this->_local_task, 0);
             }
-
-#ifdef __GNUC__
-            sem_post(&this->_sem);
-#else
-            ReleaseSemaphore((HANDLE)this->_sem, 1, NULL);
-#endif
+            this->_sem.post();
         }
 
-        bool _schedule_thread_st_::in_wait() {
-#ifdef __GNUC__
-            int sval = 0;
-            return sem_getvalue(&this->_sem, &sval) > 0;
-#else
-            return false;
-#endif
-        }
-
-        bool _schedule_thread_st_::is_stop() {
+        inline bool _schedule_thread_st_::is_stop() {
             return this->_stop || this->_scheduler->_stop;
         }
 
@@ -497,8 +464,7 @@ namespace cgo {
             this->on_release();
         }
 
-        _scheduler_st_::_scheduler_st_() {
-            _watch_thr = new std::thread(&_scheduler_st_::watch_func);
+        _scheduler_st_::_scheduler_st_() : _watcher(&_scheduler_st_::watch_func) {
             _max_thr_cnt = (int)(std::thread::hardware_concurrency() * M_MAX_PROCS_FACTOR);
             _core_thr_cnt = (int)(_max_thr_cnt * M_CORE_POOL_FACTOR);
             _global_tasks = new _schedule_global_queue_st_;
@@ -519,8 +485,7 @@ namespace cgo {
             this->_stop = true;
 
             // stop watch thread
-            _watch_thr->join();
-            delete _watch_thr;
+            this->_watcher.join();
 
             // stop working threads
             std::vector<schedule_thread_st_type> work_thrs;
@@ -540,9 +505,14 @@ namespace cgo {
         }
 
         bool _scheduler_st_::run() {
-            _time_pool.update();
-            for (auto f : _loops) {
+            this->_time_pool.update();
+            for (auto& f : this->_loops) {
                 f();
+            }
+            task_type f;
+            while (this->_loops_buf.try_dequeue(f)) {
+                f();
+                this->_loops.push_back(f);
             }
             return true;
         }
@@ -551,21 +521,6 @@ namespace cgo {
             if (_thr_cnt >= _max_thr_cnt) {
                 return false;
             }
-
-            bool inCo = cur_coid() != M_INVALID_COROUTINE_ID;
-            if (!inCo) {
-                auto task_size = _global_tasks->size();
-                auto idle_thr_cnt = _idle_thr_cnt.load();
-                if (idle_thr_cnt > 0 && task_size < M_MAX_LOCAL_TASK_QUEUE) {
-                    return false;
-                }
-            } else {
-                auto task_size = glocal_task_queue->size();
-                if (task_size < M_MAX_LOCAL_TASK_QUEUE) {
-                    return false;
-                }
-            }
-
             return true;
         }
 
@@ -580,7 +535,6 @@ namespace cgo {
                 return false;
             }
 
-            this->_idle_thr_cnt++;
             this->_thr_cnt++;
             this->_thrs_mu.unlock();
 
@@ -804,7 +758,7 @@ namespace cgo {
                 M_CO_DEBUG_PRINT("[cgo debug] %s\n", output.c_str());
             };
 
-            auto dispatch = [&st, &idle_thrs](_schedule_base_queue_st_* q) {
+            auto dispatch = [&st, &idle_thrs, &work_thrs](_schedule_base_queue_st_* q) {
                 if (!idle_thrs.empty()) {
                     // 分配空闲线程
                     auto thr = idle_thrs.back();
@@ -812,7 +766,7 @@ namespace cgo {
                     st.remove_idle_thread(thr);
                     thr->resume(q);
                 } else {
-                    if (q->secondclass_delay()) {
+                    if (work_thrs.empty() || q->secondclass_delay()) {
                         // 新起线程
                         if (!st.start_thread(q) && q->emergency()) {
                             M_CO_DEBUG_PRINT("[cgo warning!!!] all working threads were occupied for a long time(over ten seconds), maybe dead lock or being blocked\n");
@@ -833,7 +787,7 @@ namespace cgo {
                 st.run();
                 st.get_work_idle_threads(work_thrs, idle_thrs);
 
-                if (st._global_tasks->delay()) {
+                if (st._global_tasks->size()) {
                     dispatch(st._global_tasks);
                 }
 
@@ -867,8 +821,8 @@ namespace cgo {
                     }
                 }
 
-                if (idles >= 500) {
-                    std::this_thread::sleep_for(std::chrono::microseconds (500));
+                if (idles >= 100) {
+                    std::this_thread::sleep_for(std::chrono::microseconds (100));
                 }
             }
         }
@@ -888,7 +842,7 @@ namespace cgo {
         }
 
         void cgo_add_loop(const task_type& f) {
-            scheduler_inst()._loops.push_back(f);
+            scheduler_inst()._loops_buf.enqueue(f);
         }
 
         void cgo_stop() {
