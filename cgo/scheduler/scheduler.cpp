@@ -54,10 +54,6 @@ namespace cgo {
                 }
             }
 
-            inline void clear_record() {
-                this->_clock = time_point();
-            }
-
             inline uint64_t delay_delta() {
                 // copy old time
                 auto old_time = this->_clock;
@@ -115,9 +111,9 @@ namespace cgo {
             _schedule_local_queue_st_();
             ~_schedule_local_queue_st_();
             bool is_init() override;
-            std::size_t size() override;
-            void enqueue(const task_type& f) override;
-            void enqueue(task_type* f, bool&) override;
+            inline std::size_t size() override;
+            inline void enqueue(const task_type& f) override;
+            inline void enqueue(task_type* f, bool&) override;
             bool try_dequeue(task_type& f) override;
             void steal(int32_t count, _schedule_base_queue_st_* to) override;
 
@@ -127,14 +123,14 @@ namespace cgo {
 
         struct _schedule_global_queue_st_ : public _schedule_base_queue_st_ {
         private:
-            std::atomic_int _cnt;
+            //std::atomic_int _cnt;
             concurrent_task_queue_type* _queue;
         public:
             _schedule_global_queue_st_();
             ~_schedule_global_queue_st_();
-            std::size_t size() override;
-            void enqueue(const task_type& f) override;
-            void enqueue(task_type* f, bool&) override;
+            inline std::size_t size() override;
+            inline void enqueue(const task_type& f) override;
+            inline void enqueue(task_type* f, bool&) override;
             bool try_dequeue(task_type& f) override;
             void steal(int32_t count, _schedule_base_queue_st_* to) override;
         };
@@ -249,18 +245,18 @@ namespace cgo {
             return _init;
         }
 
-        std::size_t _schedule_local_queue_st_::size() {
+        inline std::size_t _schedule_local_queue_st_::size() {
             return _queue->size();
         }
 
-        void _schedule_local_queue_st_::enqueue(const std::function<void()>& f) {
+        inline void _schedule_local_queue_st_::enqueue(const std::function<void()>& f) {
             task_type* task = new task_type(f);
             // Only the owner thread can insert an item to the queue.
             _queue->push(task);
             record();
         }
 
-        void _schedule_local_queue_st_::enqueue(task_type* f, bool& forward) {
+        inline void _schedule_local_queue_st_::enqueue(task_type* f, bool& forward) {
             _queue->push(f);
             forward = true;
             record();
@@ -301,34 +297,33 @@ namespace cgo {
 
         _schedule_global_queue_st_::_schedule_global_queue_st_() {
             _queue = new concurrent_task_queue_type;
-            _cnt = 0;
+            //_cnt = 0;
         }
 
         _schedule_global_queue_st_::~_schedule_global_queue_st_() {
             delete _queue;
         }
 
-        std::size_t _schedule_global_queue_st_::size() {
-            return (std::size_t)_cnt.load(std::memory_order_relaxed);
+        inline std::size_t _schedule_global_queue_st_::size() {
+            return this->_queue->size_approx();
         }
 
-        void _schedule_global_queue_st_::enqueue(const task_type& f) {
+        inline void _schedule_global_queue_st_::enqueue(const task_type& f) {
+            // 这也是一个瓶颈
             assert(_queue->enqueue(f));
-            _cnt++;
             record();
         }
 
-        void _schedule_global_queue_st_::enqueue(task_type* f, bool& forward) {
+        inline void _schedule_global_queue_st_::enqueue(task_type* f, bool& forward) {
+            // 这也是一个瓶颈
             assert(_queue->enqueue(*f));
             forward = false;
-            _cnt++;
             record();
         }
 
         bool _schedule_global_queue_st_::try_dequeue(task_type& f) {
             auto ret = _queue->try_dequeue(f);
             if (ret) {
-                _cnt--;
                 unrecord();
             }
             return ret;
@@ -341,7 +336,6 @@ namespace cgo {
                 if (!_queue->try_dequeue(f)) {
                     break;
                 }
-                _cnt--;
                 to->enqueue(f);
             }
             unrecord();
