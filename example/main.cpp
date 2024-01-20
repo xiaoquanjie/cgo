@@ -356,10 +356,10 @@ void performance_test2() {
      *      自由线程：需要30~35秒
      *      单线程：2秒
      *  优化后：
-     *      自由线程: 600ms
+     *      自由线程: 400~500ms
      * */
 
-    //cgoprocs(1);
+    //cgoprocs(5);
     cgocore(1);
     for (int j = 0; j < 3; j++) {
         print_withtime("begin");
@@ -367,20 +367,23 @@ void performance_test2() {
         auto beg = std::chrono::steady_clock::now();
         const int total_count = 1000000;
 
+        auto add_beg = std::chrono::steady_clock::now();
         for (int i = 0; i < total_count; i++) {
             go [&count]() {
                 count++;
             };
         }
+        auto add_end = std::chrono::steady_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(add_end - add_beg);
+        print_withtime(std::string("add end: ") + std::to_string(elapsed.count()));
 
         while (count != total_count) {
+            //print_withtime("............");
             std::this_thread::sleep_for(std::chrono::microseconds(10));
-            //cgo::cgo_print_debug_info();
-            //std::cout << count << "\n";
         }
 
         auto end = std::chrono::steady_clock::now();
-        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - beg);
+        elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - beg);
         print_withtime(std::string("end: ") + std::to_string(elapsed.count()));
         std::cout << "==============\n";
     }
@@ -888,6 +891,7 @@ void cas_cqueue_test2() {
 
 #include <string.h>
 void hook_connect_test() {
+    cgoprocs(1);
     for (int i = 0; i < 2; i++) {
         go [i]() {
             int fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -895,7 +899,7 @@ void hook_connect_test() {
                 print_withtime("create socket error");
                 return;
             }
-
+            cgo_hook_fd(fd);
             struct sockaddr_in addr;
             memset(&addr, 0, sizeof(addr));
             addr.sin_family = AF_INET;
@@ -1068,7 +1072,6 @@ void mutex_test() {
     go [&] {
         while (true) {
             msleep(1000);
-            //std::scoped_lock<cgo::mutex> sl(mu);
             mu.lock();
             print_withtime("coroutine0");
             mu.unlock();
@@ -1084,10 +1087,8 @@ void mutex_test() {
     };
 
     while (true) {
-        //std::scoped_lock<cgo::mutex> sl(mu);
         mu.lock();
         print_withtime("main coroutine");
-        //cgo::cgo_print_debug_info();
         mu.unlock();
         msleep(2000);
     }
@@ -1129,9 +1130,19 @@ void mutex_performance_test() {
     //================= cgo mutex test end=============
 
     //================= standard mutex in multi thread test =============
+}
 
-
-    msleep(2000);
+void stdfunction_test() {
+    print_withtime("stdfunction_test");
+    auto beg = std::chrono::steady_clock::now();
+    const int total_count = 1000000;
+    moodycamel::ConcurrentQueue<std::function<void()>> que;
+    for (int i = 0; i < total_count; i++) {
+        que.enqueue([]{});
+    }
+    auto end = std::chrono::steady_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - beg);
+    print_withtime(std::string("stdfunction_test: ") + std::to_string(elapsed.count()));
 }
 
 int main()

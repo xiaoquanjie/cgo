@@ -167,12 +167,18 @@ namespace cgo {
                 this->_thr.join();
             }
         };
-
         using schedule_thread_st_type = _schedule_thread_st_*;
+
+        struct _schedule_dead_thread_st_ {
+            schedule_thread_st_type _thr;
+            int64_t _time;
+        };
+
         struct _scheduler_st_ {
             _schedule_global_queue_st_* _global_tasks;
             std::vector<schedule_thread_st_type> _work_threads; // 正在工作的线程
             std::vector<schedule_thread_st_type> _idle_threads; // 空闲的线程
+            std::vector<_schedule_dead_thread_st_> _dead_threads;
             int generate_work_id = 1;
             std::shared_mutex _thrs_mu;
             _schedule_watch_thread_st_ _watcher;
@@ -215,7 +221,7 @@ namespace cgo {
 
             void remove_idle_thread(_schedule_thread_st_* st);
 
-            void delete_idle_thread(_schedule_thread_st_* st);
+            void delete_idle_thread(_schedule_thread_st_* st, int64_t now);
 
             void add_work_thread(_schedule_thread_st_* st);
 
@@ -655,11 +661,12 @@ namespace cgo {
             this->_work_threads.push_back(st);
         }
 
-        void _scheduler_st_::delete_idle_thread(_schedule_thread_st_* st) {
+        void _scheduler_st_::delete_idle_thread(_schedule_thread_st_* st, int64_t now) {
             std::unique_lock<std::shared_mutex> sl(this->_thrs_mu);
             for (auto iter = this->_idle_threads.begin(); iter != this->_idle_threads.end(); ++iter) {
                 if (*iter == st) {
                     this->_idle_threads.erase(iter);
+                    this->_dead_threads.push_back(_schedule_dead_thread_st_ {st, now});
                     break;
                 }
             }
@@ -809,8 +816,20 @@ namespace cgo {
                                 break;
                             }
                             st._thr_cnt--;
-                            st.delete_idle_thread(thr);
-                            thr->stop();
+                            st.delete_idle_thread(thr, now);
+                        }
+                    }
+                }
+
+                if (!st._dead_threads.empty()) {
+                    auto now = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+                    for (auto iter = st._dead_threads.begin(); iter != st._dead_threads.end(); ) {
+                        auto& dead = *iter;
+                        if (now - dead._time >= 5) {
+                            dead._thr->stop();
+                            iter = st._dead_threads.erase(iter);
+                        } else {
+                            iter++;
                         }
                     }
                 }
