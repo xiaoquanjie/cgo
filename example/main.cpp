@@ -21,7 +21,7 @@ void print_withtime(const char* msg) {
     std::strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", timeinfo);
 
     std::cout << buffer << '.' << std::setfill('0') << std::setw(3) << ms.count() << " ";
-    std::cout << std::this_thread::get_id() << " " << msg << "\n";
+    std::cout << std::this_thread::get_id() << " " << (int64_t)cgocoid() << " " << msg << "\n";
 }
 
 void print_withtime(const std::string& msg) {
@@ -214,49 +214,111 @@ void cqueue_test() {
 }
 
 void chan_test() {
-    /* 1000000次数据，16个协程
+    cgo::chan<int> ch = makechan<int>(2);
+
+    for (int i= 0; i < 500; i++) {
+        go [ch]() {
+            int v;
+            while (true) {
+                //msleep(5000);
+                if (ch << v) {
+                    print_withtime(std::string("recv:") + std::to_string(v));
+                } else {
+                    print_withtime("recv over");
+                    break;
+                }
+            }
+        };
+    }
+
+    while (true) {
+        int input = 10;
+        std::cout << "input:";
+        std::cin >> input;
+        if (input < 0) {
+            closechan(ch);
+            break;
+        }
+        for (int i = 0; i < 10; i++) {
+            ch >> i + input;
+        }
+    }
+
+    print_withtime("over");
+}
+
+void chan_performance_test() {
+    /* 1000000次数据，16个协程 800ms
      * golang 测试：
      *  无缓存：300ms
      *  100缓存：100ms
      * */
 
-    //cgoprocs(2);
+    cgo::cgo_print_debug_info();
     cgo::chan<int> ch;
-    ch = makechan<int>(0);
-	std::cout << "ref:" << ch.use_count() << "\n";
-    print_withtime("begin");
+    ch = makechan<int>(1);
 
-    int total = 1000000;
-    std::atomic_int count = 0;
+    int total_count = 100000;//1000000;
+    int count = 0;
+    int concurrent = 16;
 
-	go gostack(1024*1024) [ch, &count, total]() {
-        for (int i = 0; i < total; i++) {
-            ch >> i;
-        }
-    };
-
-    for (int i=0; i< 16; i++) {
-        go gostack(1024*1024) [ch, &count]() {
-            while (true) {
-                int v;
-                auto ok = ch << v;
-                if (!ok) {
-                    print_withtime("over");
-                    break;
-                } else {
-                    //print_withtime(std::to_string(v));
-                    count++;
-                }
-            }
-
+    //////////////// begin /////////////////////
+    auto beg = std::chrono::steady_clock::now();
+    for (int i = 0; i < total_count; i++) {
+        go [ch, &total_count, &count] {
+            ch >> 1;
+            count++;
+            ch << channull;
         };
     }
 
-    //closechan(ch);
-    while (count != total) {
-        //print_withtime(std::to_string(count.load()));
+    while (count < total_count) {
+        msleep(1);
     }
-    print_withtime("end");
+
+    print_withtime(std::to_string(count));
+    auto end = std::chrono::steady_clock::now();
+    // 结果是1000多毫秒10w
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - beg);
+    print_withtime(std::string("cgo chan in multi coroutine: ") + std::to_string(elapsed.count()));
+    //////////////// end /////////////////////
+
+    //////////////// begin /////////////////////
+    beg = std::chrono::steady_clock::now();
+    count = 0;
+    go [ch, &total_count] {
+        for (int i = 0; i < total_count; i++) {
+            ch >> 1;
+        }
+    };
+    go [ch, &total_count, &count] {
+        while (true) {
+            ch << channull;
+            count++;
+            if (count >= total_count) {
+                break;
+            }
+        }
+    };
+
+    while (count < total_count) {
+        msleep(1);
+    }
+    print_withtime(std::to_string(count));
+    end = std::chrono::steady_clock::now();
+    // 结果是77多毫秒10w
+    elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - beg);
+    print_withtime(std::string("cgo chan in read/write coroutine: ") + std::to_string(elapsed.count()));
+    //////////////// end /////////////////////
+
+    go [ch] {
+        print_withtime(std::to_string(ch.use_count()));
+        if (!(ch << channull)) {
+            print_withtime("over");
+        }
+    };
+
+    closechan(ch);
 }
 
 void performance_test() {
@@ -359,13 +421,13 @@ void performance_test2() {
      *      自由线程: 400~500ms
      * */
 
-    //cgoprocs(5);
+    //cgoprocs(1);
     cgocore(1);
     for (int j = 0; j < 3; j++) {
         print_withtime("begin");
         std::atomic_int count = 0;
         auto beg = std::chrono::steady_clock::now();
-        const int total_count = 1000000;
+        const int total_count = 1000000;//1000000;
 
         auto add_beg = std::chrono::steady_clock::now();
         for (int i = 0; i < total_count; i++) {
@@ -736,159 +798,6 @@ void condition_variable_test() {
     }
 }
 
-void cas_cqueue_test() {
-    //cas_cqueue<int> que(2012);
-//    mpmc_bounded_queue<int> que(2012);
-//    std::atomic_int produce_cnt = 0;
-//    std::atomic_int consume_cnt = 0;
-//    std::atomic_int produce_fail = 0;
-//    std::atomic_int consume_fail = 0;
-//    int thrs = 2;
-//    int total = thrs * 100000;
-//    print_withtime("cas_cqueue test begin");
-//
-//    for (int i = 0; i < thrs; i++) {
-//        std::thread([&que, &produce_cnt, &produce_fail, i]{
-//            for (int j = 0; j < 100000;) {
-//                if (que.enqueue(produce_cnt.load())) {
-//                    produce_cnt++;
-//                    j++;
-//                }
-//            }
-//
-//            print_withtime("produce quit:" + std::to_string(i));
-//        }).detach();
-//    }
-//
-//    for (int i = 0; i < 1; i++) {
-//        std::thread([&que, &consume_cnt, &consume_fail, total, i]{
-//            int v = 0;
-//            while (true) {
-//                if (que.dequeue(v)) {
-//                    consume_cnt++;
-//                }
-//                if (consume_cnt >= total) {
-//                    break;
-//                }
-//            }
-//            print_withtime("consume quit:" + std::to_string(i));
-//        }).detach();
-//    }
-//
-//    while (!(produce_cnt >= total && consume_cnt >= total)) {
-//        std::cout << "produce_cnt:" << produce_cnt
-//                  << " produce_fail:" << produce_fail
-//                  << " consume_cnt:" << consume_cnt
-//                  << " consume_fail:" << consume_fail
-//                  << "\n";
-//        std::this_thread::sleep_for(std::chrono::seconds(1));
-//    }
-//
-//    print_withtime("cas_cqueue test end");
-//    std::cout << "produce_cnt:" << produce_cnt
-//              << " produce_fail:" << produce_fail
-//              << " consume_cnt:" << consume_cnt
-//              << " consume_fail:" << consume_fail
-//              << "\n";
-}
-
-void cas_cqueue_test2() {
-//    struct info {
-//        int idx = 0;
-//        int val = 0;
-//        bool flag = false;
-//    };
-//
-//    //cas_cqueue<info> que(2012);
-//    mpmc_bounded_queue<info> que(2048);
-//    //cqueue2<info> que(2048);
-//
-//    int thrs = 2;
-//    int total = 1000000;
-//    info* write = new info[total];
-//    info* read = new info[total];
-//
-//    while (true) {
-//        for (int i = 0; i < total; i++) {
-//            write[i].idx = i;
-//            write[i].val = rand();
-//            write[i].flag = false;
-//            read[i].idx = false;
-//            read[i].idx = 0;
-//            read[i].idx = 0;
-//        }
-//
-//        std::atomic_thread_fence(std::memory_order_seq_cst);
-//        std::vector<std::thread> thr_vec;
-//
-//        print_withtime("begin");
-//
-//        // 生产数量
-//        std::atomic_int prod = 0;
-//        for (int i = 0; i < thrs; i++) {
-//            thr_vec.emplace_back(std::move(std::thread([&que, write, read, total, &prod]{
-//                static std::mutex mu;
-//                for (int i = 0; i < total; i++) {
-//                    mu.lock();
-//                    if (write[i].flag) {
-//                        mu.unlock();
-//                        continue;
-//                    }
-//                    write[i].flag = true;
-//                    mu.unlock();
-//
-//                    while (true) {
-//                        if (que.enqueue(write[i])) {
-//                            prod++;
-//                            break;
-//                        }
-//                    }
-//                }
-//            })));
-//        }
-//
-//        // 消费数量
-//        std::atomic_int cons = 0;
-//        for (int i = 0; i < thrs; i++) {
-//            thr_vec.emplace_back(std::thread([&que, write, read, total, &cons] {
-//                while (true) {
-//                    info j;
-//                    if (que.dequeue(j)) {
-//                        assert(j.val == write[j.idx].val);
-//                        read[j.idx] = j;
-//                        //read[i.idx].idx = i.idx;
-//                        //read[i.idx].val = i.val;
-//                        read[j.idx].flag = true;
-//                        cons++;
-//                    }
-//                    if (cons >= total) {
-//                        break;
-//                    }
-//                }
-//            }));
-//        }
-//
-//        for (auto& t : thr_vec) {
-//            std::cout << "consume:" << cons.load() << " produce:" << prod << "\n";
-//            t.join();
-//        }
-//
-//        print_withtime("end");
-//        std::atomic_thread_fence(std::memory_order_seq_cst);
-//
-//        for (int i = 0; i < total; i++) {
-//            if (write[i].val != read[i].val) {
-//                std::cout << "write[" << i << "]:" << write[i].val << " read[" << i << "]:" << read[i].val << " read_flag:" << read[i].flag << "\n";
-//                assert(false);
-//            }
-//        }
-//
-//        std::cout << "================\n";
-//        std::this_thread::sleep_for(std::chrono::milliseconds(1));
-//    }
-}
-
-
 #include <string.h>
 void hook_connect_test() {
     cgoprocs(1);
@@ -1066,35 +975,38 @@ void hook_udp_connect() {
     }
 }
 
+#include "cgo/common/mpmcqueue.h"
+#include "cgo/common/rwlock.h"
+
 void mutex_test() {
+    cgo::cgo_print_debug_info();
     cgo::mutex mu;
 
-    go [&] {
-        while (true) {
-            msleep(1000);
-            mu.lock();
-            print_withtime("coroutine0");
-            mu.unlock();
-        }
-    };
+    for (int i = 0; i < 313; i++) {
+        go [&, i] {
+            while (true) {
+                //msleep(10);
+                mu.lock();
+                //print_withtime(std::string("waiter count:") + std::to_string(mu.waiter()));
+                print_withtime(std::string("coroutine") + std::to_string(i));
+                mu.unlock();
+            }
+        };
+    }
 
-    go [&] {
-        while (true) {
-            msleep(1000);
-            std::scoped_lock<cgo::mutex> sl(mu);
-            print_withtime("coroutine1");
-        }
-    };
-
+    //while(true);
     while (true) {
+        //msleep(10);
         mu.lock();
         print_withtime("main coroutine");
+        //msleep(1000);
         mu.unlock();
-        msleep(2000);
+        //msleep(2000);
     }
 }
 
 void mutex_performance_test() {
+    // 消耗15毫秒
     std::mutex standard_mu;
 
     //================= standard mutex test =============
@@ -1112,6 +1024,7 @@ void mutex_performance_test() {
     //================= standard mutex test end=============
 
     //================= cgo mutex test =============
+    // 消耗55毫秒
     cgo::mutex cgo_mu;
     go [&] {
         beg = std::chrono::steady_clock::now();
@@ -1132,6 +1045,94 @@ void mutex_performance_test() {
     //================= standard mutex in multi thread test =============
 }
 
+void mutex_performance_test2() {
+
+    //================= standard mutex test =============
+    std::mutex standard_mu; // 消耗55毫秒
+    auto beg = std::chrono::steady_clock::now();
+    int total_count = 1000000;
+    int count = 0;
+    int concurrent = 4;
+
+    for (int i = 0; i < concurrent; i++) {
+        std::thread([&] {
+            while (true) {
+                standard_mu.lock();
+                if (count < total_count) {
+                    count++;
+                    standard_mu.unlock();
+                } else {
+                    standard_mu.unlock();
+                    break;
+                }
+            }
+        }).detach();
+    }
+
+    while (count != total_count) msleep(1);
+
+    auto end = std::chrono::steady_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - beg);
+    print_withtime(std::string("standard mutex in multi thread: ") + std::to_string(elapsed.count()));
+    //================= standard mutex test end=============
+
+    msleep(2000);
+
+    //================= cgo mutex test =============
+    cgo::mutex cgo_mu; // 消耗950毫秒
+    count = 0;
+    beg = std::chrono::steady_clock::now();
+
+    for (int i = 0; i < concurrent; i++) {
+        go [&] {
+            while (true) {
+                cgo_mu.lock();
+                if (count < total_count) {
+                    count++;
+                    cgo_mu.unlock();
+                } else {
+                    cgo_mu.unlock();
+                    break;
+                }
+            }
+        };
+    }
+
+    while (count != total_count) msleep(1);
+    end = std::chrono::steady_clock::now();
+    elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - beg);
+    print_withtime(std::string("cgo mutex in multi coroutine: ") + std::to_string(elapsed.count()));
+    //================= cgo mutex test end=============
+
+    //================= spinrwlock test =============
+    SpinRwLock spinrw;
+    count = 0;
+    beg = std::chrono::steady_clock::now();
+
+    for (int i = 0; i < concurrent; i++) {
+        std::thread([&] {
+            while (true) {
+                spinrw.wlock();
+                if (count < total_count) {
+                    count++;
+                    spinrw.wunlock();
+                } else {
+                    spinrw.wunlock();
+                    break;
+                }
+            }
+        }).detach();
+    }
+
+    while (count != total_count) msleep(1);
+
+    end = std::chrono::steady_clock::now();
+    elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - beg);
+    print_withtime(std::string("spinrwlock in multi thread: ") + std::to_string(elapsed.count()));
+    //================= spinrwlock test =============
+
+}
+
 void stdfunction_test() {
     print_withtime("stdfunction_test");
     auto beg = std::chrono::steady_clock::now();
@@ -1143,6 +1144,70 @@ void stdfunction_test() {
     auto end = std::chrono::steady_clock::now();
     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - beg);
     print_withtime(std::string("stdfunction_test: ") + std::to_string(elapsed.count()));
+}
+
+#include "cgo/common/semaphore.h"
+void semaphore_test() {
+    Semaphore sem;
+    sem.post();
+    sem.post();
+    print_withtime("wait");
+    sem.wait();
+    sem.wait();
+    sem.wait();
+    print_withtime("over");
+}
+
+#include "cgo/common/mpmcqueue.h"
+void simplelist_test() {
+    // 消耗40毫秒
+    rigtorp::MPMCQueue<int> que(1000000);
+
+    auto beg = std::chrono::steady_clock::now();
+    const int total_count = 1000000;
+
+    for (int i = 0; i < 10; i++) {
+        std::thread([&]{
+            while (que.size() < total_count) {
+                //li.push(1);
+                que.push(1);
+                //wsq.push()
+                //cq.enqueue(1);
+            }
+        }).detach();
+    }
+
+    while (que.size() < total_count);
+    std::cout << que.size() << "\n";
+    auto end = std::chrono::steady_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - beg);
+    print_withtime(std::string("simplelist_test end: ") + std::to_string(elapsed.count()));
+}
+
+#include "cgo/common/rwlock.h"
+void rwlock_test() {
+    SpinRwLock rw;
+    std::thread([&rw]{
+        while (true) {
+            rw.rlock();
+            print_withtime("read");
+            //msleep(1000);
+            rw.runlock();
+        }
+    }).detach();
+
+    msleep(10);
+
+    std::thread([&rw]{
+        while (true) {
+            rw.wlock();
+            print_withtime("write");
+            //msleep(1000);
+            rw.wunlock();
+        }
+    }).detach();
+
+    while(true) msleep(10);
 }
 
 int main()
@@ -1159,8 +1224,6 @@ int main()
         t_condition_variable_test,
         t_chan_test,
         t_performance_copool_base_test,
-        t_cas_cqueue_test,
-        t_cas_cqueue_test2,
         t_atomic_test,
         t_hook_connect_test,
         t_hook_accept_test,
@@ -1168,9 +1231,12 @@ int main()
         t_mutex_test,
         t_concurrentqueue_test,
         t_mutex_performance_test,
+        t_mutex_performance_test2,
+        t_chan_performance_test,
+        t_cqueue_test,
     };
 
-    switch (t_performance_test2) {
+    switch (t_chan_performance_test) {
         case t_work_steal_queue_test:
             work_steal_queue_test();
             break;
@@ -1204,12 +1270,6 @@ int main()
         case t_performance_copool_base_test:
             performance_copool_base_test();
             break;
-        case t_cas_cqueue_test:
-            cas_cqueue_test();
-            break;
-        case t_cas_cqueue_test2:
-            cas_cqueue_test2();
-            break;
         case t_atomic_test:
             atomic_test();
             break;
@@ -1231,13 +1291,21 @@ int main()
         case t_mutex_performance_test:
             mutex_performance_test();
             break;
+        case t_mutex_performance_test2:
+            mutex_performance_test2();
+            break;
+        case t_chan_performance_test:
+            chan_performance_test();
+            break;
+        case t_cqueue_test:
+            cqueue_test();
+            break;
         default:
             break;
     }
 
     //slist_test();
     //mutex_slist_test();
-    //cqueue_test();
     //lock_test();
     //time_test();
     //cond_test();

@@ -25,6 +25,8 @@ namespace cgo {
     namespace coro_adapter {
         uint64_t create_co(const std::function<void()>& routine, int stack, const char* file, int line);
         void resume_co(uint64_t co_id, void* data);
+        void co_wait_signal(void*& data);
+        void co_post_signal(uint64_t co_id, void* data);
         void yield_co(void*& data, const std::function<void()>& after);
         void yield_co(void*& data);
         void yield_co();
@@ -880,7 +882,7 @@ namespace cgo {
             return s_scheduler;
         }
 
-        void add_global_task(task_type&& f) {
+        void add_global_task(const task_type& f) {
             auto global = gglobal_task_queue;
             auto local = glocal_task_queue;
 
@@ -916,6 +918,16 @@ namespace cgo {
 
         void schedule_yield() {
             coro_adapter::yield_co();
+        }
+
+        void schedule_wait_signal(void*& data) {
+            coro_adapter::co_wait_signal(data);
+        }
+
+        void schedule_post_signal(uint64_t co_id, void* data) {
+            add_global_task([co_id, data] {
+                coro_adapter::co_post_signal(co_id, data);
+            });
         }
 
         // thread-safety

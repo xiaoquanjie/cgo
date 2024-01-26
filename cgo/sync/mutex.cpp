@@ -3,111 +3,25 @@
 //
 
 #include "mutex.h"
-#include "common/concurrentqueue.h"
-#include "scheduler/scheduler.h"
+#include "scheduler/cosignal.h"
+#include "common/mpmcqueue_ex.h"
+#include "common/print.h"
 
-#if defined(__GNUC__)
-#include <semaphore.h>
-#else
-#include <winbase.h>
-typedef void* sem_t;
-#define pthread_self GetCurrentThreadId
-#endif
-
-#define M_TASK_QUEUE(que) \
-((moodycamel::ConcurrentQueue<task_struct>*)que)
-
-#define M_INIT_QUEUE() \
-(void*)(new moodycamel::ConcurrentQueue<task_struct>)
-
-#define M_RELEASE_QUEUE(que) \
-delete M_TASK_QUEUE(que)
-
-#define M_OWNER(own) \
-((task_id*)own)
-
-#define M_INIT_OWNER(own) \
-((task_id*)own)->id = 0;
-
-#define M_GET_SELF(id) id = scheduler::cur_coid();
+#define M_WAITERS(waiter) ((co_waiter_list*)waiter)
+#define M_GET_SELF(id) id = scheduler::cur_coid(); assert(id != 0);
+#define M_IN_CO(tid) (tid != (unsigned long long)-1)
 
 namespace cgo {
-    struct task_id {
-        unsigned long long id;
-    };
-
-    struct task_sem {
-        void* sem;
-    };
-
-    struct task_struct {
-        task_id tid;
-        void* sem;
-    };
-
-    inline void fill_task(task_struct* t) {
-        if (t->tid.id != (unsigned long long)-1) {
-            t->sem = 0;
-            return;
-        }
-
-#ifdef __GNUC__
-        sem_t* sem = (sem_t*)malloc(sizeof(sem_t));
-        sem_init(sem, 0, 0);
-#else
-        auto sem = CreateSemaphore(NULL, 1, 0, NULL);
-#endif
-        t->sem = (void*)sem;
-        return;
-    }
-
-    inline void release_task(task_struct* task) {
-        if (task->tid.id != (unsigned long long)-1) {
-            return;
-        }
-#ifdef __GNUC__
-        sem_t* sem = (sem_t*)task->sem;
-        sem_destroy(sem);
-        free(sem);
-#else
-        CloseHandle((HANDLE)task->sem);
-#endif
-    }
-
-    inline void wait_task(task_struct* task) {
-        if (task->tid.id != (unsigned long long)-1) {
-            scheduler::schedule_yield();
-            return;
-        }
-#ifdef __GNUC__
-        sem_wait((sem_t*)task->sem);
-#else
-        WaitForSingleObject((HANDLE)task->sem, INFINITE);
-#endif
-    }
-
-    inline void resume_task(task_struct* task) {
-        if (task->tid.id != (unsigned long long)-1) {
-            scheduler::schedule_co(task->tid.id, 0);
-            return;
-        }
-#ifdef __GNUC__
-        sem_post((sem_t*)task->sem);
-#else
-        ReleaseSemaphore((HANDLE)task->sem, 1, NULL);
-#endif
-    }
+    using co_waiter_list = MPMCQueueEx<cgo::signal>;
 
     co_mutex::co_mutex() {
-        _task_queue = M_INIT_QUEUE();
+        _waiters = (void*)new co_waiter_list(8);
         _lock.clear();
-        _owner = malloc(sizeof(task_id));
-        M_INIT_OWNER(_owner);
+        _owner = 0;
     }
 
     co_mutex::~co_mutex() {
-        M_RELEASE_QUEUE(_task_queue);
-        free(_owner);
+        delete ((co_waiter_list*)_waiters);
     }
 
     void co_mutex::lock() {
@@ -115,42 +29,83 @@ namespace cgo {
             return;
         }
 
-        task_struct task;
-        M_GET_SELF(task.tid.id);
-        if (task.tid.id == M_OWNER(_owner)->id) {
+        cgo::signal self;
+        self.init();
+        if (self.id() == _owner) {
+            throw
+        }
+
+        auto id = 0;
+        M_GET_SELF(id);
+        if (id == _owner) {
             throw "not recursive lock";
         }
 
-        fill_task(&task);
-        M_TASK_QUEUE(_task_queue)->enqueue(task);
-        wait_task(&task);
-        release_task(&task);
+//        fill_task(&task);
+//
+//        if (M_IN_CO(task.tid)) {
+//            void* data;
+//            scheduler::schedule_yield(data, [this, task] {
+//                M_WAITERS(_waiters)->push(task);
+//                if (try_resume(&task)) {
+//                    scheduler::schedule_co(task.tid, 0);
+//                }
+//            });
+//        } else {
+//            M_WAITERS(_waiters)->push(task);
+//            if (!try_resume(&task)) {
+//                ((Semaphore*)task.sem)->wait();
+//            }
+//            delete (Semaphore*)task.sem;
+//        }
     }
 
     // 不允许重入
     bool co_mutex::try_lock() {
-        if (!_lock.test_and_set()) {
-            M_GET_SELF(M_OWNER(_owner)->id);
-            return true;
+        for (int i = 0; i < 1; i++) {
+            if (!_lock.test_and_set()) {
+                assert(_owner == 0);
+                M_GET_SELF(_owner);
+                return true;
+            }
         }
         return false;
     }
 
     void co_mutex::unlock() {
-        task_id self;
-        M_GET_SELF(self.id);
-        if (self.id != M_OWNER(_owner)->id) {
-            throw "not lock owner";
-        }
+//        task_struct task;
+//        M_GET_SELF(task.tid);
+//        if (task.tid != _owner) {
+//            throw "not lock owner";
+//        }
+//
+//        if (M_WAITERS(_waiters)->try_pop(task)) {
+//            // 更换所有者
+//            _owner = task.tid;
+//            resume_task(&task);
+//        } else {
+//            _owner = 0;
+//            _lock.clear();
+//        }
+    }
 
-        task_struct task;
-        if (M_TASK_QUEUE(_task_queue)->try_dequeue(task)) {
-            // 更换所有者
-            *M_OWNER(_owner) = task.tid;
-            resume_task(&task);
-        } else {
-            M_INIT_OWNER(_owner);
-            _lock.clear();
-        }
+    bool co_mutex::try_resume(const void* task) {
+//        if (_lock.test_and_set()) {
+//            return false;
+//        }
+//
+//        task_struct old_task;
+//        if (!M_WAITERS(_waiters)->try_pop(old_task)) {
+//            throw "lock error";
+//        }
+//
+//        // 更换所有者
+//        _owner = old_task.tid;
+//        if (old_task.tid == ((const task_struct*)task)->tid) {
+//            return true;
+//        }
+//
+//        resume_task(&old_task);
+//        return false;
     }
 }

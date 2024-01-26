@@ -16,7 +16,7 @@ namespace cgo {
         extern thread_local volatile uint64_t gcurno;
 
         // create one new coroutine
-        uint64_t create(const std::function<void()>& routine, int stack = 0, const char* file = 0, int line = 0);
+        uint64_t create(const std::function<void()>& routine, int stack = 0);
 
         bool set_udata(uint64_t co_id, void* data);
 
@@ -24,6 +24,8 @@ namespace cgo {
 
         // resume a coroutine, return the status of coroutine
         int resume(uint64_t co_id);
+
+        void yield(uint64_t co_id);
 
         // yield
         void yield();
@@ -33,10 +35,7 @@ namespace cgo {
             return id;
         }
 
-        // number of running coroutine
-        int num();
-
-        void run(std::function<void()> routine, int stack, const char* file, int line);
+        void run(std::function<void()> routine, int stack);
 
         // create one new coroutine to run routine
         // when routine return, the coroutine will be destroyed

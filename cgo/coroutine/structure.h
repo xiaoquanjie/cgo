@@ -32,8 +32,6 @@ namespace cgo {
             std::function<void()> _routine;
             void* volatile _data = 0;
             int _ssize = 0;
-            const char* _file = 0;
-            int _line = 0;
 
 #ifdef _MSC_VER
             LPVOID _ctx = 0;
@@ -44,8 +42,8 @@ namespace cgo {
             char *_stack = 0;
 #endif
             uint64_t get_coid();
-            static _co_st_* alloc(const std::function<void()>& routine, int stack, const char* file, int line);
-            static _co_st_* init(_co_st_*, const std::function<void()>& routine, int stack, const char* file, int line);
+            static _co_st_* alloc(const std::function<void()>& routine, int stack);
+            static _co_st_* init(_co_st_*, const std::function<void()>& routine, int stack);
             static _co_st_* get_co(uint64_t co_id);
             static uint64_t get_coid(_co_st_*);
             static void free(_co_st_* co);

@@ -19,21 +19,19 @@ namespace cgo {
             return get_coid(this);
         }
 
-        _co_st_* _co_st_::alloc(const std::function<void()>& routine, int stack, const char* file, int line) {
+        _co_st_* _co_st_::alloc(const std::function<void()>& routine, int stack) {
             auto co = new _co_st_;
             assert(co != 0);
             if (stack <= 0) {
                 stack = M_PRIVATE_STACK_SIZE;
             }
-            return init(co, routine, stack, file, line);
+            return init(co, routine, stack);
         }
 
-        _co_st_* _co_st_::init(_co_st_* co, const std::function<void()>& routine, int stack, const char* file, int line) {
+        _co_st_* _co_st_::init(_co_st_* co, const std::function<void()>& routine, int stack) {
             co->_ssize = stack;
             co->_status = COROUTINE_READY;
             co->_routine = routine;
-            co->_file = file;
-            co->_line = line;
 
 #ifdef __GNUC__
             // init stack

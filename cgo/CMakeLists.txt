@@ -16,6 +16,7 @@ add_library(cgo
         coroutine/coroutine_adapter.cpp
         scheduler/syntax.cpp
         scheduler/scheduler.cpp
+        scheduler/cosignal.cpp
 
         common/time_pool.cpp
         common/semaphore.cpp

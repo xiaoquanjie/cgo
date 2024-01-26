@@ -25,8 +25,8 @@ namespace cgo {
         }
 
         // create one new coroutine
-        uint64_t create(const std::function<void()>& routine, int stack, const char* file, int line) {
-            auto co = _co_st_::alloc(routine, stack, file, line);
+        uint64_t create(const std::function<void()>& routine, int stack) {
+            auto co = _co_st_::alloc(routine, stack);
             getcontext(&co->_ctx);
             //co->_ctx.uc_link = 0;
             co->_ctx.uc_stack.ss_size = co->_ssize;
@@ -67,16 +67,10 @@ namespace cgo {
             return COROUTINE_NONE;
         }
 
-        void yield() {
-            if (gcurno == M_INVALID_COROUTINE_ID) {
-                return;
-            }
-
-            auto co_id = gcurno;
+        void yield(uint64_t co_id) {
             auto co = _co_st_::get_co(co_id);
             co->_status = COROUTINE_SUSPEND;
             co->memory_check(co);
-
             swapcontext(&co->_ctx, co->_mctx);
         }
     }

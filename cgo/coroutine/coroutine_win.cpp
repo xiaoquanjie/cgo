@@ -39,7 +39,7 @@ namespace cgo {
             }
         }
 
-        uint64_t create(const std::function<void()>& routine, int stack, const char* file, int line) {
+        uint64_t create(const std::function<void()>& routine, int stack) {
             win_init();
 
             auto co = new _co_st_;
@@ -94,17 +94,11 @@ namespace cgo {
             return COROUTINE_NONE;
         }
 
-		void yield() {
-			if (gcurno == M_INVALID_COROUTINE_ID) {
-				return;
-			}
-
-            auto co_id = gcurno;
+        void yield(uint64_t co_id) {
             auto co = _co_st_::get_co(co_id);
 			co->_status = COROUTINE_SUSPEND;
-
 			::SwitchToFiber(co->_mctx);
-		}
+        }
     }
 }
 #endif

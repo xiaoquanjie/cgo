@@ -39,13 +39,14 @@ namespace cgo {
         struct _schedule_thread_st_;
 
         _scheduler_st_& scheduler_inst();
-        void add_global_task(task_type&& f);
         uint64_t cur_coid();
         void schedule_task(const task_type& routine, int stack, const char* file, int line);
         void schedule_wait(int wait_mil);
         void schedule_yield(void*& data, const task_type& after);
         void schedule_yield(void*& data);
         void schedule_yield();
+        void schedule_wait_signal(void*& data);
+        void schedule_post_signal(uint64_t co_id, void* data);
         void schedule_co(uint64_t co_id, void*);
         void set_cgo_procs(int cnt);
         void set_cgo_core(int cnt);

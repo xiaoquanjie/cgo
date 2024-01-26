@@ -29,17 +29,22 @@ namespace cgo {
             return 0;
         }
 
-        int num() {
-            return 0;
+        void yield() {
+            if (gcurno == M_INVALID_COROUTINE_ID) {
+                return;
+            }
+
+            auto co_id = gcurno;
+            yield(co_id);
         }
 
-        void run(std::function<void()> routine, int stack, const char* file, int line) {
-            auto co_id = create(routine, stack, file, line);
+        void run(std::function<void()> routine, int stack) {
+            auto co_id = create(routine, stack);
             resume(co_id);
         }
 
         void run(std::function<void()> routine) {
-            run(routine, 0, nullptr, 0);
+            run(routine, 0);
         }
 
         int memory() {

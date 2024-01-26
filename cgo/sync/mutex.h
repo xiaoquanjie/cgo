@@ -10,11 +10,12 @@ namespace cgo {
     // 不支持可重入
     // 不可以设置优先级，基本上是按顺序抢占
     class co_mutex {
-    //public:
+    protected:
         std::atomic_flag _lock;
-        void* _task_queue;
-        void* _owner;
+        void* _waiters;
+        volatile unsigned long long _owner;
 
+        bool try_resume(const void* task);
     public:
         co_mutex();
 
