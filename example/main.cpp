@@ -981,8 +981,10 @@ void hook_udp_connect() {
 void mutex_test() {
     cgo::cgo_print_debug_info();
     cgo::mutex mu;
+    int total = 312;
+    int count = 0;
 
-    for (int i = 0; i < 313; i++) {
+    for (int i = 0; i < total; i++) {
         go [&, i] {
             while (true) {
                 //msleep(10);
@@ -996,12 +998,12 @@ void mutex_test() {
 
     //while(true);
     while (true) {
-        //msleep(10);
+        //msleep(2000);
         mu.lock();
         print_withtime("main coroutine");
         //msleep(1000);
         mu.unlock();
-        //msleep(2000);
+
     }
 }
 
@@ -1236,7 +1238,7 @@ int main()
         t_cqueue_test,
     };
 
-    switch (t_chan_performance_test) {
+    switch (t_mutex_performance_test) {
         case t_work_steal_queue_test:
             work_steal_queue_test();
             break;

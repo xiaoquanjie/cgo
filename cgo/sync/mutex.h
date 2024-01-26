@@ -15,7 +15,8 @@ namespace cgo {
         void* _waiters;
         volatile unsigned long long _owner;
 
-        bool try_resume(const void* task);
+    protected:
+        bool try_resume(void* task);
     public:
         co_mutex();
 
