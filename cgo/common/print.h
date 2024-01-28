@@ -11,8 +11,8 @@
 
 #include <chrono>
 #include <utility>
+#include <time.h>
 
-// 日志
 #ifndef M_CO_DEBUG_PRINT
 #include <stdio.h>
 #define M_CO_DEBUG_PRINT co_printf //printf //
@@ -22,7 +22,7 @@ template<typename... Args>
 void co_printf(const char* format, Args&&... args) {
     std::chrono::system_clock::time_point now = std::chrono::system_clock::now();
     std::time_t now_c = std::chrono::system_clock::to_time_t(now);
-    std::tm* timeinfo = std::localtime(&now_c);
+	std::tm* timeinfo = std::localtime(&now_c);
 
     auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
 

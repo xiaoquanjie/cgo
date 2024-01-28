@@ -937,14 +937,6 @@ namespace cgo {
             });
         }
 
-        void yield_after(uint64_t co_id, int wait_mil) {
-            scheduler_inst()._time_pool.async_add_timer(wait_mil, [co_id] {
-                add_global_task([co_id] {
-                    coro_adapter::resume_co(co_id, (void*)0);
-                });
-            });
-        }
-
         void schedule_wait(int wait_mil) {
             assert(wait_mil <= M_MAX_CO_WAIT_TIME * 1000);
             auto co_id = coro_adapter::cur_coid();
@@ -952,10 +944,12 @@ namespace cgo {
                 return;
             }
 
-            void* data = 0;
-            schedule_yield(data, [co_id, wait_mil] {
-                yield_after(co_id, wait_mil);
+            scheduler_inst()._time_pool.async_add_timer(wait_mil, [co_id] {
+                schedule_post_signal(co_id, (void*)0);
             });
+
+            void* data = 0;
+            schedule_wait_signal(data);
         }
     }
 }

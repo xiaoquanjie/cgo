@@ -35,8 +35,6 @@ namespace cgo {
 
     void cgo_yield();
 
-    void cgo_yield(void*& data, const std::function<void()>& after);
-
     void cgo_wait(int wait_mil);
 
     void cgo_procs(int cnt);

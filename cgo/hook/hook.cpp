@@ -92,14 +92,6 @@ inline bool canhook_poll_select() {
 
 static int g_epoll_fd = -1;
 
-inline bool check_nonblock(int fd) {
-    int flags = fcntl(fd, F_GETFL, 0);
-    if (flags == -1) {
-        return false;
-    }
-    return flags & O_NONBLOCK;
-}
-
 void set_nonblock(int fd) {
     int flags = fcntl(fd, F_GETFL, 0);
     if (flags != -1 && !(flags & O_NONBLOCK)) {

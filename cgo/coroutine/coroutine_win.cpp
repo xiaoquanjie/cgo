@@ -55,7 +55,7 @@ namespace cgo {
                 throw std::string("memory not enough");
             }
            
-            _co_st_::init(co, routine, stack, file, line);
+            _co_st_::init(co, routine, stack);
             co->_ctx = ctx;
             return co->get_coid();
         }
