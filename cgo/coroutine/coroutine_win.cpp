@@ -62,6 +62,8 @@ namespace cgo {
 
         // resume a coroutine, return the status of coroutine
         int resume(uint64_t co_id) {
+            win_init();
+
             if (gcurno != M_INVALID_COROUTINE_ID) {
                 return COROUTINE_NONE;
             }

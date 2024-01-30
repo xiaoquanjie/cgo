@@ -108,7 +108,7 @@ void cgo_wait_test() {
             go [i]() {
                 for (int j = 0; j < 10; ++j) {
                     print_withtime(std::string("co wait") + std::to_string(i));
-                    gowait(1000 + i * 10);
+                    gowait(1000);
                 }
             };
         }
@@ -150,7 +150,7 @@ void time_test() {
     async_time_pool p;
     std::thread([&p]() {
         for (int i = 0; i < 10; i++) {
-            p.async_add_timer(30, [i]() {
+            p.add_timer(30, [i]() {
                 print_withtime(std::to_string(i).c_str());
             });
         }
@@ -248,10 +248,10 @@ void chan_test() {
 }
 
 void chan_performance_test() {
-    /* 1000000æ¬¡æ•°æ®ï¼Œ16ä¸ªåç¨‹ 800ms
-     * golang æµ‹è¯•ï¼š
-     *  æ— ç¼“å­˜ï¼š300ms
-     *  100ç¼“å­˜ï¼š100ms
+    /* 1000000´ÎÊı¾İ£¬16¸öĞ­³Ì 800ms
+     * golang ²âÊÔ£º
+     *  ÎŞ»º´æ£º300ms
+     *  100»º´æ£º100ms
      * */
 
     cgo::cgo_print_debug_info();
@@ -278,7 +278,7 @@ void chan_performance_test() {
 
     print_withtime(std::to_string(count));
     auto end = std::chrono::steady_clock::now();
-    // ç»“æœæ˜¯1000å¤šæ¯«ç§’10w
+    // ½á¹ûÊÇ1000¶àºÁÃë10w
     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - beg);
     print_withtime(std::string("cgo chan in multi coroutine: ") + std::to_string(elapsed.count()));
     //////////////// end /////////////////////
@@ -306,7 +306,7 @@ void chan_performance_test() {
     }
     print_withtime(std::to_string(count));
     end = std::chrono::steady_clock::now();
-    // ç»“æœæ˜¯77å¤šæ¯«ç§’10w
+    // ½á¹ûÊÇ77¶àºÁÃë10w
     elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - beg);
     print_withtime(std::string("cgo chan in read/write coroutine: ") + std::to_string(elapsed.count()));
     //////////////// end /////////////////////
@@ -351,7 +351,7 @@ void test(std::atomic_int& c) {
 #include "../cgo/coroutine/coroutine.h"
 void performance_base_test() {
     /*
-     *  100wæ¬¡å¹³å‡700æ¯«ç§’, è¿™ä¸ªå·²æ˜¯ç³»ç»Ÿåç¨‹åº“çš„åˆ‡æ¢æ€§èƒ½æè‡´
+     *  100w´ÎÆ½¾ù700ºÁÃë, Õâ¸öÒÑÊÇÏµÍ³Ğ­³Ì¿âµÄÇĞ»»ĞÔÄÜ¼«ÖÂ
      * */
     for (int j = 0; j < 3; j++) {
         print_withtime("base test begin");
@@ -378,7 +378,7 @@ void performance_base_test() {
 #include "../cgo/coroutine/coroutine_adapter.h"
 void performance_base_test2() {
     /*  use mincoro
-     *  100wæ¬¡å¹³å‡1100æ¯«ç§’
+     *  100w´ÎÆ½¾ù1100ºÁÃë
      * */
     for (int j = 0; j < 3; j++) {
         print_withtime("base test2 begin");
@@ -407,18 +407,18 @@ void performance_copool_base_test() {
 
 void performance_test2() {
     /*
-     * åŸºå‡†æµ‹è¯•ç»“æœï¼š
+     * »ù×¼²âÊÔ½á¹û£º
      *  800ms
-     * åç¨‹æ± åŸºå‡†æµ‹è¯•ç»“æœï¼š
+     * Ğ­³Ì³Ø»ù×¼²âÊÔ½á¹û£º
      *  700ms
-     * golangæµ‹è¯•ç»“æœ:
+     * golang²âÊÔ½á¹û:
      *  200ms
-     * æµ‹è¯•ç»“æœï¼š
-     *  ä¼˜åŒ–å‰ï¼š
-     *      è‡ªç”±çº¿ç¨‹ï¼šéœ€è¦30~35ç§’
-     *      å•çº¿ç¨‹ï¼š2ç§’
-     *  ä¼˜åŒ–åï¼š
-     *      è‡ªç”±çº¿ç¨‹: 400~500ms
+     * ²âÊÔ½á¹û£º
+     *  ÓÅ»¯Ç°£º
+     *      ×ÔÓÉÏß³Ì£ºĞèÒª30~35Ãë
+     *      µ¥Ïß³Ì£º2Ãë
+     *  ÓÅ»¯ºó£º
+     *      ×ÔÓÉÏß³Ì: 400~500ms
      * */
 
     //cgoprocs(1);
@@ -441,7 +441,7 @@ void performance_test2() {
 
         while (count != total_count) {
             //print_withtime("............");
-            std::this_thread::sleep_for(std::chrono::microseconds(10));
+            //std::this_thread::sleep_for(std::chrono::microseconds(10));
         }
 
         auto end = std::chrono::steady_clock::now();
@@ -484,63 +484,56 @@ void performance_test3() {
     };
 }
 
-std::atomic_uint32_t read_n, write_n;
+#include "cgo/common/spinlock.h"
 void atomic_test() {
-    read_n = 0;
-    write_n = 0;
+    int total = 1000000;
+    int count = 0;
+    int thrs = 20;
+    auto beg = std::chrono::steady_clock::now();
+    std::atomic_flag flag;
+    flag.clear();
+    std::mutex mu;
+    folly::MicroSpinLock spinlock;
+    spinlock.init();
 
-    for (int i = 0; i < 10; i++) {
-        std::thread([]() {
+    for (int i = 0; i < thrs; i++) {
+        std::thread([&] {
             while (true) {
-                auto oldv = write_n.load();
-                auto cmp = read_n.load();
-                if (oldv - cmp >= 500) {
-                    continue;
+//                unsigned int backoff = 1;
+//                while (flag.test_and_set(std::memory_order_relaxed)) {
+//                    for (unsigned int i = 0; i < backoff; ++i) {
+//                        asm volatile("pause\n" : : : "memory");
+//                        //folly::asm_volatile_pause();
+//                    }
+//                    // Ö¸ÊıÍË±ÜËã·¨
+//                    backoff = std::min(backoff * 2, 128u);
+//                }
+
+                //mu.lock();
+                spinlock.lock();
+                if (count != total) {
+                    count++;
                 }
-
-                uint32_t expected = oldv;
-                uint32_t desired = oldv + 1;
-                write_n.compare_exchange_strong(expected, desired);
-                std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+                spinlock.unlock();
+                //mu.unlock();
+                //flag.clear(std::memory_order_relaxed);
+                if (count >= total) {
+                    break;
+                }
             }
-
         }).detach();
     }
 
-    for (int i = 0; i < 2; i++) {
-        std::thread([i]() {
-            uint32_t expected = 0;
-            uint32_t desired = 0;
-            while (true) {
-                uint32_t oldv = read_n;//.load();
-                uint32_t cmp = write_n;//.load();
-                assert(oldv <= cmp && i >= 0);
-                if (oldv == cmp) {
-                    continue;
-                }
-
-                expected = oldv;
-                desired = oldv + 1;
-                if (read_n.compare_exchange_strong(expected, desired)) {
-                    std::string tmp = "read=" + std::to_string(read_n.load());
-                    tmp += " expected=" + std::to_string(expected);
-                    tmp += " desired=" + std::to_string(desired);
-                    tmp += " thread=" + std::to_string(i);
-                    print_withtime(tmp);
-                }
-            }
-
-        }).detach();
-    }
-
-    while (true) {
-        std::this_thread::sleep_for(std::chrono::seconds(1));
-    }
+    while (count < total) {msleep(1);}
+    auto end = std::chrono::steady_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - beg);
+    print_withtime(std::string("end: ") + std::to_string(elapsed.count()));
+    print_withtime(std::to_string(count));
 }
 
 #include "../cgo/common/concurrentqueue.h"
 void concurrentqueue_test() {
-    // éœ€è¦200å¤šæ¯«ç§’
+    // ĞèÒª200¶àºÁÃë
     moodycamel::ConcurrentQueue<int> q;
     std::vector<std::thread> thrs;
     std::atomic_int produce_count = 0;
@@ -705,46 +698,35 @@ void mutex_slist_test() {
 void time_pool_test() {
     print_withtime("begin");
 
-    async_time_pool p;
+    //async_time_pool* p = new async_time_pool;
+    time_pool* p = new time_pool;
+
     std::atomic_int count = 0;
+    int total = 1000000;
+    auto beg = std::chrono::steady_clock::now();
 
-    std::thread thr0([&p, &count]() {
-        for (int i = 0; i < 1000000; i++) {
-            p.async_add_timer(10, [&count]() {
-                count++;
-            });
+    for (int i = 0; i < total; i++) {
+          p->add_timer(1, [&count] {
+              count++;
+          });
+    }
+
+    //msleep(10);
+
+    std::thread([p]() {
+        while (true) {
+            p->update();
         }
-    });
+    }).detach();
 
-    std::thread thr([&p, &count]() {
-       for (int i = 0; i < 1000000; i++) {
-           p.async_add_timer(10, [&count]() {
-               count++;
-           });
-       }
-    });
+    while (count < total) {
+        //print_withtime(std::to_string(count));
+    }
 
-    std::thread thr2([&p, &count]() {
-        for (int i = 0; i < 1000000; i++) {
-            p.async_add_timer(10, [&count]() {
-                count++;
-            });
-        }
-    });
-
-    std::thread thr3([&p, &count]() {
-        p.update();
-    });
-
-    print_withtime(std::string("beg count:") + std::to_string(p.timer_count()));
-
-    thr0.join();
-    thr.join();
-    thr2.join();
-    thr3.join();
-
-    print_withtime(std::string("end count:") + std::to_string(count));
-    print_withtime(std::string("end count:") + std::to_string(p.timer_count()));
+    auto end = std::chrono::steady_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - beg);
+    print_withtime(std::string("time_pool_test: ") + std::to_string(elapsed.count()));
+    print_withtime(std::to_string(p->timer_count()));
 }
 
 #include "../cgo/common/work_steal_queue.hpp"
@@ -868,14 +850,14 @@ void hook_accept_test() {
 
     struct sockaddr_in server_addr;
     server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(50052);  // ç»‘å®šçš„ç«¯å£å·
-    server_addr.sin_addr.s_addr = INADDR_ANY;  // ç›‘å¬æ‰€æœ‰å¯ç”¨çš„ç½‘ç»œæ¥å£
+    server_addr.sin_port = htons(50052);  // °ó¶¨µÄ¶Ë¿ÚºÅ
+    server_addr.sin_addr.s_addr = INADDR_ANY;  // ¼àÌıËùÓĞ¿ÉÓÃµÄÍøÂç½Ó¿Ú
     if (bind(fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) == -1) {
         print_withtime("bind error");
         return;
     }
 
-    if (listen(fd, 10) == -1) {  // å…è®¸æœ€å¤š 10 ä¸ªè¿æ¥è¯·æ±‚ç­‰å¾…å¤„ç†
+    if (listen(fd, 10) == -1) {  // ÔÊĞí×î¶à 10 ¸öÁ¬½ÓÇëÇóµÈ´ı´¦Àí
         print_withtime("listen error");
         return;
     }
@@ -930,7 +912,7 @@ void hook_udp_connect() {
 
     for (int i = 0; i < 3; i++) {
         go[i]() {
-            // åˆ›å»ºå¥—æ¥å­—
+            // ´´½¨Ì×½Ó×Ö
             int fd = socket(AF_INET, SOCK_DGRAM, 0);
             if (fd == -1) {
                 print_withtime("create socket error");
@@ -939,16 +921,16 @@ void hook_udp_connect() {
 
             while (true) {
                 struct sockaddr_in serverAddr;
-                // è®¾ç½®æœåŠ¡å™¨åœ°å€
+                // ÉèÖÃ·şÎñÆ÷µØÖ·
                 memset(&serverAddr, 0, sizeof(serverAddr));
                 serverAddr.sin_family = AF_INET;
-                serverAddr.sin_port = htons(8080);  // è®¾ç½®æœåŠ¡å™¨ç«¯å£å·
+                serverAddr.sin_port = htons(8080);  // ÉèÖÃ·şÎñÆ÷¶Ë¿ÚºÅ
                 if (inet_pton(AF_INET, "192.168.204.61", &(serverAddr.sin_addr)) <= 0) {
                     print_withtime("inet_pton error");
                     break;
                 }
 
-                // å‘é€æ•°æ®
+                // ·¢ËÍÊı¾İ
                 std::string message = "Hello, server!";
                 message += std::to_string(i);
                 auto cnt = sendto(fd, message.c_str(), message.length(), 0, (struct sockaddr*)&serverAddr, sizeof(serverAddr));
@@ -976,7 +958,6 @@ void hook_udp_connect() {
 }
 
 #include "cgo/common/mpmcqueue.h"
-#include "cgo/common/rwlock.h"
 
 void mutex_test() {
     cgo::cgo_print_debug_info();
@@ -1008,7 +989,7 @@ void mutex_test() {
 }
 
 void mutex_performance_test() {
-    // æ¶ˆè€—15æ¯«ç§’
+    // ÏûºÄ15ºÁÃë
     std::mutex standard_mu;
 
     //================= standard mutex test =============
@@ -1026,7 +1007,7 @@ void mutex_performance_test() {
     //================= standard mutex test end=============
 
     //================= cgo mutex test =============
-    // æ¶ˆè€—55æ¯«ç§’
+    // ÏûºÄ55ºÁÃë
     cgo::mutex cgo_mu;
     go [&] {
         beg = std::chrono::steady_clock::now();
@@ -1047,10 +1028,11 @@ void mutex_performance_test() {
     //================= standard mutex in multi thread test =============
 }
 
+#include "cgo/common/spinlock.h"
 void mutex_performance_test2() {
 
     //================= standard mutex test =============
-    std::mutex standard_mu; // æ¶ˆè€—55æ¯«ç§’
+    std::mutex standard_mu; // ÏûºÄ55ºÁÃë
     auto beg = std::chrono::steady_clock::now();
     int total_count = 1000000;
     int count = 0;
@@ -1078,10 +1060,10 @@ void mutex_performance_test2() {
     print_withtime(std::string("standard mutex in multi thread: ") + std::to_string(elapsed.count()));
     //================= standard mutex test end=============
 
-    msleep(2000);
+    //msleep(2000);
 
     //================= cgo mutex test =============
-    cgo::mutex cgo_mu; // æ¶ˆè€—950æ¯«ç§’
+    cgo::mutex cgo_mu; // ÏûºÄ950ºÁÃë
     count = 0;
     beg = std::chrono::steady_clock::now();
 
@@ -1107,19 +1089,19 @@ void mutex_performance_test2() {
     //================= cgo mutex test end=============
 
     //================= spinrwlock test =============
-    SpinRwLock spinrw;
+    folly::MicroSpinLock spinrw;
     count = 0;
     beg = std::chrono::steady_clock::now();
 
     for (int i = 0; i < concurrent; i++) {
         std::thread([&] {
             while (true) {
-                spinrw.wlock();
+                spinrw.lock();
                 if (count < total_count) {
                     count++;
-                    spinrw.wunlock();
+                    spinrw.unlock();
                 } else {
-                    spinrw.wunlock();
+                    spinrw.unlock();
                     break;
                 }
             }
@@ -1162,7 +1144,7 @@ void semaphore_test() {
 
 #include "cgo/common/mpmcqueue.h"
 void simplelist_test() {
-    // æ¶ˆè€—40æ¯«ç§’
+    // ÏûºÄ40ºÁÃë
     rigtorp::MPMCQueue<int> que(1000000);
 
     auto beg = std::chrono::steady_clock::now();
@@ -1186,31 +1168,24 @@ void simplelist_test() {
     print_withtime(std::string("simplelist_test end: ") + std::to_string(elapsed.count()));
 }
 
-#include "cgo/common/rwlock.h"
-void rwlock_test() {
-    SpinRwLock rw;
-    std::thread([&rw]{
-        while (true) {
-            rw.rlock();
-            print_withtime("read");
-            //msleep(1000);
-            rw.runlock();
-        }
-    }).detach();
+void wait_performance_test() {
+    auto beg = std::chrono::steady_clock::now();
+    const int total_count = 1000000;
+    std::atomic_int count;
 
-    msleep(10);
+    for (int i = 0; i < total_count; i++) {
+        go [&] {
+            msleep(1);
+            count++;
+        };
+    }
 
-    std::thread([&rw]{
-        while (true) {
-            rw.wlock();
-            print_withtime("write");
-            //msleep(1000);
-            rw.wunlock();
-        }
-    }).detach();
-
-    while(true) msleep(10);
+    while (count < total_count) {}
+    auto end = std::chrono::steady_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - beg);
+    print_withtime(std::string("wait_performance_test end: ") + std::to_string(elapsed.count()));
 }
+
 
 int main()
 {
@@ -1236,9 +1211,11 @@ int main()
         t_mutex_performance_test2,
         t_chan_performance_test,
         t_cqueue_test,
+        t_wait_performance_test,
+        t_mutex_slist_test,
     };
 
-    switch (t_mutex_performance_test) {
+    switch (t_mutex_performance_test2) {
         case t_work_steal_queue_test:
             work_steal_queue_test();
             break;
@@ -1302,12 +1279,18 @@ int main()
         case t_cqueue_test:
             cqueue_test();
             break;
+        case t_wait_performance_test:
+            wait_performance_test();
+            break;
+        case t_mutex_slist_test:
+            mutex_slist_test();
+            break;
         default:
             break;
     }
 
     //slist_test();
-    //mutex_slist_test();
+
     //lock_test();
     //time_test();
     //cond_test();

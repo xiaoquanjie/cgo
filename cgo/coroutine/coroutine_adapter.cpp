@@ -3,6 +3,7 @@
 //
 
 #include "coroutine_adapter.h"
+#include "common/spinlock.h"
 #include <assert.h>
 #include <atomic>
 
@@ -41,45 +42,26 @@ namespace cgo {
 #if defined(USE_MINI_CORO)
             std::function<void()> routine;
 #endif
-            std::function<void()> after;
-            volatile bool hook;
             const char* volatile file;
             volatile unsigned short line;
             void* volatile data;
-            std::atomic_char signal;   // ç¬¬0ä½ä¸º1è¡¨ç¤ºç­‰å¾…çŠ¶æ€ï¼Œ ç¬¬1ä½ä¸º1è¡¨ç¤ºæ¿€æ´»çŠ¶æ€ï¼Œç¬¬2ä½ä¸º1è¡¨ç¤ºåŠ é”çŠ¶æ€
+            volatile bool hook;
+            volatile char state;
+            folly::MicroSpinLock spinlock;
 
             void init() {
-                after = nullptr;
                 hook = false;
                 file = 0;
                 line = 0;
                 data = 0;
-                signal = 0;
+                state = 0;
+                spinlock.init();
             }
             inline void lock() {
-                char c;
-                for (;;) {
-                    c = signal.load(std::memory_order_relaxed);
-                    if (c & (1 << 2))
-                        continue;
-                    if (signal.compare_exchange_weak(c, c | (1 << 2), std::memory_order_relaxed)) {
-                        break;
-                    }
-                }
+                spinlock.lock();
             }
             inline void unlock() {
-                char c = signal.load(std::memory_order_relaxed);
-                if (c) {
-                    signal.store(c & ~(1<<2), std::memory_order_relaxed);
-                }
-            }
-            inline void set_signal(int s, bool cancel) {
-                char c = signal.load(std::memory_order_relaxed);
-                if (cancel) {
-                    signal.store(c & ~s, std::memory_order_relaxed);
-                } else {
-                    signal.store(c | s, std::memory_order_relaxed);
-                }
+                spinlock.unlock();
             }
         };
 
@@ -90,7 +72,7 @@ namespace cgo {
         }
 #endif
 
-        // æ›¾è€ƒè™‘è¿‡è¿™é‡Œæ˜¯å¦è¦ä½¿ç”¨åç¨‹æ± ï¼Œä½†ç»è¿‡æµ‹è¯•å‘ç°åç¨‹æ± ä¹Ÿåªèƒ½æå‡10%å·¦å³çš„æ€§èƒ½(åªæµ‹è¯•äº†linuxä¸‹çš„æ€§èƒ½)ï¼Œå› æ­¤æš‚æ—¶æ²¡æœ‰åŠ¨æœºæ·»åŠ åç¨‹æ± 
+        // Ôø¿¼ÂÇ¹ıÕâÀïÊÇ·ñÒªÊ¹ÓÃĞ­³Ì³Ø£¬µ«¾­¹ı²âÊÔ·¢ÏÖĞ­³Ì³ØÒ²Ö»ÄÜÌáÉı10%×óÓÒµÄĞÔÄÜ(Ö»²âÊÔÁËlinuxÏÂµÄĞÔÄÜ)£¬Òò´ËÔİÊ±Ã»ÓĞ¶¯»úÌí¼ÓĞ­³Ì³Ø
         uint64_t create_co(const std::function<void()>& routine, int stack, const char* file, int line) {
             uint64_t co_id = 0;
             auto info = new co_multiplexing_info;
@@ -123,7 +105,6 @@ namespace cgo {
             switch (status) {
                 case COROUTINE_SUSPEND: {
                     info->unlock();
-                    if (info->after) info->after();
                     break;
                 }
                 case COROUTINE_DEAD: {
@@ -137,18 +118,17 @@ namespace cgo {
             auto co_id = M_CUR_COID();
             auto info = M_GET_MULTI_INFO(co_id);
             info->lock();
-            info->after = nullptr;
-            char sig = info->signal;
-            assert((sig & WaitSignal) == 0);
-            if (sig & ActiveSignal) {
-                // å¦‚æœçŠ¶æ€æ˜¯æ¿€æ´»çš„, å–æ¶ˆçŠ¶æ€
-                info->signal.store(sig & ~ActiveSignal, std::memory_order_relaxed);
+            char sig = info->state;
+            assert((info->state & WaitSignal) == 0);
+            if (info->state & ActiveSignal) {
+                // Èç¹û×´Ì¬ÊÇ¼¤»îµÄ, È¡Ïû×´Ì¬
+                info->state = 0;
                 data = info->data;
                 info->unlock();
             } else {
-                // å¦‚æœçŠ¶æ€æ˜¯æœªæ¿€æ´»
-                info->signal.store(sig | WaitSignal, std::memory_order_relaxed);
-                // æŒ‚èµ·åç¨‹
+                // Èç¹û×´Ì¬ÊÇÎ´¼¤»î
+                info->state = WaitSignal;
+                // ¹ÒÆğĞ­³Ì
                 M_YIELD_CO(co_id);
                 data = info->data;
             }
@@ -157,36 +137,30 @@ namespace cgo {
         void co_post_signal(uint64_t co_id, void* data) {
             auto info = M_GET_MULTI_INFO(co_id);
             info->lock();
-            char sig = info->signal;
-            assert((sig & ActiveSignal) == 0);
-            if (sig & WaitSignal) {
-                // å¦‚æœçŠ¶æ€æ˜¯ç­‰å¾…, å–æ¶ˆçŠ¶æ€
-                info->signal.store(sig & ~WaitSignal, std::memory_order_relaxed);
+            assert((info->state & ActiveSignal) == 0);
+            if (info->state & WaitSignal) {
+                // Èç¹û×´Ì¬ÊÇµÈ´ı, È¡Ïû×´Ì¬
+                info->state = 0;
                 info->unlock();
-                // å”¤é†’åç¨‹
-                resume_co(co_id, data);
+                // »½ĞÑĞ­³Ì
+                coro_adapter::resume_co(co_id, data);
             } else {
                 info->data = data;
-                info->signal.store(sig | ActiveSignal, std::memory_order_relaxed);
+                info->state = ActiveSignal;
                 info->unlock();
             }
         }
 
-        void yield_co(void*& data, const std::function<void()>& after) {
+        void yield_co(void*& data) {
             auto co_id = M_CUR_COID();
             auto info = M_GET_MULTI_INFO(co_id);
-            info->after = after;
             M_YIELD_CO(co_id);
             data = info->data;
         }
 
-        void yield_co(void*& data) {
-            yield_co(data, nullptr);
-        }
-
         void yield_co() {
             void* data = 0;
-            yield_co(data, nullptr);
+            yield_co(data);
         }
 
         void run_co(const std::function<void()>& routine, int stack, const char* file, int line) {

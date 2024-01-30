@@ -7,8 +7,8 @@
 #include <atomic>
 
 namespace cgo {
-    // 涓嶆敮鎸佸彲閲嶅叆
-    // 涓嶅彲浠ヨ缃紭鍏堢骇锛屽熀鏈笂鏄寜椤哄簭鎶㈠崰
+    // 不支持可重入
+    // 不可以设置优先级，基本上是按顺序抢占
     class co_mutex {
     protected:
         std::atomic_flag _lock;

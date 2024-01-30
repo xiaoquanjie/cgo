@@ -4,11 +4,13 @@
 
 #include "semaphore.h"
 #include <malloc.h>
+#include <assert.h>
 
 #ifdef __GNUC__
 #include <semaphore.h>
 #else
-#include <winbase.h>
+#include <Windows.h>
+#pragma comment(lib, "Kernel32.lib")
 #endif
 
 Semaphore::Semaphore() {
@@ -17,7 +19,8 @@ Semaphore::Semaphore() {
     sem_init(sem, 0, 0);
     this->_sem = sem;
 #else
-    this->_sem = (void*)CreateSemaphore(NULL, 1, 0, NULL);
+    this->_sem = (void*)CreateSemaphore(NULL, 0, 1, NULL);
+    assert(this->_sem);
 #endif
 }
 

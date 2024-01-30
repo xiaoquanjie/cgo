@@ -13,9 +13,6 @@
 #include "scheduler/cosignal.h"
 #include <mutex>
 
-#define M_GET_SELF(id) id = scheduler::cur_coid();
-#define M_IN_CO(tid) (tid != (uint64_t)-1)
-
 namespace cgo {
     namespace channel {
         struct recv_task {
@@ -72,54 +69,54 @@ namespace cgo {
                     return false;
                 }
 
-                // çœ‹å‘é€é˜Ÿåˆ—ä¸­æœ‰æ²¡æœ‰æ•°æ®
+                // ¿´·¢ËÍ¶ÓÁĞÖĞÓĞÃ»ÓĞÊı¾İ
                 void* buf = 0;
                 for (send_task task; _sendq.pop(task); ) {
-                    // ä»ç¼“å­˜ä¸­è¯»å‡ºæ•°æ®
+                    // ´Ó»º´æÖĞ¶Á³öÊı¾İ
                     if (_bufq.pop(buf)) {
-                        // å°†å‘é€è€…æ•°æ®å…¥ç¼“å­˜
+                        // ½«·¢ËÍÕßÊı¾İÈë»º´æ
                         _bufq.push(_malloc(task.data));
                         _mu.unlock();
-                        // æ‹·è´ç¼“å­˜é‡Œçš„æ•°æ®
+                        // ¿½±´»º´æÀïµÄÊı¾İ
                         _copyfree(v, buf);
                     } else {
                         _mu.unlock();
-                        // ç›´æ¥æ‹·è´å‘é€è€…
+                        // Ö±½Ó¿½±´·¢ËÍÕß
                         _copy(v, task.data);
                     }
 
-                    // å”¤é†’ç­‰å¾…é˜Ÿåˆ—çš„åç¨‹
+                    // »½ĞÑµÈ´ı¶ÓÁĞµÄĞ­³Ì
                     task.sig.post();
                     return true;
                 }
 
-                // çœ‹ç¼“å­˜ä¸­æœ‰æ²¡æœ‰æ•°æ®
+                // ¿´»º´æÖĞÓĞÃ»ÓĞÊı¾İ
                 if (_bufq.pop(buf)) {
-                    // æœ‰æ•°æ®
+                    // ÓĞÊı¾İ
                     _mu.unlock();
                     // copy data
                     _copyfree(v, buf);
                     return true;
                 }
 
-                // éƒ½æ²¡æœ‰æ•°æ®ï¼Œå°†è‡ªå·²å…¥é˜Ÿåˆ—
+                // ¶¼Ã»ÓĞÊı¾İ£¬½«×ÔÒÑÈë¶ÓÁĞ
                 recv_task self;
                 self.sig.init();
                 _recvq.push(self);
                 _mu.unlock();
 
-                // åˆ™å°†è‡ªå·±æŒ‚èµ·æ¥
+                // Ôò½«×Ô¼º¹ÒÆğÀ´
                 self.sig.wait(buf);
-                // å…³é—­ä¿¡å·
+                // ¹Ø±ÕĞÅºÅ
                 self.sig.close();
 
-                // æ¢å¤å
+                // »Ö¸´ºó
                 if (_closed) {
                     assert(buf == 0);
                     return false;
                 }
 
-                // æ‹·è´æ•°æ®
+                // ¿½±´Êı¾İ
                 assert(buf != 0);
                 _copyfree(v, buf);
                 return true;
@@ -132,35 +129,35 @@ namespace cgo {
                     return false;
                 }
 
-                // çœ‹æ¥æ”¶é˜Ÿåˆ—æœ‰æ²¡æœ‰æ•°æ®
-                // å­˜åœ¨æ¥å—é˜Ÿåˆ—ï¼Œåˆ™è¯´æ˜ç¼“å­˜æ˜¯ç©ºçš„
+                // ¿´½ÓÊÕ¶ÓÁĞÓĞÃ»ÓĞÊı¾İ
+                // ´æÔÚ½ÓÊÜ¶ÓÁĞ£¬ÔòËµÃ÷»º´æÊÇ¿ÕµÄ
                 for (recv_task task; _recvq.pop(task);) {
-                    // æœ‰æ•°æ®
+                    // ÓĞÊı¾İ
                     _mu.unlock();
-                    // æ„é€ ä¸€æ¡æ–°æ•°æ®
+                    // ¹¹ÔìÒ»ÌõĞÂÊı¾İ
                     auto newv = _malloc(v);
-                    // å”¤é†’ç­‰å¾…åç¨‹
+                    // »½ĞÑµÈ´ıĞ­³Ì
                     task.sig.post(newv);
                     return true;
                 }
 
-                // çœ‹ç¼“å­˜æ˜¯å¦æ»¡äº†
+                // ¿´»º´æÊÇ·ñÂúÁË
                 if (!_bufq.full()) {
-                    // æ„é€ ä¸€æ¡æ–°æ•°æ®
+                    // ¹¹ÔìÒ»ÌõĞÂÊı¾İ
                     auto newv = _malloc(v);
                     _bufq.push(newv);
                     _mu.unlock();
                     return true;
                 }
 
-                // å°†å…¥è‡ªå·²å…¥é˜Ÿåˆ—
+                // ½«Èë×ÔÒÑÈë¶ÓÁĞ
                 send_task self;
                 self.sig.init();
                 self.data = v;
                 _sendq.push(self);
                 _mu.unlock();
 
-                // å°†è‡ªå·±æŒ‚èµ·æ¥
+                // ½«×Ô¼º¹ÒÆğÀ´
                 self.sig.wait();
                 self.sig.close();
 

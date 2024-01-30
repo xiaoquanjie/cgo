@@ -6,24 +6,24 @@
 // github: https://github.com/xiaoquanjie/cgo
 // Created by xiaoqj on 2023/11/09
 
-è°ƒåº¦ç­–ç•¥ï¼š
-å‘é˜Ÿåˆ—æŠ•é€’åç¨‹ä»»åŠ¡
-        å¦‚æœæ˜¯åœ¨ä¸»åç¨‹ä¸­ï¼Œåˆ™æ”¾å…¥å…¨å±€å¯¹åˆ—
-        å¦‚æœæ˜¯åœ¨å­åç¨‹ä¸­
-                å¦‚æœæœ¬åœ°é˜Ÿåˆ—æœªæ»¡ï¼Œåˆ™æ”¾å…¥æœ¬åœ°é˜Ÿåˆ—
-                å¦åˆ™æ”¾å…¥å…¨å±€å¯¹åˆ—
+µ÷¶È²ßÂÔ£º
+Ïò¶ÓÁĞÍ¶µİĞ­³ÌÈÎÎñ
+        Èç¹ûÊÇÔÚÖ÷Ğ­³ÌÖĞ£¬Ôò·ÅÈëÈ«¾Ö¶ÔÁĞ
+        Èç¹ûÊÇÔÚ×ÓĞ­³ÌÖĞ
+                Èç¹û±¾µØ¶ÓÁĞÎ´Âú£¬Ôò·ÅÈë±¾µØ¶ÓÁĞ
+                ·ñÔò·ÅÈëÈ«¾Ö¶ÔÁĞ
 
-è·å–é˜Ÿåˆ—åç¨‹ä»»åŠ¡
-        å¦‚æœæœ¬åœ°é˜Ÿåˆ—æœ‰ä»»åŠ¡ï¼Œåˆ™è·å–ä»»åŠ¡è¿è¡Œ
-        å¦‚æœæœ¬åœ°é˜Ÿåˆ—ä¸ºç©º
-                å¦‚æœå…¨å±€é˜Ÿåˆ—ä¸­æœ‰ä»»åŠ¡ï¼Œåˆ™å·å–åç¨‹ä»»åŠ¡
-                å¦‚æœå…¶ä»–å¯¹åˆ—æœ‰ä½œåŠ¡ï¼Œåˆ™å·å–åç¨‹ä»»åŠ¡
+»ñÈ¡¶ÓÁĞĞ­³ÌÈÎÎñ
+        Èç¹û±¾µØ¶ÓÁĞÓĞÈÎÎñ£¬Ôò»ñÈ¡ÈÎÎñÔËĞĞ
+        Èç¹û±¾µØ¶ÓÁĞÎª¿Õ
+                Èç¹ûÈ«¾Ö¶ÓÁĞÖĞÓĞÈÎÎñ£¬ÔòÍµÈ¡Ğ­³ÌÈÎÎñ
+                Èç¹ûÆäËû¶ÔÁĞÓĞ×÷Îñ£¬ÔòÍµÈ¡Ğ­³ÌÈÎÎñ
 
-è§¦å‘æ–°çš„è°ƒåº¦çº¿ç¨‹
-        å¦‚æœå…¨å±€å¯¹åˆ—ä¸­æœ‰å †ç§¯ï¼Œåˆ™å¯åŠ¨æ–°çº¿ç¨‹è¿›è¡Œè°ƒåº¦
-        å¦‚æœæœ¬åœ°å¯¹åˆ—ä¸­æœ‰å †ç§¯ï¼Œåˆ™å¯åŠ¨æ–°çº¿ç¨‹è¿›è¡Œè°ƒåº¦
+´¥·¢ĞÂµÄµ÷¶ÈÏß³Ì
+        Èç¹ûÈ«¾Ö¶ÔÁĞÖĞÓĞ¶Ñ»ı£¬ÔòÆô¶¯ĞÂÏß³Ì½øĞĞµ÷¶È
+        Èç¹û±¾µØ¶ÔÁĞÖĞÓĞ¶Ñ»ı£¬ÔòÆô¶¯ĞÂÏß³Ì½øĞĞµ÷¶È
 
-ä»å…¶ä»–é˜Ÿåˆ—ä¸­å·çš„æ—¶å€™ï¼Œåº”è¯¥å·å¤šå°‘ï¼Ÿ
+´ÓÆäËû¶ÓÁĞÖĞÍµµÄÊ±ºò£¬Ó¦¸ÃÍµ¶àÉÙ£¿
 
 //----------------------------------------------------------------*/
 
@@ -34,15 +34,14 @@
 
 namespace cgo {
     namespace scheduler {
-        using task_type = std::function<void()>;
+        using routine_fn = std::function<void()>;
         struct _scheduler_st_;
         struct _schedule_thread_st_;
 
         _scheduler_st_& scheduler_inst();
         uint64_t cur_coid();
-        void schedule_task(const task_type& routine, int stack, const char* file, int line);
+        void schedule_task(const routine_fn& routine, int stack, const char* file, int line);
         void schedule_wait(int wait_mil);
-        void schedule_yield(void*& data, const task_type& after);
         void schedule_yield(void*& data);
         void schedule_yield();
         void schedule_wait_signal(void*& data);
@@ -50,7 +49,7 @@ namespace cgo {
         void schedule_co(uint64_t co_id, void*);
         void set_cgo_procs(int cnt);
         void set_cgo_core(int cnt);
-        void cgo_add_loop(const task_type& f);
+        void cgo_add_loop(const routine_fn& f);
         void cgo_stop();
         void co_hook(bool enable);
         bool co_hook();

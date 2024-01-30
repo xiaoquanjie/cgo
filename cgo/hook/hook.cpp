@@ -469,12 +469,12 @@ int poll(struct pollfd *fdarray, unsigned long nfds, int timeout) {
 
     hook_debug(__FUNCTION__);
 
-    // åˆ‡å‰²è½®è¯¢æ¬¡æ•°ï¼Œç²¾åº¦æ˜¯10æ¯«ç§’ï¼Œç›®å‰çš„å®ç°æ–¹æ¡ˆæ€§èƒ½ä¸å¤ªå¥½ï¼Œåªè§£å†³äº†ä½¿ç”¨çš„é—®é¢˜
+    // ÇĞ¸îÂÖÑ¯´ÎÊı£¬¾«¶ÈÊÇ10ºÁÃë£¬Ä¿Ç°µÄÊµÏÖ·½°¸ĞÔÄÜ²»Ì«ºÃ£¬Ö»½â¾öÁËÊ¹ÓÃµÄÎÊÌâ
     int loops = 0;
     if (timeout < 0) {
         loops = -1;
     } else if (timeout == 0) {
-        // timeoutä¸º0ï¼Œåœ¨å¤–éƒ¨å¾€å¾€éƒ½æ˜¯ä¸€ä¸ªwhileå¾ªç¯ï¼Œæ‰€ä»¥ä¸ºäº†é¿å…çº¿ç¨‹é˜»å¡ï¼Œéœ€è¦å¼ºåˆ¶gosleep
+        // timeoutÎª0£¬ÔÚÍâ²¿ÍùÍù¶¼ÊÇÒ»¸öwhileÑ­»·£¬ËùÒÔÎªÁË±ÜÃâÏß³Ì×èÈû£¬ĞèÒªÇ¿ÖÆgosleep
         loops = 1;
     } else if (timeout < 10) {
         loops = 1;
@@ -483,7 +483,7 @@ int poll(struct pollfd *fdarray, unsigned long nfds, int timeout) {
     }
 
     for (int i = 0; i < loops || loops == -1; i++) {
-        // å†…å¾ªç¯1æ¯«ç§’
+        // ÄÚÑ­»·1ºÁÃë
         for (int j = 0; j < 10; j++) {
             int r = poll_hook(fdarray, nfds, 0);
             if (r != 0) {
@@ -509,7 +509,7 @@ int select(int maxfd, fd_set *readfds, fd_set *writefds, fd_set *exceptfds, stru
 
     hook_debug(__FUNCTION__);
 
-    // åˆ‡å‰²è½®è¯¢æ¬¡æ•°ï¼Œç²¾åº¦æ˜¯10æ¯«ç§’ï¼Œç›®å‰çš„å®ç°æ–¹æ¡ˆæ€§èƒ½ä¸å¤ªå¥½ï¼Œåªè§£å†³äº†ä½¿ç”¨çš„é—®é¢˜
+    // ÇĞ¸îÂÖÑ¯´ÎÊı£¬¾«¶ÈÊÇ10ºÁÃë£¬Ä¿Ç°µÄÊµÏÖ·½°¸ĞÔÄÜ²»Ì«ºÃ£¬Ö»½â¾öÁËÊ¹ÓÃµÄÎÊÌâ
     int loops = 0;
     if (!timeout) {
         loops = -1;
@@ -554,7 +554,7 @@ int select(int maxfd, fd_set *readfds, fd_set *writefds, fd_set *exceptfds, stru
     };
 
     for (int i = 0; i < loops || loops == -1; i++) {
-        // å†…å¾ªç¯1æ¯«ç§’
+        // ÄÚÑ­»·1ºÁÃë
         for (int j = 0; j < 10; j++) {
             int r = op_select();
             if (r != 0) {
@@ -715,37 +715,38 @@ SOCKET PASCAL FAR hook_accept (
         state->co_id = cgo::scheduler::cur_coid();
         state->flag |= fd_state::accept;
 
-        void* data;
-        cgo::scheduler::schedule_yield(data, [state, ov]() {
-            int addr = sizeof(sockaddr_in) + 16;
-            int ret = AcceptEx(ov->l_fd,
-                ov->c_fd,
-                ov->addr_buf,
-                0,
-                sizeof(sockaddr_in) + 16,
-                sizeof(sockaddr_in) + 16,
-                &ov->bytes, (LPOVERLAPPED)ov);
+        int addr = sizeof(sockaddr_in) + 16;
+        int ret = AcceptEx(ov->l_fd,
+            ov->c_fd,
+            ov->addr_buf,
+            0,
+            sizeof(sockaddr_in) + 16,
+            sizeof(sockaddr_in) + 16,
+            &ov->bytes, (LPOVERLAPPED)ov);
 
+        int err = ERROR_SUCCESS;
+
+        do {
             if (ret == FALSE) {
-                auto err = WSAGetLastError();
-                if (err == ERROR_IO_PENDING) {}
-                else {
-                    ov->err = err;
-                    cgo::scheduler::schedule_co(state->co_id, 0);
+                err = WSAGetLastError();
+                if (err != ERROR_IO_PENDING) {
+                    break;
                 }
             }
-        });
+
+            void* data;
+            cgo::scheduler::schedule_wait_signal(data);
+            err = ov->err;
+        } while (false);
 
         state->flag ^= fd_state::accept;
-        int err = ov->err;
         delete ov;
 
         if (err == ERROR_SUCCESS) {
             return c_fd;
-        } 
+        }
 
         closesocket(c_fd);
-
         if (err != WSAECONNRESET) {
             WSASetLastError(err);
             break;
@@ -789,18 +790,20 @@ int PASCAL FAR hook_connect (
         state->co_id = cgo::scheduler::cur_coid();
         state->flag |= fd_state::connect;
 
-        void* data = 0;
-        cgo::scheduler::schedule_yield(data, [ov, state, s, lpfnConn]() {
-            auto ret = lpfnConn(s, ov->name, ov->namelen, NULL, 0, NULL, (LPOVERLAPPED)ov);
+        auto ret = lpfnConn(s, ov->name, ov->namelen, NULL, 0, NULL, (LPOVERLAPPED)ov);
+        int err = ERROR_SUCCESS;
+
+        do {
             if (ret == FALSE) {
-                auto err = WSAGetLastError();
-                if (err == ERROR_IO_PENDING) {}
-                else {
-                    ov->err = err;
-                    cgo::scheduler::schedule_co(state->co_id, 0);
+                err = WSAGetLastError();
+                if (err != ERROR_IO_PENDING) {
+                    break;
                 }
             }
-        });
+
+            void* data;
+            cgo::scheduler::schedule_wait_signal(data);
+        } while (false);
 
         delete ov;
         state->flag ^= fd_state::connect;
@@ -859,21 +862,23 @@ int PASCAL FAR hook_sendto (
         state->co_id = cgo::scheduler::cur_coid();
         state->flag |= fd_state::write;
 
-        void* data = 0;
-        cgo::scheduler::schedule_yield(data, [ov, state, s, flags]() {
-            int ret = WSASendTo(s, ov->buf, 1, &ov->bytes, flags, ov->name, ov->namelen, (LPOVERLAPPED)ov, NULL);
+        int ret = WSASendTo(s, ov->buf, 1, &ov->bytes, flags, ov->name, ov->namelen, (LPOVERLAPPED)ov, NULL);
+        int err = ERROR_SUCCESS;
+
+        do {
             if (ret != ERROR_SUCCESS) {
-                auto err = WSAGetLastError();
-                if (err == ERROR_IO_PENDING) {}
-                else {
-                    ov->err = err;
-                    cgo::scheduler::schedule_co(state->co_id, 0);
+                err = WSAGetLastError();
+                if (err != ERROR_IO_PENDING) {
+                    break;
                 }
             }
-        });
+
+            void* data;
+            cgo::scheduler::schedule_wait_signal(data);
+            err = ov->err;
+        } while (false);
 
         state->flag ^= fd_state::write;
-        int err = ov->err;
         DWORD bytes = ov->bytes;
         delete ov;
 
@@ -918,22 +923,24 @@ int PASCAL FAR hook_recvfrom (
         state->co_id = cgo::scheduler::cur_coid();
         state->flag |= fd_state::read;
 
-        void* data = 0;
-        cgo::scheduler::schedule_yield(data, [ov, state, s]() {
-            DWORD flag = 0;
-            int ret = WSARecvFrom(s, ov->buf, 1, &ov->bytes, &flag, ov->name, ov->namelen, (LPOVERLAPPED)ov, NULL);
+        DWORD flag = 0;
+        int ret = WSARecvFrom(s, ov->buf, 1, &ov->bytes, &flag, ov->name, ov->namelen, (LPOVERLAPPED)ov, NULL);
+        int err = ERROR_SUCCESS;
+
+        do {
             if (ret != ERROR_SUCCESS) {
-                auto err = WSAGetLastError();
-                if (err == ERROR_IO_PENDING) {}
-                else {
-                    ov->err = err;
-                    cgo::scheduler::schedule_co(state->co_id, 0);
+                err = WSAGetLastError();
+                if (err != ERROR_IO_PENDING) {
+                    break;
                 }
             }
-        });
+
+            void* data;
+            cgo::scheduler::schedule_wait_signal(data);
+            err = ov->err;
+        } while (false);
 
         state->flag ^= fd_state::read;
-        int err = ov->err;
         DWORD bytes = ov->bytes;
         delete ov;
 
@@ -973,21 +980,23 @@ int PASCAL FAR hook_send (
         state->co_id = cgo::scheduler::cur_coid();
         state->flag |= fd_state::write;
 
-        void* data = 0;
-        cgo::scheduler::schedule_yield(data, [ov, state, s]() {
-            int ret = WSASend(s, ov->buf, 1, &ov->bytes, 0, (LPOVERLAPPED)ov, NULL);
+        int ret = WSASend(s, ov->buf, 1, &ov->bytes, 0, (LPOVERLAPPED)ov, NULL);
+        int err = ERROR_SUCCESS;
+
+        do {
             if (ret != ERROR_SUCCESS) {
-                auto err = WSAGetLastError();
-                if (err == ERROR_IO_PENDING) {}
-                else {
-                    ov->err = err;
-                    cgo::scheduler::schedule_co(state->co_id, 0);
+                err = WSAGetLastError();
+                if (err != ERROR_IO_PENDING) {
+                    break;
                 }
             }
-        });
+
+            void* data;
+            cgo::scheduler::schedule_wait_signal(data);
+            ov->err = err;
+        } while (false);
 
         state->flag ^= fd_state::write;
-        int err = ov->err;
         DWORD bytes = ov->bytes;
         delete ov;
 
@@ -1027,22 +1036,24 @@ int PASCAL FAR hook_recv (
         state->co_id = cgo::scheduler::cur_coid();
         state->flag |= fd_state::read;
 
-        void* data = 0;
-        cgo::scheduler::schedule_yield(data, [ov, state, s]() {
-            DWORD flag = 0;
-            int ret = WSARecv(s, ov->buf, 1, &ov->bytes, &flag, (LPOVERLAPPED)ov, NULL);
+        DWORD flag = 0;
+        int ret = WSARecv(s, ov->buf, 1, &ov->bytes, &flag, (LPOVERLAPPED)ov, NULL);
+        int err = ERROR_SUCCESS;
+
+        do {
             if (ret != ERROR_SUCCESS) {
-                auto err = WSAGetLastError();
-                if (err == ERROR_IO_PENDING) {}
-                else {
-                    ov->err = err;
-                    cgo::scheduler::schedule_co(state->co_id, 0);
+                err = WSAGetLastError();
+                if (err != ERROR_IO_PENDING) {
+                    break;
                 }
             }
-        });
+
+            void* data;
+            cgo::scheduler::schedule_wait_signal(data);
+            ov->err = err;
+        } while (false);
 
         state->flag ^= fd_state::read;
-        int err = ov->err;
         DWORD bytes = ov->bytes;
         delete ov;
 
@@ -1166,7 +1177,7 @@ bool win_hook_init() {
                 overlapped->bytes = completionPortEntries[idx].dwNumberOfBytesTransferred; // dwTrans is 0 when socket is closed or error but accept
                 overlapped->err = ERROR_SUCCESS;
             }
-            cgo::scheduler::schedule_co(state->co_id, 0);
+            cgo::scheduler::schedule_post_signal(state->co_id, 0);
         }
     };
 

@@ -13,80 +13,94 @@
 #include "concurrentqueue.h"
 #include <functional>
 #include <chrono>
-#include <mutex>
-#include <atomic>
+#include <list>
 
-// thread-unsafety
-class time_pool {
-protected:
-    struct timer_node {
-        uint64_t _timer_id = 0;
-        uint64_t _expire = 0;
-        std::function<void()> _cb;
+template<typename Payload>
+struct TimePoolInfo {
+    struct tnode {
+        uint64_t id = 0;
+        uint64_t expire = 0;
+        Payload payload;
     };
 
     using time_point = std::chrono::time_point<std::chrono::steady_clock>;
-    using node_list = slist<timer_node>;
+    using node_list = std::list<tnode*>;
 
-    uint32_t _big_bucket = 3600; // seconds
-    uint32_t _small_bucket = 100; // 10ms
+    node_list** _bucket = 0;
+    time_point _begtime;
 
-    void** _bucket = 0;
-    uint32_t _big_iter = 0;
-    uint32_t _small_iter = 0;
-    uint64_t _alloc_timer_id = 1;
-    time_point _beg_time;
+    // seconds
+    uint32_t _bigbucket = 1800;
+    // 10ms
+    uint32_t _smallbucket = 100;
 
-    uint32_t _timer_count = 0;
+    // iterator record
+    uint32_t _bigiter = 0;
+    uint32_t _smalliter = 0;
+
+    uint64_t _allocid = 1;
+    uint32_t _count = 0;
+
+    void(*_notify_node)(tnode*) = 0;
+};
+
+// thread-unsafety
+class time_pool {
+    typedef std::function<void()> Payload;
+    TimePoolInfo<Payload> _info;
+
+    static void notify_node(TimePoolInfo<Payload>::tnode*);
 public:
     // one hour
-    time_pool(uint32_t max_interval = 3600);
+    time_pool(uint32_t max_interval = 1800);
 
-    virtual ~time_pool();
+    ~time_pool();
 
-    virtual bool update();
+    bool update();
 
     uint32_t timer_count() const;
 
     // @interval: max interval is one hour
-    uint64_t add_timer(uint32_t interval, std::function<void()> func);
-
-    bool cancel_timer(uint64_t timer_id);
-
-protected:
-    timer_node alloc_timer_node(uint32_t interval, std::function<void()> func);
-
-    void alloc_big_bucket();
-
-    uint64_t timer_add(const timer_node& node);
-
-    bool timer_cancel(uint64_t timer_id);
-
-    void** alloc_small_bucket();
-
-    bool calc_bucket(time_point tp, uint32_t interval, uint32_t& big_bucket, uint32_t& small_bucket);
-
-    uint64_t alloc_timer_id(uint32_t big_bucket, uint32_t small_bucket);
-
-    void decode_timer_id(uint64_t timer_id, uint32_t& big_bucket, uint32_t& small_bucket);
-
-    uint32_t calc_iter(uint32_t big_bucket, int32_t small_bucket);
-
-    uint32_t calc_iter(const timer_node& node);
+    uint64_t add_timer(uint32_t interval, const Payload& func);
 };
 
 // thread-safety
-class async_time_pool : public time_pool {
+class async_time_pool {
+    typedef std::function<void()> Payload;
+    TimePoolInfo<Payload> _info;
+
+    static void notify_node(TimePoolInfo<Payload>::tnode*);
 protected:
-    std::atomic_flag _flag;
-    moodycamel::ConcurrentQueue<timer_node> _wait_list;
+    moodycamel::ConcurrentQueue<typename TimePoolInfo<Payload>::tnode*> _waits;
 
 public:
-    bool update() override;
+    async_time_pool(uint32_t max_interval = 1800);
 
-    uint64_t async_add_timer(uint32_t interval, std::function<void()> func);
+    ~async_time_pool();
 
-    void async_cancel_timer(uint64_t timer_id);
+    bool update();
 
-    bool is_prev_time_node(const timer_node& node);
+    uint32_t timer_count() const;
+
+    uint64_t add_timer(uint32_t interval, const Payload& func);
+};
+
+class integer_async_time_pool {
+public:
+    typedef uint64_t Payload;
+    typedef TimePoolInfo<Payload>::tnode Node;
+protected:
+    TimePoolInfo<Payload> _info;
+    moodycamel::ConcurrentQueue<typename TimePoolInfo<Payload>::tnode*> _waits;
+
+public:
+    integer_async_time_pool(void(*notify)(typename TimePoolInfo<Payload>::tnode*), uint32_t max_interval);
+
+    ~integer_async_time_pool();
+
+    bool update();
+
+    uint32_t timer_count() const;
+
+    uint64_t add_timer(uint32_t interval, const Payload& payload);
 };

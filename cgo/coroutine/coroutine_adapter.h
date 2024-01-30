@@ -19,16 +19,14 @@ namespace cgo {
     namespace coro_adapter {
         uint64_t create_co(const std::function<void()>& routine, int stack = 0, const char* file = 0, int line = 0);
 
-        // å”¤é†’åç¨‹
+        // »½ĞÑĞ­³Ì
         void resume_co(uint64_t co_id, void* data);
 
-        // åç¨‹ç­‰å¾…ä¿¡å·é‡
+        // Ğ­³ÌµÈ´ıĞÅºÅÁ¿
         void co_wait_signal(void*& data);
 
-        // åç¨‹æŠ•é€’ä¿¡å·é‡
+        // Ğ­³ÌÍ¶µİĞÅºÅÁ¿
         void co_post_signal(uint64_t co_id, void* data);
-
-        void yield_co(void*& data, const std::function<void()>& after);
 
         void yield_co(void*& data);
 

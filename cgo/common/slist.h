@@ -89,7 +89,7 @@ public:
     }
 
     // fn: return false and delete the element
-    void iterate(std::function<bool(T&)> fn, bool once = false) {
+    void iterate(const std::function<bool(T&)>& fn, bool once = false) {
         auto prev = _head;
         auto cur = prev->_next;
         while (cur) {

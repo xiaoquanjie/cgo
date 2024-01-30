@@ -23,7 +23,7 @@ namespace cgo {
 
         void post();
 
-        // 需要手动释放，否则会内存泄露
+        // ��Ҫ�ֶ��ͷţ�������ڴ�й¶
         void close();
     };
 
