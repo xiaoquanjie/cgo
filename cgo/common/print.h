@@ -29,6 +29,6 @@ void co_printf(const char* format, Args&&... args) {
     char buffer[80];
     std::strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", timeinfo);
 
-    printf("%s.%lld ", buffer, ms.count());
+    printf("%s.%lld ", buffer, (long long int)ms.count());
     printf(format, std::forward<Args&&>(args)...);
 }
