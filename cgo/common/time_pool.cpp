@@ -84,7 +84,7 @@ inline uint32_t calc_iterator(uint32_t smallbucket, uint32_t cur_big, uint32_t c
 
 template<typename Payload>
 bool update_tpool(TimePoolInfo<Payload> * info, typename TimePoolInfo<Payload>::time_point& now) {
-    auto expire = (std::chrono::duration_cast<std::chrono::milliseconds>(now - info->_begtime)).count();
+    uint64_t expire = (std::chrono::duration_cast<std::chrono::milliseconds>(now - info->_begtime)).count();
 
     uint32_t new_bigiter = 0;
     uint32_t new_smalliter = 0;
@@ -247,7 +247,7 @@ async_time_pool::~async_time_pool() {
 
 bool async_time_pool::update() {
     auto now = std::chrono::steady_clock::now();
-    auto expire = (std::chrono::duration_cast<std::chrono::milliseconds>(now - _info._begtime)).count();
+    uint64_t expire = (std::chrono::duration_cast<std::chrono::milliseconds>(now - _info._begtime)).count();
     TimePoolInfo<Payload>::tnode* node;
     while (this->_waits.try_dequeue(node)) {
         if (node->expire <= expire) {
@@ -288,7 +288,7 @@ integer_async_time_pool::~integer_async_time_pool() {
 
 bool integer_async_time_pool::update() {
     auto now = std::chrono::steady_clock::now();
-    auto expire = (std::chrono::duration_cast<std::chrono::milliseconds>(now - _info._begtime)).count();
+    uint64_t expire = (std::chrono::duration_cast<std::chrono::milliseconds>(now - _info._begtime)).count();
     TimePoolInfo<Payload>::tnode* node;
     for (int i = 0; i < 10000; i++) {
         if (!_waits.try_dequeue(node)) {

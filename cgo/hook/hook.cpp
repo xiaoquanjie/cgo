@@ -60,7 +60,7 @@ inline fd_state* check_fd_state(int fd, int fs) {
 }
 
 inline bool canhook(int fd) {
-    if (cgo::scheduler::cur_coid() == -1) {
+    if (cgo::scheduler::cur_coid() == (uint64_t)-1) {
         return false;
     }
 
@@ -77,7 +77,7 @@ inline bool canhook(int fd) {
 }
 
 inline bool canhook_poll_select() {
-    if (cgo::scheduler::cur_coid() == -1) {
+    if (cgo::scheduler::cur_coid() == (uint64_t)-1) {
         return false;
     }
     return (g_global_hook || cgo::scheduler::co_hook());
@@ -436,7 +436,7 @@ struct hostent* gethostbyname(const char *name) {
 typedef unsigned int(*sleep_hook_t)(unsigned int seconds);
 static sleep_hook_t sleep_hook = (sleep_hook_t)dlsym(RTLD_NEXT,"sleep");
 unsigned int sleep(unsigned int seconds) {
-    if (cgo::scheduler::cur_coid() == -1) {
+    if (cgo::scheduler::cur_coid() == (uint64_t)-1) {
         return sleep_hook(seconds);
     }
 
@@ -448,7 +448,7 @@ unsigned int sleep(unsigned int seconds) {
 typedef int (*usleep_hook_t)(useconds_t usec);
 static usleep_hook_t usleep_hook = (usleep_hook_t)dlsym(RTLD_NEXT, "usleep");
 int usleep(useconds_t microseconds) {
-    if (cgo::scheduler::cur_coid() == -1) {
+    if (cgo::scheduler::cur_coid() == (uint64_t)-1) {
         return usleep_hook(microseconds);
     }
 
@@ -594,7 +594,7 @@ void linux_hook_init() {
         for (int i = 0; i < cnt; i++) {
             if (eventList[i].events & EPOLLIN || eventList[i].events & EPOLLERR) {
                 auto state = get_fd_state(eventList[i].data.fd);
-                for (int idx = 0; idx < sizeof (fd_in_state) / sizeof (int); idx++) {
+                for (size_t idx = 0; idx < sizeof (fd_in_state) / sizeof (int); idx++) {
                     if (state->flag & fd_in_state[idx]) {
                         state->flag ^= fd_in_state[idx];
                         cgo::scheduler::schedule_co(state->co_id);
@@ -606,7 +606,7 @@ void linux_hook_init() {
             if (eventList[i].events & EPOLLOUT || eventList[i].events & EPOLLERR) {
                 int fd = eventList[i].data.fd;
                 auto state = get_fd_state(fd);
-                for (int idx = 0; idx < sizeof (fd_out_state) / sizeof (int); idx++) {
+                for (size_t idx = 0; idx < sizeof (fd_out_state) / sizeof (int); idx++) {
                     if (state->flag & fd_out_state[idx]) {
                         state->flag ^= fd_out_state[idx];
                         if (fd_out_state[idx] == fd_state::connect) {
@@ -1075,7 +1075,7 @@ struct hostent FAR * PASCAL FAR hook_gethostbyname(_In_z_ const char FAR * name)
 typedef void (WINAPI *sleep_hook_t)(_In_ DWORD dwMilliseconds);
 static sleep_hook_t sleep_hook = 0;
 void WINAPI hook_sleep(_In_ DWORD dwMilliseconds) {
-    if (cgo::scheduler::cur_coid() == -1) {
+    if (cgo::scheduler::cur_coid() == (uint64_t)-1) {
         sleep_hook(dwMilliseconds);
     }
     else {

@@ -239,14 +239,12 @@ namespace co_grpc {
         bool Read(Request* req) {
             co_grpc::CoWaiter waiter;
             auto result = std::make_shared<bool>();
-            auto op = [waiter, result, this]() {
-                this->AsyncRead([result, waiter](bool ok, Request&) {
-                    *result = ok;
-                    waiter.Resume();
-                });
-            };
 
-            waiter.wait(op);
+            this->AsyncRead([result, waiter](bool ok, Request&) {
+                *result = ok;
+                waiter.Resume();
+            });
+            waiter.wait();
             req->Swap(&req_);
             return *result;
         }
@@ -344,14 +342,13 @@ namespace co_grpc {
         bool Write(const Response& rsp) {
             co_grpc::CoWaiter waiter;
             auto result = std::make_shared<bool>();
-            auto op = [waiter, result, this, &rsp]() {
-                this->AsyncWrite(rsp, [waiter, result](bool ok) {
-                    *result = ok;
-                    waiter.Resume();
-                });
-            };
 
-            waiter.wait(op);
+            this->AsyncWrite(rsp, [waiter, result](bool ok) {
+                *result = ok;
+                waiter.Resume();
+            });
+
+            waiter.wait();
             return *result;
         }
 

@@ -114,7 +114,6 @@ namespace cgo {
             auto co_id = M_CUR_COID();
             auto info = M_GET_MULTI_INFO(co_id);
             M_LOCK_CO(info);
-            char sig = info->state;
             assert((info->state & WaitSignal) == 0);
             if (info->state & ActiveSignal) {
                 // 如果状态是激活的, 取消状态
@@ -150,7 +149,6 @@ namespace cgo {
 
         void yield_co() {
             auto co_id = M_CUR_COID();
-            auto info = M_GET_MULTI_INFO(co_id);
             M_YIELD_CO(co_id);
         }
 

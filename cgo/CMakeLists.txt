@@ -5,6 +5,8 @@ set(CMAKE_CXX_STANDARD 17)
 
 add_compile_options(-Wno-error=deprecated-declarations)
 add_compile_options(-Wno-deprecated-declarations)
+add_compile_options(-Werror=unused-variable)
+add_compile_options(-Werror=sign-compare)
 
 include_directories(./)
 

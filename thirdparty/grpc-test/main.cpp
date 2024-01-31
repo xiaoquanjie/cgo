@@ -209,20 +209,20 @@ int main() {
 
     //msleep(1000);
 
-    go gostack(1024*1024) []() {
-        //unary_test();
-        //client_stream_test();
+    go []() {
+        unary_test();
+        client_stream_test();
         server_stream_test();
     };
 
-//    for (int i = 0; i < 100; i++) {
-//        go gostack(1024*1024) []() {
-//            //unary_test();
-//            //client_stream_test();
-//            //server_stream_test();
-//            double_stream_test();
-//        };
-//    }
+    for (int i = 0; i < 100; i++) {
+        go []() {
+            //unary_test();
+            //client_stream_test();
+            //server_stream_test();
+            double_stream_test();
+        };
+    }
 
     while (true) {
         msleep(1000);

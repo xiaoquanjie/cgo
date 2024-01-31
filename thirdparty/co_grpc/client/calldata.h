@@ -276,13 +276,12 @@ public:
         co_grpc::CoWaiter waiter;
         auto cb_ok = std::make_shared<bool>();
 
-        // 回调不应比waiter.wait执行的还要快
         this->writer_.AsyncWrite(req, [cb_ok, waiter](bool ok) {
             *cb_ok = ok;
             waiter.Resume();
         });
 
-        waiter.wait(nullptr);
+        waiter.wait();
         return *cb_ok;
     }
 
@@ -301,14 +300,13 @@ public:
         auto cb_status = std::make_shared<::grpc::Status>();
         auto cb_res = std::make_shared<Response>();
 
-        waiter.wait([this, waiter, cb_status, cb_res] {
-            writer_.AsyncFinish([waiter, cb_status, cb_res](::grpc::Status s, Response& res) {
-                *cb_status = s;
-                cb_res->Swap(&res);
-                waiter.Resume();
-            });
+        writer_.AsyncFinish([waiter, cb_status, cb_res](::grpc::Status s, Response& res) {
+            *cb_status = s;
+            cb_res->Swap(&res);
+            waiter.Resume();
         });
 
+        waiter.wait();
         rsp_->Swap(cb_res.get());
         return *cb_status;
     }
@@ -323,14 +321,12 @@ private:
         co_grpc::CoWaiter waiter;
         auto cb_ok = std::make_shared<bool>();
 
-        waiter.wait([this, cb_ok, waiter] {
-            this->writer_.AsyncStart([cb_ok, waiter](bool ok) {
-                *cb_ok = ok;
-                waiter.Resume();
-            });
-
+        this->writer_.AsyncStart([cb_ok, waiter](bool ok) {
+            *cb_ok = ok;
+            waiter.Resume();
         });
 
+        waiter.wait();
         return *cb_ok;
     }
 
@@ -343,12 +339,12 @@ private:
         co_grpc::CoWaiter waiter;
         auto cb_ok = std::make_shared<bool>();
 
-        waiter.wait([this, cb_ok, waiter]() {
-            writer_.AsyncWritesDone([cb_ok, waiter](bool ok) {
-                *cb_ok = ok;
-                waiter.Resume();
-            });
+        writer_.AsyncWritesDone([cb_ok, waiter](bool ok) {
+            *cb_ok = ok;
+            waiter.Resume();
         });
+
+        waiter.wait();
         return *cb_ok;
     }
 };
@@ -484,14 +480,13 @@ public:
         auto cb_ok = std::make_shared<bool>();
         auto cb_rsp = std::make_shared<Response>();
 
-        waiter.wait([this, waiter, cb_ok, cb_rsp]() {
-            reader_.AsyncRead([waiter, cb_ok, cb_rsp](bool ok, Response& rsp) {
-                *cb_ok = ok;
-                cb_rsp->Swap(&rsp);
-                waiter.Resume();
-            });
+        reader_.AsyncRead([waiter, cb_ok, cb_rsp](bool ok, Response& rsp) {
+            *cb_ok = ok;
+            cb_rsp->Swap(&rsp);
+            waiter.Resume();
         });
 
+        waiter.wait();
         rsp->Swap(cb_rsp.get());
         return *cb_ok;
     }
@@ -505,13 +500,12 @@ public:
         co_grpc::CoWaiter waiter;
         auto cb_status = std::make_shared<::grpc::Status>();
 
-        waiter.wait([this, waiter, cb_status] {
-            reader_.AsyncFinish([waiter, cb_status](::grpc::Status s) {
-                *cb_status = s;
-                waiter.Resume();
-            });
+        reader_.AsyncFinish([waiter, cb_status](::grpc::Status s) {
+            *cb_status = s;
+            waiter.Resume();
         });
 
+        waiter.wait();
         return *cb_status;
     }
 
@@ -524,13 +518,12 @@ protected:
         co_grpc::CoWaiter waiter;
         auto cb_ok = std::make_shared<bool>();
 
-        waiter.wait([this, waiter, cb_ok]() {
-            reader_.AsyncStart([waiter, cb_ok](bool ok) {
-                *cb_ok = ok;
-                waiter.Resume();
-            });
+        reader_.AsyncStart([waiter, cb_ok](bool ok) {
+            *cb_ok = ok;
+            waiter.Resume();
         });
 
+        waiter.wait();
         return *cb_ok;
     }
 };
@@ -790,25 +783,21 @@ public:
         }
 
         co_grpc::CoWaiter waiter;
-        auto cb_ok = std::make_shared<bool>();
+        auto cb_ok = std::make_shared<bool>(false);
         auto cb_rsp = std::make_shared<Response>();
 
-        waiter.wait([this, waiter, cb_ok, cb_rsp] {
-            mu_.lock();
-            auto ret = rw_.AsyncRead([waiter, cb_ok, cb_rsp](bool ok, Response& rsp) {
-                *cb_ok = ok;
-                cb_rsp->Swap(&rsp);
-                waiter.Resume();
-            });
-            if (!ret) {
-                mu_.unlock();
-                waiter.Resume();
-            } else {
-                mu_.unlock();
-            }
+        mu_.lock();
+        auto ret = rw_.AsyncRead([waiter, cb_ok, cb_rsp](bool ok, Response& rsp) {
+            *cb_ok = ok;
+            cb_rsp->Swap(&rsp);
+            waiter.Resume();
         });
+        mu_.unlock();
 
-        rsp->Swap(cb_rsp.get());
+        if (ret) {
+            waiter.wait();
+            rsp->Swap(cb_rsp.get());
+        }
         return *cb_ok;
     }
 
@@ -820,21 +809,18 @@ public:
         }
 
         co_grpc::CoWaiter waiter;
-        auto cb_status = std::make_shared<::grpc::Status>();
+        auto cb_status = std::make_shared<::grpc::Status>(::grpc::Status::CANCELLED);
 
-        waiter.wait([this, waiter, cb_status] {
-            mu_.lock();
-            auto ret = rw_.AsyncClose([waiter, cb_status](::grpc::Status s) {
-                *cb_status = s;
-                waiter.Resume();
-            });
-            if (!ret) {
-                mu_.unlock();
-                waiter.Resume();
-            } else {
-                mu_.unlock();
-            }
+        mu_.lock();
+        auto ret = rw_.AsyncClose([waiter, cb_status](::grpc::Status s) {
+            *cb_status = s;
+            waiter.Resume();
         });
+        mu_.unlock();
+
+        if (ret) {
+            waiter.wait();
+        }
 
         return *cb_status;
     }
@@ -849,13 +835,12 @@ protected:
         co_grpc::CoWaiter waiter;
         auto cb_ok = std::make_shared<bool>();
 
-        waiter.wait([this, waiter, cb_ok] {
-            rw_.AsyncStart([waiter, cb_ok](bool ok) {
-                *cb_ok = ok;
-                waiter.Resume();
-            });
+        rw_.AsyncStart([waiter, cb_ok](bool ok) {
+            *cb_ok = ok;
+            waiter.Resume();
         });
 
+        waiter.wait();
         return *cb_ok;
     }
 };

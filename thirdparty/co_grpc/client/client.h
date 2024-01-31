@@ -304,7 +304,7 @@ public:
             waiter.Resume();
         });
 
-        waiter.wait(nullptr);
+        waiter.wait();
         response->Swap(cb_res.get());
         return *cb_status;
     }

@@ -18,7 +18,7 @@ struct NormalRunner {
 struct CoRunner {
     void operator()(std::function<void()> op) {
         // 默认使用64k栈
-        go gostack(1024*64) op;
+        go op;
     }
 };
 
@@ -28,11 +28,8 @@ struct CoWaiter {
         assert(co_id_ != (uint64_t)-1);
     }
 
-    // 此操作必须在协程里
-    template<class Func>
-    void wait(Func after) {
-        void* data = 0;
-        cgoyield(data, after);
+    void wait() {
+        cgoyield();
     }
 
     void Resume() const {
