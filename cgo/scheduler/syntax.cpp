@@ -16,11 +16,12 @@ namespace cgo {
         void schedule_task(const std::function<void()>& routine, int stack, const char* file, int line);
         void schedule_yield();
         void schedule_wait(int wait_mil);
-        void schedule_co(uint64_t co_id, void*);
+        void schedule_co(uint64_t co_id);
         void set_cgo_procs(int cnt);
         void set_cgo_core(int cnt);
         void cgo_add_loop(const std::function<void()>& f);
         void print_debug_info(bool enable);
+        void cgo_default_stack(int stack);
     }
 
     void _cgo_syntax_st_::operator >>(const std::function<void()>& routine) {
@@ -37,7 +38,7 @@ namespace cgo {
     }
 
     void cgo_resume(unsigned long long co_id) {
-        scheduler::schedule_co(co_id, 0);
+        scheduler::schedule_co(co_id);
     }
 
     void cgo_yield() {
@@ -61,6 +62,10 @@ namespace cgo {
 
     void cgo_add_loop(const std::function<void()>& f) {
         scheduler::cgo_add_loop(f);
+    }
+
+    void cgo_default_stack(int stack) {
+        scheduler::cgo_default_stack(stack);
     }
 
     void cgo_print_debug_info(bool enable) {

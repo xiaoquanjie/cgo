@@ -597,7 +597,7 @@ void linux_hook_init() {
                 for (int idx = 0; idx < sizeof (fd_in_state) / sizeof (int); idx++) {
                     if (state->flag & fd_in_state[idx]) {
                         state->flag ^= fd_in_state[idx];
-                        cgo::scheduler::schedule_co(state->co_id, 0);
+                        cgo::scheduler::schedule_co(state->co_id);
                         break;
                     }
                 }
@@ -617,7 +617,7 @@ void linux_hook_init() {
                                 state->flag |= fd_state::connecok;
                             }
                         }
-                        cgo::scheduler::schedule_co(state->co_id, 0);
+                        cgo::scheduler::schedule_co(state->co_id);
                         break;
                     }
                 }
@@ -1139,7 +1139,7 @@ bool win_hook_init() {
             else {
                 overlapped->err = WSAEBADF;// GetLastError();
                 auto state = get_fd_state((int)lpCompletionKey);
-                cgo::scheduler::schedule_co(state->co_id, 0);
+                cgo::scheduler::schedule_co(state->co_id);
             }
             return;
         }
@@ -1147,7 +1147,7 @@ bool win_hook_init() {
         auto state = get_fd_state((int)lpCompletionKey);
         overlapped->bytes = dwTrans; // dwTrans is 0 when socket is closed or error but accept
         overlapped->err = ERROR_SUCCESS;
-        cgo::scheduler::schedule_co(state->co_id, 0);
+        cgo::scheduler::schedule_co(state->co_id);
     };
 
     auto iocp_proc2 = []() {

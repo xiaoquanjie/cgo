@@ -290,7 +290,10 @@ bool integer_async_time_pool::update() {
     auto now = std::chrono::steady_clock::now();
     auto expire = (std::chrono::duration_cast<std::chrono::milliseconds>(now - _info._begtime)).count();
     TimePoolInfo<Payload>::tnode* node;
-    while (this->_waits.try_dequeue(node)) {
+    for (int i = 0; i < 10000; i++) {
+        if (!_waits.try_dequeue(node)) {
+            break;
+        }
         if (node->expire <= expire) {
             _info._notify_node(node);
             delete node;

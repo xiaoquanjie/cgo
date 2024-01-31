@@ -1169,23 +1169,42 @@ void simplelist_test() {
 }
 
 void wait_performance_test() {
+    //cgoprocs(1);
+    cgo::cgo_print_debug_info();
     auto beg = std::chrono::steady_clock::now();
-    const int total_count = 1000000;
-    std::atomic_int count;
+    const int total_count = 1000000;//1000000;
+    std::atomic_int count = 0;
 
     for (int i = 0; i < total_count; i++) {
         go [&] {
-            msleep(1);
+            gowait(1);
+            //msleep(1);
             count++;
+            //print_withtime("yes");
         };
     }
 
-    while (count < total_count) {}
+    while (count < total_count) {
+        //print_withtime(std::to_string(count));
+        msleep(1);
+    }
     auto end = std::chrono::steady_clock::now();
     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - beg);
     print_withtime(std::string("wait_performance_test end: ") + std::to_string(elapsed.count()));
+    print_withtime(std::to_string(count));
 }
 
+#include "cgo/coroutine/coroutine_adapter.h"
+void co_alloc_test() {
+    auto beg = std::chrono::steady_clock::now();
+    const int total_count = 1000000;
+    for (int i = 0; i < total_count; i++) {
+        cgo::coroutine::create([]{}, 1024*64);
+    }
+    auto end = std::chrono::steady_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - beg);
+    print_withtime(std::string("co_alloc_test end: ") + std::to_string(elapsed.count()));
+}
 
 int main()
 {
@@ -1213,9 +1232,10 @@ int main()
         t_cqueue_test,
         t_wait_performance_test,
         t_mutex_slist_test,
+        t_co_alloc_test,
     };
 
-    switch (t_mutex_performance_test2) {
+    switch (t_performance_test2) {
         case t_work_steal_queue_test:
             work_steal_queue_test();
             break;
@@ -1284,6 +1304,9 @@ int main()
             break;
         case t_mutex_slist_test:
             mutex_slist_test();
+            break;
+        case t_co_alloc_test:
+            co_alloc_test();
             break;
         default:
             break;

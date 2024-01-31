@@ -42,11 +42,10 @@ namespace cgo {
         uint64_t cur_coid();
         void schedule_task(const routine_fn& routine, int stack, const char* file, int line);
         void schedule_wait(int wait_mil);
-        void schedule_yield(void*& data);
         void schedule_yield();
         void schedule_wait_signal(void*& data);
         void schedule_post_signal(uint64_t co_id, void* data);
-        void schedule_co(uint64_t co_id, void*);
+        void schedule_co(uint64_t co_id);
         void set_cgo_procs(int cnt);
         void set_cgo_core(int cnt);
         void cgo_add_loop(const routine_fn& f);
@@ -54,5 +53,6 @@ namespace cgo {
         void co_hook(bool enable);
         bool co_hook();
         void print_debug_info(bool enable);
+        void cgo_default_stack(int stack);
     }
 }

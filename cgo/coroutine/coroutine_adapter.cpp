@@ -31,6 +31,9 @@
 #define M_DELETE_CO(co_id, info) delete info; mco_destroy((mco_coro*)uintptr_t(co_id));
 #endif
 
+#define M_LOCK_CO(info) info->spinlock.lock()
+#define M_UNLOCK_CO(info) info->spinlock.unlock()
+
 namespace cgo {
     namespace coro_adapter {
         enum {
@@ -56,12 +59,6 @@ namespace cgo {
                 data = 0;
                 state = 0;
                 spinlock.init();
-            }
-            inline void lock() {
-                spinlock.lock();
-            }
-            inline void unlock() {
-                spinlock.unlock();
             }
         };
 
@@ -98,13 +95,12 @@ namespace cgo {
             return co_id;
         }
 
-        void resume_co(uint64_t co_id, void* data) {
+        void resume_co(uint64_t co_id) {
             auto info = M_GET_MULTI_INFO(co_id);
-            info->data = data;
             auto status = M_RESUME_CO(co_id);
             switch (status) {
                 case COROUTINE_SUSPEND: {
-                    info->unlock();
+                    M_UNLOCK_CO(info);
                     break;
                 }
                 case COROUTINE_DEAD: {
@@ -117,14 +113,14 @@ namespace cgo {
         void co_wait_signal(void*& data) {
             auto co_id = M_CUR_COID();
             auto info = M_GET_MULTI_INFO(co_id);
-            info->lock();
+            M_LOCK_CO(info);
             char sig = info->state;
             assert((info->state & WaitSignal) == 0);
             if (info->state & ActiveSignal) {
                 // 如果状态是激活的, 取消状态
                 info->state = 0;
                 data = info->data;
-                info->unlock();
+                M_UNLOCK_CO(info);
             } else {
                 // 如果状态是未激活
                 info->state = WaitSignal;
@@ -136,36 +132,31 @@ namespace cgo {
 
         void co_post_signal(uint64_t co_id, void* data) {
             auto info = M_GET_MULTI_INFO(co_id);
-            info->lock();
+            M_LOCK_CO(info);
             assert((info->state & ActiveSignal) == 0);
             if (info->state & WaitSignal) {
                 // 如果状态是等待, 取消状态
                 info->state = 0;
-                info->unlock();
+                info->data = data;
+                M_UNLOCK_CO(info);
                 // 唤醒协程
-                coro_adapter::resume_co(co_id, data);
+                coro_adapter::resume_co(co_id);
             } else {
                 info->data = data;
                 info->state = ActiveSignal;
-                info->unlock();
+                M_UNLOCK_CO(info);
             }
         }
 
-        void yield_co(void*& data) {
+        void yield_co() {
             auto co_id = M_CUR_COID();
             auto info = M_GET_MULTI_INFO(co_id);
             M_YIELD_CO(co_id);
-            data = info->data;
-        }
-
-        void yield_co() {
-            void* data = 0;
-            yield_co(data);
         }
 
         void run_co(const std::function<void()>& routine, int stack, const char* file, int line) {
             auto co_id = create_co(routine, stack, file, line);
-            resume_co(co_id, 0);
+            resume_co(co_id);
         }
 
         uint64_t cur_coid() {

@@ -21,7 +21,7 @@ void fun1() { // Ïß³Ì1
         for (int i = 0; i < NUM_TASKS; i++) {
             //if (cgo::coro_adapter::)
             if (!flags[i].test_and_set()) {
-                cgo::coro_adapter::resume_co(tasks[i], (void*)1);
+                cgo::coro_adapter::resume_co(tasks[i]);
                 flags[i].clear();
             }
         }

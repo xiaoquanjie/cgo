@@ -43,6 +43,8 @@ namespace cgo {
 
     void cgo_add_loop(const std::function<void()>& f);
 
+    void cgo_default_stack(int stack);
+
     void cgo_print_debug_info(bool enable = true);
 }
 

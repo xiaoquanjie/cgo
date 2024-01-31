@@ -24,7 +24,7 @@
 namespace cgo {
     namespace coro_adapter {
         uint64_t create_co(const std::function<void()>& routine, int stack, const char* file, int line);
-        void resume_co(uint64_t co_id, void* data);
+        void resume_co(uint64_t co_id);
         void co_wait_signal(void*& data);
         void co_post_signal(uint64_t co_id, void* data);
         void yield_co(void*& data);
@@ -36,6 +36,10 @@ namespace cgo {
     }
 
     namespace scheduler {
+        struct co_pool_item {
+            uint64_t _co_id;
+            routine_fn _fn;
+        };
         struct _schedule_task_st_ {
             enum {
                 RunCo = 0,
@@ -49,7 +53,7 @@ namespace cgo {
             void* _data;
         };
         struct _schedule_newco_task_st_ : public _schedule_task_st_{
-            std::function<void()> _fn;
+            routine_fn _fn;
             int _statck;
             const char* _f;
             int _l;
@@ -153,11 +157,51 @@ namespace cgo {
             void steal(int32_t count, _schedule_base_queue_st_* to) override;
         };
 
+        struct _co_pool_st_;
+        extern thread_local _co_pool_st_* volatile g_local_cpool;
+
+        struct _co_pool_st_ {
+            std::vector<co_pool_item*> _items;
+            void run(_schedule_newco_task_st_* task, int stack) {
+                if (_items.empty()) {
+                    auto item = new co_pool_item;
+                    item->_fn.swap(task->_fn);
+                    item->_co_id = coro_adapter::create_co([item]{
+                        void* tmp;
+                        for (;;) {
+                            if (!item->_fn) break;
+                            item->_fn();
+                            if (!g_local_cpool->recycle_item(item)) {
+                                break;
+                            }
+                            coro_adapter::co_wait_signal(tmp);
+                        }
+                        // M_CO_DEBUG_PRINT("[cgo_debug] release co_pool_item\n");
+                    }, stack, 0, 0);
+                    coro_adapter::resume_co(item->_co_id);
+                } else {
+                    auto item = _items.back();
+                    _items.pop_back();
+                    item->_fn.swap(task->_fn);
+                    coro_adapter::co_post_signal(item->_co_id, 0);
+                }
+            }
+            bool recycle_item(co_pool_item* item) {
+                if (_items.size() >= 100) {
+                    delete item;
+                    return false;
+                }
+                _items.push_back(item);
+                return true;
+            }
+        };
+
         struct _schedule_thread_st_ {
             int _work_id = 0;
             std::thread* _thr = 0;
             _scheduler_st_* _scheduler = 0;
-            _schedule_base_queue_st_* _local_task = 0;
+            _schedule_base_queue_st_* _local_tqueue = 0;
+            _co_pool_st_ _local_cpool;
             std::uint64_t _task_op_cnt = 0;
             volatile bool _stop = false;
             Semaphore _sem;
@@ -193,7 +237,7 @@ namespace cgo {
         };
 
         struct _scheduler_st_ {
-            _schedule_global_queue_st_* _global_tasks;
+            _schedule_global_queue_st_* _global_tqueue;
             std::vector<schedule_thread_st_type> _work_threads; // 正在工作的线程
             std::vector<schedule_thread_st_type> _idle_threads; // 空闲的线程
             std::vector<_schedule_dead_thread_st_> _dead_threads;
@@ -212,6 +256,7 @@ namespace cgo {
             std::vector<routine_fn> _loops;
             concurrent_loop_queue_type _loops_buf;
             bool _print_debug_info = false;
+            int _default_stack = M_PRIVATE_STACK_SIZE;
 
             _scheduler_st_();
 
@@ -349,9 +394,9 @@ namespace cgo {
         }
 
         //////////////////////////////////////////////////////////////
-
-        _schedule_base_queue_st_* gglobal_task_queue = scheduler_inst()._global_tasks;
-        thread_local _schedule_base_queue_st_* volatile glocal_task_queue = gglobal_task_queue;
+        _schedule_base_queue_st_* g_global_tqueue = scheduler_inst()._global_tqueue;
+        thread_local _schedule_base_queue_st_* volatile g_local_tqueue = g_global_tqueue;
+        thread_local _co_pool_st_* volatile g_local_cpool = 0;
 
         //////////////////////////////////////////////////////////////
 
@@ -360,11 +405,11 @@ namespace cgo {
                                                            _schedule_base_queue_st_* fromq) {
             auto st = new _schedule_thread_st_;
             st->_work_id = wid;
-            st->_local_task = new _schedule_local_queue_st_;
+            st->_local_tqueue = new _schedule_local_queue_st_;
             st->_scheduler = s;
 
             if (fromq) {
-                s->steal_task(fromq, st->_local_task, 0);
+                s->steal_task(fromq, st->_local_tqueue, 0);
             }
 
             return st;
@@ -372,27 +417,34 @@ namespace cgo {
 
         void _schedule_thread_st_::on_init() {
             M_CO_DEBUG_PRINT("[cgo debug] start working thread:%d\n", this->_work_id);
-            glocal_task_queue = this->_local_task;
+            g_local_tqueue = this->_local_tqueue;
         }
 
         void _schedule_thread_st_::on_release() {
             M_CO_DEBUG_PRINT("[cgo debug] quit working thread:%d\n", this->_work_id);
 
-            glocal_task_queue = nullptr;
+            g_local_tqueue = nullptr;
+            g_local_cpool = nullptr;
 
-            if (this->_local_task) {
+            if (this->_local_tqueue) {
                 if (!_scheduler->_stop) {
-                    if (this->_local_task->size() > 0) {
+                    if (this->_local_tqueue->size() > 0) {
                         assert(false);
                     }
                 }
-                delete this->_local_task;
-                this->_local_task = nullptr;
+                delete this->_local_tqueue;
+                this->_local_tqueue = nullptr;
             }
 
             if (this->_thr) {
                 delete _thr;
                 _thr = nullptr;
+            }
+
+            for (auto item : this->_local_cpool._items) {
+                item->_fn = 0;
+                coro_adapter::co_post_signal(item->_co_id, 0);
+                delete item;
             }
 
             // delete self
@@ -408,18 +460,25 @@ namespace cgo {
 
                 // run local task
                 _schedule_task_st_* task;
-                while (this->_local_task->try_dequeue(task)) {
+                while (this->_local_tqueue->try_dequeue(task)) {
                     task_op_cnt++;
+                    g_local_tqueue = this->_local_tqueue;
+                    g_local_cpool = &this->_local_cpool;
+
                     switch (task->_type) {
                         case _schedule_task_st_::RunCo: {
                             auto ntask = (_schedule_newco_task_st_*)task;
-                            coro_adapter::run_co(ntask->_fn, ntask->_statck, ntask->_f, ntask->_l);
+                            if (ntask->_statck <= this->_scheduler->_default_stack) {
+                                this->_local_cpool.run(ntask, this->_scheduler->_default_stack);
+                            } else {
+                                coro_adapter::run_co(ntask->_fn, ntask->_statck, ntask->_f, ntask->_l);
+                            }
                             delete ntask;
                             break;
                         }
                         case _schedule_task_st_::ResumeCo: {
                             auto ctask = (_schedule_comm_task_st_*)task;
-                            coro_adapter::resume_co(ctask->_co_id, ctask->_data);
+                            coro_adapter::resume_co(ctask->_co_id);
                             delete ctask;
                             break;
                         }
@@ -435,10 +494,10 @@ namespace cgo {
                     }
                 }
 
-                if (this->_local_task->size() == 0) {
+                if (this->_local_tqueue->size() == 0) {
                     // steal from the other queue
                     this->_scheduler->steal_task(this);
-                    if (this->_local_task->size() == 0) {
+                    if (this->_local_tqueue->size() == 0) {
                         break;
                     }
                 }
@@ -464,7 +523,7 @@ namespace cgo {
 
         inline void _schedule_thread_st_::resume(_schedule_base_queue_st_* from) {
             if (from) {
-                this->_scheduler->steal_task(from, this->_local_task, 0);
+                this->_scheduler->steal_task(from, this->_local_tqueue, 0);
             }
             this->_sem.post();
         }
@@ -487,7 +546,7 @@ namespace cgo {
         _scheduler_st_::_scheduler_st_() : _watcher(&_scheduler_st_::watch_func), _time_pool(&notify_wait, 1800) {
             _max_thr_cnt = (int)(std::thread::hardware_concurrency() * M_MAX_PROCS_FACTOR);
             _core_thr_cnt = (int)(_max_thr_cnt * M_CORE_POOL_FACTOR);
-            _global_tasks = new _schedule_global_queue_st_;
+            _global_tqueue = new _schedule_global_queue_st_;
             std::atexit(cgo::scheduler::cgo_stop);
         }
 
@@ -571,7 +630,7 @@ namespace cgo {
             }
 
             auto has = from->size();
-            if (from != gglobal_task_queue) {
+            if (from != this->_global_tqueue) {
                 if (/*has <= 1 ||*/ !from->delay()) {
                     return;
                 }
@@ -597,9 +656,9 @@ namespace cgo {
         void _scheduler_st_::steal_task(_schedule_thread_st_* st) {
             // steal from global first
             // max local task queue: M_MAX_LOCAL_TASK_QUEUE
-            steal_task(this->_global_tasks, st->_local_task, M_MAX_LOCAL_TASK_QUEUE);
+            steal_task(this->_global_tqueue, st->_local_tqueue, M_MAX_LOCAL_TASK_QUEUE);
 
-            _schedule_base_queue_st_* to = st->_local_task;
+            _schedule_base_queue_st_* to = st->_local_tqueue;
             if (_thr_cnt <= 1 || to->size() > 0) {
                 // can't steal from self
                 return;
@@ -625,7 +684,7 @@ namespace cgo {
                     continue;
                 }
 
-                auto from = work_thrs[(uint32_t)i]->_local_task;
+                auto from = work_thrs[(uint32_t)i]->_local_tqueue;
                 if (!from) {
                     continue;
                 }
@@ -711,7 +770,7 @@ namespace cgo {
 
                 st->on_run();
 
-                if (st->_scheduler->_global_tasks->size() == 0) {
+                if (st->_scheduler->_global_tqueue->size() == 0) {
                     // 进入空闲线程队列
                     st->_scheduler->add_idle_thread(st);
                     // 将线程挂起来
@@ -722,7 +781,7 @@ namespace cgo {
 
         void _scheduler_st_::watch_func() {
             auto& st = scheduler_inst();
-            glocal_task_queue = st._global_tasks;
+            g_local_tqueue = st._global_tqueue;
             std::vector<schedule_thread_st_type> work_thrs;
             std::vector<schedule_thread_st_type> idle_thrs;
             int64_t idle_beg_time = 0;
@@ -746,7 +805,7 @@ namespace cgo {
 
                 beg_time = now;
                 std::string output = "queue info:\n";
-                output += std::string("global queue count:") + std::to_string(st._global_tasks->size());
+                output += std::string("global queue count:") + std::to_string(st._global_tqueue->size());
                 output += std::string(", global task operation count:") + std::to_string(st._task_op_cnt);
                 output += std::string("\n");
 
@@ -767,7 +826,7 @@ namespace cgo {
 
                     if (!thrs) { continue; }
                     for (auto thr : *thrs) {
-                        auto local_task = thr->_local_task;
+                        auto local_task = thr->_local_tqueue;
                         if (!local_task) {
                             continue;
                         }
@@ -809,13 +868,13 @@ namespace cgo {
                 st.run();
                 st.get_work_idle_threads(work_thrs, idle_thrs);
 
-                if (st._global_tasks->size()) {
-                    dispatch(st._global_tasks);
+                if (st._global_tqueue->size()) {
+                    dispatch(st._global_tqueue);
                 }
 
                 for (auto& thr : work_thrs) {
-                    if (thr->_local_task->delay()) {
-                        dispatch(thr->_local_task);
+                    if (thr->_local_tqueue->delay()) {
+                        dispatch(thr->_local_tqueue);
                     }
                 }
 
@@ -900,14 +959,19 @@ namespace cgo {
             scheduler_inst().print_debug_info();
         }
 
+        void cgo_default_stack(int stack) {
+            if (stack <= 0) return;
+            scheduler_inst()._default_stack = stack;
+        }
+
         _scheduler_st_& scheduler_inst() {
             static _scheduler_st_ s_scheduler;
             return s_scheduler;
         }
 
         void add_global_task(_schedule_task_st_* task) {
-            auto global = gglobal_task_queue;
-            auto local = glocal_task_queue;
+            auto global = g_global_tqueue;
+            auto local = g_local_tqueue;
 
             if (local == global) {
                 local->enqueue(task);
@@ -935,10 +999,6 @@ namespace cgo {
             add_global_task(task);
         }
 
-        void schedule_yield(void*& data) {
-            coro_adapter::yield_co(data);
-        }
-
         void schedule_yield() {
             coro_adapter::yield_co();
         }
@@ -956,10 +1016,10 @@ namespace cgo {
         }
 
         // thread-safety
-        void schedule_co(uint64_t co_id, void* data) {
+        void schedule_co(uint64_t co_id) {
             auto task = new _schedule_comm_task_st_;
             task->_co_id = co_id;
-            task->_data = data;
+            task->_data = 0;
             task->_type = _schedule_task_st_::ResumeCo;
             add_global_task(task);
         }
