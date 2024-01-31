@@ -1206,6 +1206,7 @@ void co_alloc_test() {
     print_withtime(std::string("co_alloc_test end: ") + std::to_string(elapsed.count()));
 }
 
+#include "heap_profiler/heap_profiler.h"
 int main()
 {
     enum test_type {
@@ -1235,7 +1236,9 @@ int main()
         t_co_alloc_test,
     };
 
-    switch (t_performance_test2) {
+    //HeapProfiler::Switch("profiler");
+
+    switch (t_wait_performance_test) {
         case t_work_steal_queue_test:
             work_steal_queue_test();
             break;
@@ -1311,6 +1314,8 @@ int main()
         default:
             break;
     }
+
+    //HeapProfiler::Dump();
 
     //slist_test();
 

@@ -1,10 +1,13 @@
 cmake_minimum_required(VERSION 3.23)
 
-include_directories(../)
+include_directories(../ /usr/local/include)
+#add_definitions(-DUSE_HEAP_PROFILER)
+link_directories(/usr/local/lib)
 
 add_executable(example
         main.cpp
-        test.cpp)
+        test.cpp
+        heap_profiler/heap_profiler.cpp)
 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
 elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MinGw")
@@ -12,5 +15,7 @@ else()
     target_link_libraries(example
             cgo
             pthread
-            dl)
+            dl
+            #profiler
+            tcmalloc)
 endif()
