@@ -214,15 +214,18 @@ void cqueue_test() {
 }
 
 void chan_test() {
-    cgo::chan<int> ch = makechan<int>(2);
+    typedef std::string data_type;
+    cgo::chan<data_type> ch = makechan<data_type>(2);
 
     for (int i= 0; i < 500; i++) {
         go [ch]() {
-            int v;
             while (true) {
                 //msleep(5000);
-                if (ch << v) {
-                    print_withtime(std::string("recv:") + std::to_string(v));
+                data_type data;
+                if (ch >> data) {
+                    std::ostringstream oss;
+                    oss << data;
+                    print_withtime(std::string("recv:") + oss.str());
                 } else {
                     print_withtime("recv over");
                     break;
@@ -232,16 +235,20 @@ void chan_test() {
     }
 
     while (true) {
-        int input = 10;
+        std::string input;
         std::cout << "input:";
         std::cin >> input;
-        if (input < 0) {
+
+        if (input == "stop") {
             closechan(ch);
             break;
         }
-        for (int i = 0; i < 10; i++) {
-            ch >> i + input;
-        }
+
+        std::istringstream iis(input);
+        data_type data;
+        iis >> data;
+
+        ch << data;
     }
 
     print_withtime("over");
@@ -266,9 +273,9 @@ void chan_performance_test() {
     auto beg = std::chrono::steady_clock::now();
     for (int i = 0; i < total_count; i++) {
         go [ch, &total_count, &count] {
-            ch >> 1;
+            ch << 1;
             count++;
-            ch << channull;
+            ch >> channull;
         };
     }
 
@@ -288,12 +295,12 @@ void chan_performance_test() {
     count = 0;
     go [ch, &total_count] {
         for (int i = 0; i < total_count; i++) {
-            ch >> 1;
+            ch << 1;
         }
     };
     go [ch, &total_count, &count] {
         while (true) {
-            ch << channull;
+            ch >> channull;
             count++;
             if (count >= total_count) {
                 break;
@@ -313,7 +320,7 @@ void chan_performance_test() {
 
     go [ch] {
         print_withtime(std::to_string(ch.use_count()));
-        if (!(ch << channull)) {
+        if (!(ch >> channull)) {
             print_withtime("over");
         }
     };
@@ -1238,7 +1245,7 @@ int main()
 
     //HeapProfiler::Switch("profiler");
 
-    switch (t_wait_performance_test) {
+    switch (t_chan_test) {
         case t_work_steal_queue_test:
             work_steal_queue_test();
             break;

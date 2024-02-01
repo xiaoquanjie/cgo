@@ -14,6 +14,8 @@
 #include <functional>
 #include <atomic>
 #include <assert.h>
+#include <string.h>
+#include <type_traits>
 
 namespace cgo {
     namespace channel {
@@ -31,22 +33,59 @@ namespace cgo {
                                                void*(*malloc)(const void*),
                                                void(*copy)(void*, const void*));
 
+        template<typename T, bool IS_TRIVIAL>
+        struct chan_data {};
+
+        template<typename T>
+        struct chan_data<T, true> {
+        protected:
+            inline static void data_free(void*v) {
+                free(v);
+            }
+            inline static void* data_malloc(const void* v) {
+                void* nv = malloc(sizeof (T));
+                memcpy(nv, v, sizeof (T));
+                return nv;
+            }
+            inline static void data_copy(void* dst, const void* src) {
+                memcpy(dst, src, sizeof (T));
+            }
+        };
+
+        template<typename T>
+        struct chan_data<T, false> {
+        protected:
+            inline static void data_free(void*v) {
+                T* p = (T*)v;
+                delete p;
+            }
+            inline static void* data_malloc(const void* v) {
+                return (void*)new T(*((T*)v));
+            }
+            inline static void data_copy(void* dst, const void* src) {
+                *(T*)dst = *(T*)src;
+            }
+        };
+
         // make sync data simple
         template<typename T>
-        struct chan {
+        struct chan  : public chan_data<T, std::is_trivially_copyable<T>::value> {
             template<class A>
             friend chan<A> makeChan(int);
 
             template<typename A>
             friend void closeChan(const chan<A>&);
 
-            inline bool operator << (T& v) const {
+            // output
+            inline bool operator >> (T& v) const {
                 return recv(&v);
             }
-            inline bool operator << (const channull&) const {
+            // output
+            inline bool operator >> (const channull&) const {
                 return recv(0);
             }
-            inline bool operator >> (const T& v) const {
+            // input
+            inline bool operator << (const T& v) const {
                 return send(&v);
             }
 
@@ -66,19 +105,6 @@ namespace cgo {
                     throw "chan is nil";
                 }
                 return _ch->send(v) ? true : false;
-            }
-
-            inline static void data_free(void*v) {
-                T* p = (T*)v;
-                delete p;
-            }
-
-            inline static void* data_malloc(const void* v) {
-                return (void*)new T(*((T*)v));
-            }
-
-            inline static void data_copy(void* dst, const void* src) {
-                *(T*)dst = *(T*)src;
             }
         private:
             std::shared_ptr<_i_chan_st_> _ch;
