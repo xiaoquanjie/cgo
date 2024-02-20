@@ -100,7 +100,9 @@ namespace cgo {
             auto status = M_RESUME_CO(co_id);
             switch (status) {
                 case COROUTINE_SUSPEND: {
-                    M_UNLOCK_CO(info);
+                    if (info->state & WaitSignal) {
+                        M_UNLOCK_CO(info);
+                    }
                     break;
                 }
                 case COROUTINE_DEAD: {
