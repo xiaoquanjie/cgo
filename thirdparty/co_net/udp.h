@@ -7,7 +7,7 @@
 #include "tcp.h"
 
 namespace co_net {
-    using UDPAddr = tcpaddr;
+    using UDPAddr = TCPAddr;
 
     inline UDPAddr
     ResolveUDPAddr(const std::string& network, const std::string& ip, unsigned short port) {
@@ -24,7 +24,7 @@ namespace co_net {
         int fd_;
         std::string nw_;
         cgo::mutex mu_;
-        tcpaddr* localaddr_ = 0;
+        UDPAddr* localaddr_ = 0;
 
         UdpConn(const UdpConn&) = delete;
         UdpConn& operator=(const UdpConn&) = delete;
@@ -44,22 +44,18 @@ namespace co_net {
             ::close(fd_);
         }
 
-        const Addr* LocalAddr() {
-            if (localaddr_) {
-                return (Addr*)localaddr_;
-            }
-
-            mu_.lock();
-
+        const UDPAddr& LocalAddr() {
             if (!localaddr_) {
-                auto taddr = new tcpaddr(nw_);
-                auto addr_len = taddr->SockAddrLen();
-                getsockname(fd_, taddr->SockAddr(), &addr_len);
-                localaddr_ = taddr;
+                mu_.lock();
+                if (!localaddr_) {
+                    localaddr_ = new TCPAddr(nw_);
+                    auto addr_len = localaddr_->SockAddrLen();
+                    getsockname(fd_, localaddr_->SockAddr(), &addr_len);
+                }
+                mu_.unlock();
             }
 
-            mu_.unlock();
-            return (Addr*)localaddr_;
+            return (*localaddr_);
         }
 
         size_t Read(char* buf, int len, UDPAddr* addr) {

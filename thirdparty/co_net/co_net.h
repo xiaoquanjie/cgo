@@ -9,9 +9,9 @@
 
 namespace co_net {
     // The network must be "tcp", "tcp4", "tcp6"
-    inline Listener*
+    inline TcpListener*
     ListenTcp(const std::string& network, const std::string& ip, unsigned short port) {
-        auto listener = new tcplistener;
+        auto listener = new TcpListener;
         if (!listener->Bind(network, ip, port)) {
             delete listener;
             return nullptr;
@@ -43,9 +43,9 @@ namespace co_net {
         return new UdpConn(network, fd);
     }
 
-    inline Conn*
+    inline TcpConn*
     DialTcp(const std::string& network, const std::string& ip, unsigned short port) {
-        tcpaddr addr(network, ip, port);
+        TCPAddr addr(network, ip, port);
         int fd = 0;
         if (addr.Ipv4()) {
             fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -59,7 +59,7 @@ namespace co_net {
             return 0;
         }
 
-        return new tcpconn(network, fd);
+        return new TcpConn(network, fd);
     }
 
     // The network must be "udp", "udp4", "udp6"

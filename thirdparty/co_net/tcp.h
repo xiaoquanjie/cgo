@@ -7,13 +7,13 @@
 #include "net.h"
 
 namespace co_net {
-    class tcpaddr : public Addr {
+    class TCPAddr {
     protected:
         struct sockaddr_storage addr_ = {};
         std::string nw_;
 
     public:
-        tcpaddr(const std::string& network, const std::string& ip, unsigned short port) :nw_(network) {
+        TCPAddr(const std::string& network, const std::string& ip, unsigned short port) :nw_(network) {
             if (network == "tcp" || network == "tcp4" || network == "udp" || network == "udp4") {
                 struct sockaddr_in* addr = reinterpret_cast<struct sockaddr_in*>(&addr_);
                 addr->sin_family = AF_INET;
@@ -29,10 +29,10 @@ namespace co_net {
             }
         }
 
-        tcpaddr(const std::string& network) :nw_(network) {
+        TCPAddr(const std::string& network) :nw_(network) {
         }
 
-        ~tcpaddr() override = default;
+        ~TCPAddr() = default;
 
         sockaddr* SockAddr() {
             return (sockaddr*)&addr_;
@@ -46,11 +46,11 @@ namespace co_net {
             return addr_.ss_family == AF_INET;
         }
 
-        std::string Network() const override {
+        std::string Network() const {
             return nw_;
         }
 
-        std::string String() const override {
+        std::string String() const {
             auto ip = Ip();
             auto port = Port();
             if (addr_.ss_family == AF_INET) {
@@ -60,7 +60,7 @@ namespace co_net {
             }
         }
 
-        std::string Ip() const override {
+        std::string Ip() const {
             std::string ip;
             ip.resize(40);
             if (addr_.ss_family == AF_INET) {
@@ -75,7 +75,7 @@ namespace co_net {
             return ip;
         }
 
-        unsigned short Port() const override {
+        unsigned short Port() const {
             if (addr_.ss_family == AF_INET) {
                 const struct sockaddr_in* addr = reinterpret_cast<const struct sockaddr_in*>(&addr_);
                 return ntohs(addr->sin_port);
@@ -86,22 +86,22 @@ namespace co_net {
         }
     };
 
-    class tcpconn : public Conn {
+    class TcpConn {
     protected:
         int fd_;
         std::string nw_;
         cgo::mutex mu_;
-        tcpaddr* localaddr_ = 0;
-        tcpaddr* remoteaddr_ = 0;
+        TCPAddr* localaddr_ = 0;
+        TCPAddr* remoteaddr_ = 0;
 
-        tcpconn(const tcpconn&) = delete;
-        tcpconn& operator=(const tcpconn&) = delete;
+        TcpConn(const TcpConn&) = delete;
+        TcpConn& operator=(const TcpConn&) = delete;
     public:
-        tcpconn(const std::string& nw,  int fd) : nw_(nw), fd_(fd) {
+        TcpConn(const std::string& nw,  int fd) : nw_(nw), fd_(fd) {
             cgo_hook_fd(fd_);
         }
 
-        ~tcpconn() {
+        ~TcpConn() {
             Close();
             if (localaddr_) {
                 delete localaddr_;
@@ -111,63 +111,63 @@ namespace co_net {
             }
         }
 
-        size_t Read(char* buf, int len) override {
+        size_t Read(char* buf, int len) {
             return recv(fd_, buf, len, 0);
         }
 
-        size_t Write(const char* buf, int len) override {
+        size_t Write(const char* buf, int len) {
             mu_.lock();
             auto cnt = send(fd_, buf, len, 0);
             mu_.unlock();
             return cnt;
         }
 
-        void Close() override {
+        void Close() {
             ::close(fd_);
         }
 
-        const Addr& LocalAddr() override {
+        const TCPAddr& LocalAddr() {
             if (!localaddr_) {
                 mu_.lock();
                 if (!localaddr_) {
-                    localaddr_ = new tcpaddr(nw_);
+                    localaddr_ = new TCPAddr(nw_);
                     auto addr_len = localaddr_->SockAddrLen();
                     getsockname(fd_, localaddr_->SockAddr(), &addr_len);
                 }
                 mu_.unlock();
             }
 
-            return (Addr&)(*localaddr_);
+            return (*localaddr_);
         }
 
-        const Addr& RemoteAddr() override {
+        const TCPAddr& RemoteAddr() {
             if (!remoteaddr_) {
                 mu_.lock();
                 if (!remoteaddr_) {
-                    remoteaddr_ = new tcpaddr(nw_);
+                    remoteaddr_ = new TCPAddr(nw_);
                     auto addr_len = remoteaddr_->SockAddrLen();
                     getpeername(fd_, remoteaddr_->SockAddr(), &addr_len);
                 }
                 mu_.unlock();
             }
 
-            return (Addr&)(*remoteaddr_);
+            return (*remoteaddr_);
         }
     };
 
-    class tcplistener : public Listener {
+    class TcpListener {
     protected:
         int fd_ = 0;
-        tcpaddr* addr_ = 0;
+        TCPAddr* addr_ = 0;
 
-        tcplistener(const tcplistener&) = delete;
-        tcplistener& operator=(const tcplistener&) = delete;
+        TcpListener(const TcpListener&) = delete;
+        TcpListener& operator=(const TcpListener&) = delete;
     public:
-        tcplistener() {
+        TcpListener() {
 
         }
 
-        ~tcplistener() override {
+        ~TcpListener() {
             Close();
             if (addr_) {
                 delete addr_;
@@ -176,7 +176,7 @@ namespace co_net {
 
         // The network must be "tcp", "tcp4", "tcp6"
         bool Bind(const std::string& network, const std::string& ip, unsigned short port) {
-            addr_ = new tcpaddr(network, ip, port);
+            addr_ = new TCPAddr(network, ip, port);
             if (addr_->SockAddr() == 0) {
                 return false;
             }
@@ -204,7 +204,7 @@ namespace co_net {
             return true;
         }
 
-        Conn* Accept() override {
+        TcpConn* Accept() {
             struct sockaddr_storage caddr = {};
             socklen_t caddr_len = sizeof(caddr);
             int cfd = accept(fd_, (struct sockaddr*)&caddr, &caddr_len);
@@ -212,23 +212,23 @@ namespace co_net {
                 return 0;
             }
 
-            auto conn = new tcpconn(addr_->Network(), cfd);
+            auto conn = new TcpConn(addr_->Network(), cfd);
             return conn;
         }
 
-        void Close() override {
+        void Close() {
             if (fd_ != 0) {
                 ::close(fd_);
                 fd_ = 0;
             }
         }
 
-        const Addr& LocalAddr() override {
+        const TCPAddr& LocalAddr() {
             if (addr_) {
-                return (Addr&)(*addr_);
+                return (*addr_);
             }
-            static tcpaddr emptyaddr("tcp");
-            return (Addr&)emptyaddr;
+            static TCPAddr emptyaddr("tcp");
+            return emptyaddr;
         }
     };
 }
