@@ -175,7 +175,7 @@ namespace co_net {
         }
 
         // The network must be "tcp", "tcp4", "tcp6"
-        bool Bind(const std::string& network, const std::string& ip, unsigned short port) {
+        bool Listen(const std::string& network, const std::string& ip, unsigned short port) {
             addr_ = new TCPAddr(network, ip, port);
             if (addr_->SockAddr() == 0) {
                 return false;

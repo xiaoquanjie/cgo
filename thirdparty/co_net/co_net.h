@@ -6,13 +6,14 @@
 
 #include "tcp.h"
 #include "udp.h"
+#include "http.h"
 
 namespace co_net {
     // The network must be "tcp", "tcp4", "tcp6"
     inline TcpListener*
     ListenTcp(const std::string& network, const std::string& ip, unsigned short port) {
         auto listener = new TcpListener;
-        if (!listener->Bind(network, ip, port)) {
+        if (!listener->Listen(network, ip, port)) {
             delete listener;
             return nullptr;
         }
@@ -41,6 +42,16 @@ namespace co_net {
         }
 
         return new UdpConn(network, fd);
+    }
+
+    inline bool
+    ListenHttpAndServe(const std::string& network, const std::string& ip, unsigned short port, HttpHandler handler) {
+        auto li = new HttpListener;
+        if (!li->Listen(network, ip, port, handler)) {
+            delete li;
+            return false;
+        }
+        return true;
     }
 
     inline TcpConn*

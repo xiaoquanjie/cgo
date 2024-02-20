@@ -22,6 +22,7 @@ add_library(cgo
 
         common/time_pool.cpp
         common/semaphore.cpp
+        common/http_parser.cpp
         sync/mutex.cpp
         sync/channel.cpp
         hook/hook.cpp
