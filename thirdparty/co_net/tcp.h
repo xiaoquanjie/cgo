@@ -111,11 +111,11 @@ namespace co_net {
             }
         }
 
-        size_t Read(char* buf, int len) {
+        int Read(char* buf, int len) {
             return recv(fd_, buf, len, 0);
         }
 
-        size_t Write(const char* buf, int len) {
+        int Write(const char* buf, int len) {
             mu_.lock();
             auto cnt = send(fd_, buf, len, 0);
             mu_.unlock();

@@ -127,7 +127,7 @@ namespace co_net {
                 settings.on_message_complete = &HttpListener::on_msg_complete;
 
                 while (true) {
-                    size_t cnt = c->Read(buf, buflen);
+                    auto cnt = c->Read(buf, buflen);
                     if (cnt <= 0) {
                         goto parser_failed;
                     }

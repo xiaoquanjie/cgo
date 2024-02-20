@@ -93,12 +93,12 @@ void udp_client() {
 
 void http_listen() {
     co_net::ListenHttpAndServe("tcp", "0.0.0.0", 50052, [](co_net::HttpResponse* rsp, co_net::HttpRequest* req) {
-        std::cout << req->Method() << "\n";
-        std::cout << req->Url() << "\n";
-        for (auto& kv : req->Header()) {
-            std::cout << kv.first << " " << kv.second << "\n";
-        }
-        std::cout << req->Body() << "\n";
+//        std::cout << req->Method() << "\n";
+//        std::cout << req->Url() << "\n";
+//        for (auto& kv : req->Header()) {
+//            std::cout << kv.first << " " << kv.second << "\n";
+//        }
+//        std::cout << req->Body() << "\n";
 
         const char* resp = "HTTP/1.1 200 OK\r\nContent-Length: 13\r\n\r\nHello, World!";
         rsp->Write(resp, strlen(resp));

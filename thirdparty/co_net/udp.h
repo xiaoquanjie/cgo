@@ -58,13 +58,13 @@ namespace co_net {
             return (*localaddr_);
         }
 
-        size_t Read(char* buf, int len, UDPAddr* addr) {
+        int Read(char* buf, int len, UDPAddr* addr) {
             auto addr_len = addr->SockAddrLen();
             auto cnt = recvfrom(fd_, buf, len, 0, addr->SockAddr(), &addr_len);
             return cnt;
         }
 
-        size_t Write(const char* buf, int len, UDPAddr& addr) {
+        int Write(const char* buf, int len, UDPAddr& addr) {
             mu_.lock();
             auto cnt = sendto(fd_, buf, len, 0, addr.SockAddr(), addr.SockAddrLen());
             mu_.unlock();
