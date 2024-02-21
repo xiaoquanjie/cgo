@@ -92,7 +92,7 @@ void udp_client() {
 }
 
 void http_listen() {
-    co_net::ListenHttpAndServe("tcp", "0.0.0.0", 50052, [](co_net::HttpResponse* rsp, co_net::HttpRequest* req) {
+    co_net::ListenHttpAndServe("tcp", "0.0.0.0", 50053, [](co_net::HttpResponse* rsp, co_net::HttpRequest* req) {
 //        std::cout << req->Method() << "\n";
 //        std::cout << req->Url() << "\n";
 //        for (auto& kv : req->Header()) {
@@ -115,6 +115,7 @@ int main() {
 //    udp_client();
 
     http_listen();
+    cgo::cgo_print_debug_info();
 
     while (true) {
         usleep(10);

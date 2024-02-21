@@ -14,6 +14,7 @@ add_executable(net_test
 
 target_link_libraries(net_test
         cgo
+        tcmalloc
         )
 
 

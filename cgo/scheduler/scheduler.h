@@ -43,6 +43,7 @@ namespace cgo {
         void schedule_task(const routine_fn& routine, int stack, const char* file, int line);
         void schedule_wait(int wait_mil);
         void schedule_yield();
+        void schedule_wait_signal();
         void schedule_wait_signal(void*& data);
         void schedule_post_signal(uint64_t co_id, void* data);
         void schedule_co(uint64_t co_id);

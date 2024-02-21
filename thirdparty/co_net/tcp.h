@@ -98,6 +98,7 @@ namespace co_net {
         TcpConn& operator=(const TcpConn&) = delete;
     public:
         TcpConn(const std::string& nw,  int fd) : nw_(nw), fd_(fd) {
+            assert(fd <= 1024*1024);
             cgo_hook_fd(fd_);
         }
 
@@ -187,6 +188,7 @@ namespace co_net {
                 fd_ = socket(AF_INET6, SOCK_STREAM, 0);
             }
 
+            assert(fd_ <= 1024*1024);
             int optval = 1;
             if (setsockopt(fd_, SOL_SOCKET, SO_REUSEADDR, (const char*)&optval, sizeof(optval)) == -1) {
                 return false;

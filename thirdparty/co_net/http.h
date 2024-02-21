@@ -103,7 +103,7 @@ namespace co_net {
     protected:
         static void NewConn(TcpConn* c, HttpHandler handler) {
             go [c, handler] {
-                const int buflen = 512;
+                const int buflen = 1024;
                 char buf[buflen];
                 std::string all;
                 all.reserve(buflen);

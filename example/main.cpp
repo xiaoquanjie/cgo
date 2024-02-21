@@ -1245,7 +1245,7 @@ int main()
 
     //HeapProfiler::Switch("profiler");
 
-    switch (t_chan_test) {
+    switch (t_performance_test2) {
         case t_work_steal_queue_test:
             work_steal_queue_test();
             break;

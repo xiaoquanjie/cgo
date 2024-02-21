@@ -238,8 +238,8 @@ namespace cgo {
 
         struct _scheduler_st_ {
             _schedule_global_queue_st_* _global_tqueue;
-            std::vector<schedule_thread_st_type> _work_threads; // 正在工作的线程
-            std::vector<schedule_thread_st_type> _idle_threads; // 空闲的线程
+            std::list<schedule_thread_st_type> _work_threads; // 正在工作的线程
+            std::list<schedule_thread_st_type> _idle_threads; // 空闲的线程
             std::vector<_schedule_dead_thread_st_> _dead_threads;
             int generate_work_id = 1;
             std::shared_mutex _thrs_mu;
@@ -275,8 +275,6 @@ namespace cgo {
             void steal_task(_schedule_thread_st_* st);
 
             void get_work_threads(std::vector<schedule_thread_st_type>& thrs);
-
-            void get_idle_threads(std::vector<schedule_thread_st_type>& thrs);
 
             void get_work_idle_threads(std::vector<schedule_thread_st_type>&,
                                        std::vector<schedule_thread_st_type>&);
@@ -698,19 +696,17 @@ namespace cgo {
 
         void _scheduler_st_::get_work_threads(std::vector<schedule_thread_st_type>& thrs) {
             std::shared_lock<std::shared_mutex> sl(this->_thrs_mu);
-            thrs = this->_work_threads;
-        }
-
-        void _scheduler_st_::get_idle_threads(std::vector<schedule_thread_st_type>& thrs) {
-            std::shared_lock<std::shared_mutex> sl(this->_thrs_mu);
-            thrs = this->_idle_threads;
+            thrs.clear();
+            thrs.insert(thrs.end(), this->_work_threads.begin(), this->_work_threads.end());
         }
 
         void _scheduler_st_::get_work_idle_threads(std::vector<schedule_thread_st_type>& work,
                                                    std::vector<schedule_thread_st_type>& idle) {
             std::shared_lock<std::shared_mutex> sl(this->_thrs_mu);
-            work = this->_work_threads;
-            idle = this->_idle_threads;
+            work.clear();
+            idle.clear();
+            work.insert(work.end(), this->_work_threads.begin(), this->_work_threads.end());
+            idle.insert(idle.end(), this->_idle_threads.begin(), this->_idle_threads.end());
         }
 
         void _scheduler_st_::add_idle_thread(_schedule_thread_st_* st) {
@@ -784,15 +780,17 @@ namespace cgo {
             g_local_tqueue = st._global_tqueue;
             std::vector<schedule_thread_st_type> work_thrs;
             std::vector<schedule_thread_st_type> idle_thrs;
+            size_t idle_thr_idx = 0;
             int64_t idle_beg_time = 0;
             int idles = 0;
 
-            auto get_idle = [&idle_thrs]()->schedule_thread_st_type {
-                if (idle_thrs.empty()) {
+            auto get_idle = [&idle_thrs, &idle_thr_idx]()->schedule_thread_st_type {
+                if (idle_thr_idx >= idle_thrs.size()) {
                     return nullptr;
                 }
-                auto thr = idle_thrs.back();
-                idle_thrs.pop_back();
+
+                auto thr = idle_thrs[idle_thr_idx];
+                idle_thr_idx++;
                 return thr;
             };
 
@@ -839,11 +837,11 @@ namespace cgo {
                 M_CO_DEBUG_PRINT("[cgo debug] %s\n", output.c_str());
             };
 
-            auto dispatch = [&st, &idle_thrs, &work_thrs](_schedule_base_queue_st_* q) {
-                if (!idle_thrs.empty()) {
+            auto dispatch = [&st, &idle_thrs, &work_thrs, &idle_thr_idx](_schedule_base_queue_st_* q) {
+                if (idle_thr_idx < idle_thrs.size()) {
                     // 分配空闲线程
-                    auto thr = idle_thrs.back();
-                    idle_thrs.pop_back();
+                    auto thr = idle_thrs[idle_thr_idx];
+                    idle_thr_idx++;
                     st.remove_idle_thread(thr);
                     thr->resume(q);
                 } else {
@@ -857,6 +855,8 @@ namespace cgo {
             };
 
             for (;;) {
+                g_local_tqueue = st._global_tqueue;
+
                 if (st._stop) {
                     break;
                 }
@@ -867,6 +867,7 @@ namespace cgo {
 
                 st.run();
                 st.get_work_idle_threads(work_thrs, idle_thrs);
+                idle_thr_idx = 0;
 
                 if (st._global_tqueue->size()) {
                     dispatch(st._global_tqueue);
@@ -1003,11 +1004,17 @@ namespace cgo {
             coro_adapter::yield_co();
         }
 
+        void schedule_wait_signal() {
+            void* data;
+            coro_adapter::co_wait_signal(data);
+        }
+
         void schedule_wait_signal(void*& data) {
             coro_adapter::co_wait_signal(data);
         }
 
         void schedule_post_signal(uint64_t co_id, void* data) {
+            assert(co_id != M_INVALID_COROUTINE_ID);
             auto task = new _schedule_comm_task_st_;
             task->_co_id = co_id;
             task->_data = data;
@@ -1017,6 +1024,7 @@ namespace cgo {
 
         // thread-safety
         void schedule_co(uint64_t co_id) {
+            assert(co_id != M_INVALID_COROUTINE_ID);
             auto task = new _schedule_comm_task_st_;
             task->_co_id = co_id;
             task->_data = 0;
