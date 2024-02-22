@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 #include <iomanip>
+#include <sstream>
 #include "../cgo/cgo.h"
 
 void print_withtime(const char* msg) {

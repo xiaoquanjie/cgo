@@ -118,7 +118,7 @@ int main() {
     cgo::cgo_print_debug_info();
 
     while (true) {
-        usleep(10);
+        msleep(10);
     }
     return 0;
 }

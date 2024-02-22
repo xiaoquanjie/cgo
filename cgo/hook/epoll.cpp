@@ -5,14 +5,6 @@
 #ifdef __GNUC__
 #include "epoll_iocp.h"
 #include "scheduler/scheduler.h"
-#include <sys/socket.h>
-#include <cerrno>
-#include <unistd.h>
-#include <fcntl.h>
-#include <sys/epoll.h>
-#include <sys/poll.h>
-#include <sys/select.h>
-
 namespace cgo {
     namespace hook {
         void _epoll_iocp_st_::init() {

@@ -31,7 +31,10 @@ add_library(cgo
         hook/iocp.cpp
 )
 
-target_link_libraries(cgo
-        pthread
-        dl
-)
+if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
+else()
+    target_link_libraries(cgo
+            pthread
+            dl
+            )
+endif()

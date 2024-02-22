@@ -8,7 +8,6 @@
 
 class HeapProfiler {
 public:
-    // 切换式调用：即一次为开，再次为关
     static void Switch(const std::string& file_name);
 
     static void Dump();

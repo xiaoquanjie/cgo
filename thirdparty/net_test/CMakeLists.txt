@@ -12,9 +12,15 @@ link_directories(/usr/local/lib64 /usr/local/lib /usr/lib64/mysql)
 add_executable(net_test
         main.cpp)
 
-target_link_libraries(net_test
-        cgo
-        tcmalloc
-        )
+if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
+    target_link_libraries(net_test
+            cgo)
+elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MinGw")
+else()
+    target_link_libraries(net_test
+            cgo
+            tcmalloc
+            )
+endif()
 
-
+add_dependencies(example cgo)

@@ -3,12 +3,8 @@
 //
 
 #ifdef _MSC_VER
-#include "epoll_iocp.h"
 #include "scheduler/scheduler.h"
-#define WIN32_LEAN_AND_MEAN
-#define MIN_HOOK_IMPLEMENTATION
-#include <WinSock2.h>
-#include <MSWSock.h>
+#include "epoll_iocp.h"
 
 namespace cgo {
     namespace hook {
@@ -18,7 +14,7 @@ namespace cgo {
             }
 
             this->_iocp_handle = CreateIoCompletionPort(INVALID_HANDLE_VALUE, 0, 0, 0);
-            if (this->_iocp_handle != 0) {
+            if (this->_iocp_handle == 0) {
                 throw "CreateIoCompletionPort error";
             }
         }

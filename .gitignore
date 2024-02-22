@@ -7,3 +7,4 @@ cmake-build-*
 out
 .vs
 .vscode
+cgo-vsproject

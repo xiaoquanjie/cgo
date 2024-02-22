@@ -12,6 +12,24 @@
 #include <mutex>
 #include <thread>
 
+#ifdef __GNUC__
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <dlfcn.h>
+#include <unistd.h>
+#include <cerrno>
+#include <fcntl.h>
+#include <sys/epoll.h>
+#include <sys/poll.h>
+#include <sys/select.h>
+#elif _MSC_VER
+#include <WinSock2.h>
+#include <windows.h>
+#include <ws2tcpip.h>
+#include <MSWSock.h>
+#endif
+
 #define hook_debug //_hook_debug
 inline void _hook_debug(const char* name) {
     printf("hook: %s ok\n", name);
@@ -19,6 +37,35 @@ inline void _hook_debug(const char* name) {
 
 #undef CGO_MAX_HOOK_FD
 #define CGO_MAX_HOOK_FD 1024*100
+
+#ifdef _MSC_VER
+struct WinOverlapped {
+    OVERLAPPED overlap;
+    int err;
+    DWORD bytes; // Number Of Bytes Sent / recv
+};
+struct AcceptOverlapped : public WinOverlapped {
+    SOCKET l_fd;
+    SOCKET c_fd;
+    char addr_buf[128];
+};
+struct SendOverlapped : public WinOverlapped {
+    WSABUF buf[1];
+};
+struct RecvOverlapped : public SendOverlapped {};
+struct ConnOverlapped : public WinOverlapped {
+    const struct sockaddr* name;
+    int namelen;
+};
+struct SendtoOverlapped : public SendOverlapped {
+    const struct sockaddr* name;
+    int namelen;
+};
+struct RecvfromOverlapped : public RecvOverlapped {
+    struct sockaddr* name;
+    int* namelen;
+};
+#endif
 
 namespace cgo {
     namespace hook {
@@ -51,7 +98,7 @@ namespace cgo {
 #ifdef __GNUC__
             int _epoll_fd = -1;
 #elif _MSC_VER
-            HANDLE _iocp_handle = NULL;
+            void* _iocp_handle = NULL;
 #endif
             void init();
 

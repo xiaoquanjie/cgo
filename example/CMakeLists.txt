@@ -10,6 +10,8 @@ add_executable(example
         heap_profiler/heap_profiler.cpp)
 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
+    target_link_libraries(example
+            cgo)
 elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MinGw")
 else()
     target_link_libraries(example
@@ -19,3 +21,5 @@ else()
             #profiler
             tcmalloc)
 endif()
+
+add_dependencies(example cgo)

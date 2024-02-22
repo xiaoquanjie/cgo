@@ -9,11 +9,6 @@
 #define M_SET_STATE(data, state) data->co_id = cgo::scheduler::cur_coid(); data->flag |= cgo::hook::state;
 
 #ifdef __GNUC__
-#include <sys/socket.h>
-#include <fcntl.h>
-#include <sys/epoll.h>
-#include <sys/poll.h>
-#include <sys/select.h>
 
 typedef int (*socket_hook_t)(int, int, int);
 static socket_hook_t socket_hook = (socket_hook_t)dlsym(RTLD_NEXT,"socket");
@@ -463,42 +458,10 @@ int select(int maxfd, fd_set *readfds, fd_set *writefds, fd_set *exceptfds, stru
 #include <WinSock2.h>
 #include <MSWSock.h>
 #include "minhook.h"
+#include "epoll_iocp.h"
 
 #pragma comment(lib, "ws2_32.lib")
 #pragma comment(lib, "Mswsock.lib")
-
-struct WinOverlapped {
-    OVERLAPPED overlap;
-    int err;
-    DWORD bytes; // Number Of Bytes Sent / recv
-};
-
-struct AcceptOverlapped : public WinOverlapped {
-    SOCKET l_fd;
-    SOCKET c_fd;
-    char addr_buf[128];
-};
-
-struct SendOverlapped : public WinOverlapped {
-    WSABUF buf[1];
-};
-
-struct RecvOverlapped : public SendOverlapped {};
-
-struct ConnOverlapped : public WinOverlapped {
-    const struct sockaddr* name;
-    int namelen;
-};
-
-struct SendtoOverlapped : public SendOverlapped {
-    const struct sockaddr* name;
-    int namelen;
-};
-
-struct RecvfromOverlapped : public RecvOverlapped {
-    struct sockaddr* name;
-    int* namelen;
-};
 
 typedef SOCKET (PASCAL FAR *socket_hook_t)(_In_ int af,
     _In_ int type,
@@ -566,7 +529,7 @@ SOCKET PASCAL FAR hook_accept (
             err = ov->err;
         } while (false);
 
-        state->flag ^= fd_state::accept;
+        state->flag ^= cgo::hook::fd_state::accept;
         delete ov;
 
         if (err == ERROR_SUCCESS) {
@@ -632,8 +595,8 @@ int PASCAL FAR hook_connect (
         } while (false);
 
         delete ov;
-        state->flag ^= fd_state::connect;
-        if (state->flag & fd_state::connecok) {
+        state->flag ^= cgo::hook::fd_state::connect;
+        if (state->flag & cgo::hook::fd_state::connecok) {
             return 0;
         }
 
@@ -648,7 +611,7 @@ typedef int (PASCAL FAR* closesocket_hook_t)(IN SOCKET s);
 static closesocket_hook_t closesocket_hook = 0;
 int PASCAL FAR hook_closesocket (IN SOCKET s) {
     auto state = cgo::hook::get_fd_state((int)s);
-    if (state->flag & fd_state::set) {
+    if (state->flag & cgo::hook::fd_state::set) {
         hook_debug(__FUNCTION__);
         cgo::hook::clear_fd_state(s);
     }
@@ -703,7 +666,7 @@ int PASCAL FAR hook_sendto (
             err = ov->err;
         } while (false);
 
-        state->flag ^= fd_state::write;
+        state->flag ^= cgo::hook::fd_state::write;
         DWORD bytes = ov->bytes;
         delete ov;
 
@@ -764,7 +727,7 @@ int PASCAL FAR hook_recvfrom (
             err = ov->err;
         } while (false);
 
-        state->flag ^= fd_state::read;
+        state->flag ^= cgo::hook::fd_state::read;
         DWORD bytes = ov->bytes;
         delete ov;
 
@@ -819,7 +782,7 @@ int PASCAL FAR hook_send (
             ov->err = err;
         } while (false);
 
-        state->flag ^= fd_state::write;
+        state->flag ^= cgo::hook::fd_state::write;
         DWORD bytes = ov->bytes;
         delete ov;
 
@@ -875,7 +838,7 @@ int PASCAL FAR hook_recv (
             ov->err = err;
         } while (false);
 
-        state->flag ^= fd_state::read;
+        state->flag ^= cgo::hook::fd_state::read;
         DWORD bytes = ov->bytes;
         delete ov;
 
