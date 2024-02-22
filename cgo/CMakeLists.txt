@@ -3,10 +3,14 @@ project(cgo)
 
 set(CMAKE_CXX_STANDARD 17)
 
-add_compile_options(-Wno-error=deprecated-declarations)
-add_compile_options(-Wno-deprecated-declarations)
-add_compile_options(-Werror=unused-variable)
-add_compile_options(-Werror=sign-compare)
+if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+    add_compile_options(/utf-8)
+else()
+    add_compile_options(-Wno-error=deprecated-declarations)
+    add_compile_options(-Wno-deprecated-declarations)
+    add_compile_options(-Werror=unused-variable)
+    add_compile_options(-Werror=sign-compare)
+endif ()
 
 include_directories(./)
 
