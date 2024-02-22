@@ -2,9 +2,7 @@
 // Created by xiaoqj on 2023/12/20.
 //
 
-#define CGO_USE_HOOK
-
-#ifdef CGO_USE_HOOK
+#pragma once
 
 #ifdef __GNUC__
 #include <sys/socket.h>
@@ -21,7 +19,6 @@
 
 #undef msleep
 #define msleep cgo::hook::mSleep
-
 
 /*
  * hook的规则：
@@ -42,9 +39,6 @@
 #undef cgo_hook_poll_select
 #define cgo_hook_poll_select cgo::hook::hook_poll_select
 
-#undef CGO_MAX_HOOK_FD
-#define CGO_MAX_HOOK_FD 1024*100
-
 namespace cgo {
     namespace hook {
         void mSleep(unsigned int millisecond);
@@ -59,5 +53,3 @@ namespace cgo {
         void hook_poll_select(bool hook);
     }
 }
-
-#endif

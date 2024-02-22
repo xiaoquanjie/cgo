@@ -3,122 +3,17 @@
 //
 
 #include "hook.h"
-
-#ifdef CGO_USE_HOOK
-
+#include "epoll_iocp.h"
 #include "scheduler/scheduler.h"
-#include <stdio.h>
-#include <atomic>
-#include <assert.h>
 
-#define hook_debug //_hook_debug
-
-inline void _hook_debug(const char* name) {
-    printf("hook: %s ok\n", name);
-}
-
-struct fd_state {
-    enum {
-        set = 1,
-        read = 2,
-        write = 4,
-        accept = 8,
-        connect = 16,
-        connecok = 32,
-    };
-
-    volatile uint64_t co_id = -1;
-    std::atomic_char flag = 0;
-};
-
-#define M_SET_STATE(data, state) data->co_id = cgo::scheduler::cur_coid(); data->flag |= state;
-
-static fd_state g_fd_state[CGO_MAX_HOOK_FD];
-static bool g_global_hook = false;
-
-inline fd_state* get_fd_state(int fd) {
-    if (fd >= CGO_MAX_HOOK_FD) {
-        throw "over max fd";
-    }
-    return &g_fd_state[fd];
-}
-
-inline void clear_fd_state(int fd) {
-    if (fd >= CGO_MAX_HOOK_FD) {
-        throw "over max fd";
-    }
-
-    g_fd_state[fd].flag = 0;
-    g_fd_state[fd].co_id = -1;
-}
-
-inline fd_state* check_fd_state(int fd, int fs) {
-    auto state = get_fd_state(fd);
-    if (state->flag & fs) {
-        throw "duplicate state";
-    }
-    assert((state->flag & fs) == 0);
-    return state;
-}
-
-inline bool canhook(int fd) {
-    if (cgo::scheduler::cur_coid() == (uint64_t)-1) {
-        return false;
-    }
-
-    auto state = get_fd_state(fd);
-    if ((state->flag & fd_state::set) == 1) {
-        return true;
-    } else {
-        if (g_global_hook) {
-            cgo::hook::hook_fd(fd);
-            return true;
-        }
-    }
-    return false;
-}
-
-inline bool canhook_poll_select() {
-    if (cgo::scheduler::cur_coid() == (uint64_t)-1) {
-        return false;
-    }
-    return (g_global_hook || cgo::scheduler::co_hook());
-}
+#define M_SET_STATE(data, state) data->co_id = cgo::scheduler::cur_coid(); data->flag |= cgo::hook::state;
 
 #ifdef __GNUC__
-
+#include <sys/socket.h>
 #include <fcntl.h>
 #include <sys/epoll.h>
 #include <sys/poll.h>
 #include <sys/select.h>
-
-static int g_epoll_fd = -1;
-
-void set_nonblock(int fd) {
-    int flags = fcntl(fd, F_GETFL, 0);
-    if (flags != -1 && !(flags & O_NONBLOCK)) {
-        flags = fcntl(fd, F_SETFL, flags | O_NONBLOCK);
-    }
-
-    if (flags == -1) {
-        throw "fcntl nonblock fd error";
-    }
-}
-
-void add_fd(int fd) {
-    epoll_event event;
-    event.data.fd = fd;
-    event.events = EPOLLIN | EPOLLOUT | EPOLLERR;
-    if (epoll_ctl(g_epoll_fd, EPOLL_CTL_ADD, fd, &event) == -1) {
-        if (errno != EEXIST) {
-            throw "epoll add fd error";
-        }
-    }
-}
-
-inline void remove_fd(int fd) {
-    epoll_ctl(g_epoll_fd, EPOLL_CTL_DEL, fd, NULL);
-}
 
 typedef int (*socket_hook_t)(int, int, int);
 static socket_hook_t socket_hook = (socket_hook_t)dlsym(RTLD_NEXT,"socket");
@@ -130,12 +25,12 @@ int socket(int domain, int type, int protocol) {
 typedef int (*accept_hook_t)(int fd, struct sockaddr *addr, socklen_t *addrlen);
 static accept_hook_t accept_hook = (accept_hook_t)dlsym(RTLD_NEXT,"accept");
 int accept(int fd, struct sockaddr *addr, socklen_t *addrlen) {
-    if (!canhook(fd)) {
+    if (!cgo::hook::canhook(fd)) {
         return accept_hook(fd, addr, addrlen);
     }
 
     hook_debug(__FUNCTION__);
-    auto state = check_fd_state(fd, fd_state::accept);
+    auto state = cgo::hook::check_fd_state(fd, cgo::hook::fd_state::accept);
 
     int ret = accept_hook(fd, addr, addrlen);
     if (ret > 0) {
@@ -165,12 +60,12 @@ int accept(int fd, struct sockaddr *addr, socklen_t *addrlen) {
 typedef int (*connect_hook_t)(int, const struct sockaddr*, socklen_t);
 static connect_hook_t connect_hook = (connect_hook_t)dlsym(RTLD_NEXT,"connect");
 int connect(int fd, const struct sockaddr *address, socklen_t addrlen) {
-    if (!canhook(fd)) {
+    if (!cgo::hook::canhook(fd)) {
         return connect_hook(fd, address, addrlen);
     }
 
     hook_debug(__FUNCTION__);
-    auto state = check_fd_state(fd, fd_state::connect);
+    auto state = cgo::hook::check_fd_state(fd, cgo::hook::fd_state::connect);
 
     int ret = connect_hook(fd, address, addrlen);
     if (ret == 0) {
@@ -183,8 +78,8 @@ int connect(int fd, const struct sockaddr *address, socklen_t addrlen) {
         for (;;) {
             M_SET_STATE(state, fd_state::connect);
             cgo::scheduler::schedule_wait_signal();
-            if (state->flag & fd_state::connecok) {
-                state->flag ^= fd_state::connecok;
+            if (state->flag & cgo::hook::fd_state::connecok) {
+                state->flag ^= cgo::hook::fd_state::connecok;
                 ret = 0;
                 errno = 0;
             } else {
@@ -200,11 +95,10 @@ int connect(int fd, const struct sockaddr *address, socklen_t addrlen) {
 typedef int (*close_hook_t)(int fd);
 static close_hook_t close_hook = (close_hook_t)dlsym(RTLD_NEXT,"close");
 int close(int fd) {
-    auto state = get_fd_state(fd);
-    if (state->flag & fd_state::set) {
+    auto state = cgo::hook::get_fd_state(fd);
+    if (state->flag & cgo::hook::fd_state::set) {
         hook_debug(__FUNCTION__);
-        clear_fd_state(fd);
-        remove_fd(fd);
+        cgo::hook::clear_fd_state(fd);
     }
     return close_hook(fd);
 }
@@ -212,12 +106,12 @@ int close(int fd) {
 typedef ssize_t (*read_hook_t)(int fildes, void *buf, size_t);
 static read_hook_t read_hook = (read_hook_t)dlsym(RTLD_NEXT,"read");
 ssize_t read(int fd, void *buf, size_t bytes) {
-    if (!canhook(fd)) {
+    if (!cgo::hook::canhook(fd)) {
         return read_hook(fd, buf, bytes);
     }
 
     hook_debug(__FUNCTION__);
-    auto state = check_fd_state(fd, fd_state::read);
+    auto state = cgo::hook::check_fd_state(fd, cgo::hook::fd_state::read);
 
     ssize_t ret = read_hook(fd, buf, bytes);
     if (ret >= 0) {
@@ -248,12 +142,12 @@ ssize_t read(int fd, void *buf, size_t bytes) {
 typedef ssize_t (*recv_hook_t) (int, void *__buff, size_t __len, int __flags);
 static recv_hook_t recv_hook = (recv_hook_t)dlsym(RTLD_NEXT,"recv");
 ssize_t recv(int fd, void *buf, size_t len, int flags) {
-    if (!canhook(fd)) {
+    if (!cgo::hook::canhook(fd)) {
         return recv_hook(fd, buf, len, flags);
     }
 
     hook_debug(__FUNCTION__);
-    auto state = check_fd_state(fd, fd_state::read);
+    auto state = cgo::hook::check_fd_state(fd, cgo::hook::fd_state::read);
 
     ssize_t ret = recv_hook(fd, buf, len, flags);
     if (ret >= 0) {
@@ -283,12 +177,12 @@ ssize_t recv(int fd, void *buf, size_t len, int flags) {
 typedef ssize_t (*send_hook_t)(int, const void *__buff, size_t __len, int __flags);
 static send_hook_t send_hook = (send_hook_t)dlsym(RTLD_NEXT,"send");
 ssize_t send(int fd, const void *buf, size_t len, int flags) {
-    if (!canhook(fd)) {
+    if (!cgo::hook::canhook(fd)) {
         return send_hook(fd, buf, len, flags);
     }
 
     hook_debug(__FUNCTION__);
-    auto state = check_fd_state(fd, fd_state::write);
+    auto state = cgo::hook::check_fd_state(fd, cgo::hook::fd_state::write);
 
     ssize_t ret = send_hook(fd, buf, len, flags);
     if (ret >= 0) {
@@ -318,12 +212,12 @@ ssize_t send(int fd, const void *buf, size_t len, int flags) {
 typedef ssize_t (*write_hook_t)(int, const void*, size_t);
 static write_hook_t write_hook = (write_hook_t)dlsym(RTLD_NEXT,"write");
 ssize_t write(int fd, const void *buf, size_t bytes) {
-    if (!canhook(fd)) {
+    if (!cgo::hook::canhook(fd)) {
         return write_hook(fd, buf, bytes);
     }
 
     hook_debug(__FUNCTION__);
-    auto state = check_fd_state(fd, fd_state::write);
+    auto state = cgo::hook::check_fd_state(fd, cgo::hook::fd_state::write);
 
     ssize_t ret = write_hook(fd, buf, bytes);
     if (ret >= 0) {
@@ -353,12 +247,12 @@ ssize_t write(int fd, const void *buf, size_t bytes) {
 typedef ssize_t (*sendto_hook_t)(int fd, const void *, size_t, int, const struct sockaddr*, socklen_t);
 static sendto_hook_t sendto_hook = (sendto_hook_t)dlsym(RTLD_NEXT,"sendto");
 ssize_t sendto(int fd, const void *buf, size_t len, int flags, const struct sockaddr *dstaddr, socklen_t addrlen) {
-    if (!canhook(fd)) {
+    if (!cgo::hook::canhook(fd)) {
         return sendto_hook(fd, buf, len, flags, dstaddr, addrlen);
     }
 
     hook_debug(__FUNCTION__);
-    auto state = check_fd_state(fd, fd_state::write);
+    auto state = cgo::hook::check_fd_state(fd, cgo::hook::fd_state::write);
 
     ssize_t ret = sendto_hook(fd, buf, len, flags, dstaddr, addrlen);
     if (ret >= 0) {
@@ -388,12 +282,12 @@ ssize_t sendto(int fd, const void *buf, size_t len, int flags, const struct sock
 typedef ssize_t (*recvfrom_hook_t)(int fd, void *buf, size_t len, int flags, struct sockaddr *srcaddr, socklen_t *addrlen);
 static recvfrom_hook_t recvfrom_hook = (recvfrom_hook_t)dlsym(RTLD_NEXT,"recvfrom");
 ssize_t recvfrom(int fd, void *buf, size_t len, int flags, struct sockaddr *srcaddr, socklen_t *addrlen) {
-    if (!canhook(fd)) {
+    if (!cgo::hook::canhook(fd)) {
         return recvfrom_hook(fd, buf, len, flags, srcaddr, addrlen);
     }
 
     hook_debug(__FUNCTION__);
-    auto state = check_fd_state(fd, fd_state::read);
+    auto state = cgo::hook::check_fd_state(fd, cgo::hook::fd_state::read);
 
     ssize_t ret = recvfrom_hook(fd, buf, len, flags, srcaddr, addrlen);
     if (ret >= 0) {
@@ -454,7 +348,7 @@ int usleep(useconds_t microseconds) {
 typedef int (*poll_hook_t)(struct pollfd *fdarray,unsigned long nfds,int timeout);
 static poll_hook_t poll_hook = (poll_hook_t)dlsym(RTLD_NEXT,"poll");
 int poll(struct pollfd *fdarray, unsigned long nfds, int timeout) {
-    auto can = canhook_poll_select();
+    auto can = cgo::hook::canhook_poll_select();
 
     //if (!can || timeout == 0) {
     if (!can) {
@@ -495,7 +389,7 @@ int poll(struct pollfd *fdarray, unsigned long nfds, int timeout) {
 typedef int (*select_hook_t)(int maxfd, fd_set *readfds, fd_set *writefds, fd_set *exceptfds, struct timeval *timeout);
 static select_hook_t select_hook = (select_hook_t)dlsym(RTLD_NEXT,"select");
 int select(int maxfd, fd_set *readfds, fd_set *writefds, fd_set *exceptfds, struct timeval *timeout) {
-    auto can = canhook_poll_select();
+    auto can = cgo::hook::canhook_poll_select();
 
     if (!can) {
         return select_hook(maxfd, readfds, writefds, exceptfds, timeout);
@@ -562,64 +456,6 @@ int select(int maxfd, fd_set *readfds, fd_set *writefds, fd_set *exceptfds, stru
     return op_select();
 }
 
-void linux_hook_init() {
-    if (g_epoll_fd != -1) {
-        return;
-    }
-
-    g_epoll_fd = epoll_create(1);
-    if (g_epoll_fd == -1) {
-        throw "epoll_create error";
-    }
-
-    cgo::scheduler::cgo_add_loop([]() {
-        static const int MAX_EVENTS = 500;
-        static epoll_event eventList[MAX_EVENTS];
-        static int fd_in_state[2] = {fd_state::read, fd_state::accept};
-        static int fd_out_state[3] = {fd_state::write, fd_state::accept, fd_state::connect};
-
-        int cnt = epoll_wait(g_epoll_fd, eventList, MAX_EVENTS, 0);
-        if (cnt < 0) {
-            throw "epoll_wait error";
-        } else if (cnt == 0) {
-            return;
-        }
-
-        for (int i = 0; i < cnt; i++) {
-            if (eventList[i].events & EPOLLIN || eventList[i].events & EPOLLERR) {
-                auto state = get_fd_state(eventList[i].data.fd);
-                for (size_t idx = 0; idx < sizeof (fd_in_state) / sizeof (int); idx++) {
-                    if (state->flag & fd_in_state[idx]) {
-                        state->flag ^= fd_in_state[idx];
-                        cgo::scheduler::schedule_post_signal(state->co_id, 0);
-                        break;
-                    }
-                }
-            }
-
-            if (eventList[i].events & EPOLLOUT || eventList[i].events & EPOLLERR) {
-                int fd = eventList[i].data.fd;
-                auto state = get_fd_state(fd);
-                for (size_t idx = 0; idx < sizeof (fd_out_state) / sizeof (int); idx++) {
-                    if (state->flag & fd_out_state[idx]) {
-                        state->flag ^= fd_out_state[idx];
-                        if (fd_out_state[idx] == fd_state::connect) {
-                            int error = 0;
-                            socklen_t len = sizeof(error);
-                            if (getsockopt(fd, SOL_SOCKET, SO_ERROR, &error, &len) == 0
-                                && error == 0) {
-                                state->flag |= fd_state::connecok;
-                            }
-                        }
-                        cgo::scheduler::schedule_post_signal(state->co_id, 0);
-                        break;
-                    }
-                }
-            }
-        }
-    });
-}
-
 #elif _MSC_VER
 
 #define WIN32_LEAN_AND_MEAN
@@ -630,8 +466,6 @@ void linux_hook_init() {
 
 #pragma comment(lib, "ws2_32.lib")
 #pragma comment(lib, "Mswsock.lib")
-
-static HANDLE g_iocp_handle = NULL;
 
 struct WinOverlapped {
     OVERLAPPED overlap;
@@ -688,7 +522,7 @@ SOCKET PASCAL FAR hook_accept (
                           _In_ SOCKET s,
                           _Out_writes_bytes_opt_(*addrlen) struct sockaddr FAR *addr,
                           _Inout_opt_ int FAR *addrlen) {
-    if (!canhook((int)s)) {
+    if (!cgo::hook::canhook((int)s)) {
         return accept_hook(s, addr, addrlen);
     }
 
@@ -705,7 +539,7 @@ SOCKET PASCAL FAR hook_accept (
         ov->l_fd = s;
         ov->c_fd = c_fd;
 
-        auto state = check_fd_state((int)s, fd_state::accept);
+        auto state = cgo::hook::check_fd_state((int)s, cgo::hook::fd_state::accept);
         M_SET_STATE(state, fd_state::accept);
 
         int addr = sizeof(sockaddr_in) + 16;
@@ -758,7 +592,7 @@ int PASCAL FAR hook_connect (
                         _In_ SOCKET s,
                         _In_reads_bytes_(namelen) const struct sockaddr FAR *name,
                         _In_ int namelen) {
-    if (!canhook((int)s)) {
+    if (!cgo::hook::canhook((int)s)) {
         return connect_hook(s, name, namelen);
     }
 
@@ -779,7 +613,7 @@ int PASCAL FAR hook_connect (
         ov->name = name;
         ov->namelen = namelen;
 
-        auto state = check_fd_state((int)s, fd_state::connect);
+        auto state = cgo::hook::check_fd_state((int)s, cgo::hook::fd_state::connect);
         M_SET_STATE(state, fd_state::connect);
 
         auto ret = lpfnConn(s, ov->name, ov->namelen, NULL, 0, NULL, (LPOVERLAPPED)ov);
@@ -813,10 +647,10 @@ int PASCAL FAR hook_connect (
 typedef int (PASCAL FAR* closesocket_hook_t)(IN SOCKET s);
 static closesocket_hook_t closesocket_hook = 0;
 int PASCAL FAR hook_closesocket (IN SOCKET s) {
-    auto state = get_fd_state((int)s);
+    auto state = cgo::hook::get_fd_state((int)s);
     if (state->flag & fd_state::set) {
         hook_debug(__FUNCTION__);
-        clear_fd_state(s);
+        cgo::hook::clear_fd_state(s);
     }
     return closesocket_hook(s);
 }
@@ -836,7 +670,7 @@ int PASCAL FAR hook_sendto (
                        _In_ int flags,
                        _In_reads_bytes_opt_(tolen) const struct sockaddr FAR *to,
                        _In_ int tolen) {
-    if (!canhook(s)) {
+    if (!cgo::hook::canhook(s)) {
         return sendto_hook(s, buf, len, flags, to, tolen);
     }
 
@@ -850,7 +684,7 @@ int PASCAL FAR hook_sendto (
         ov->name = to;
         ov->namelen = tolen;
 
-        auto state = check_fd_state((int)s, fd_state::write);
+        auto state = cgo::hook::check_fd_state((int)s, cgo::hook::fd_state::write);
         M_SET_STATE(state, fd_state::write);
 
         int ret = WSASendTo(s, ov->buf, 1, &ov->bytes, flags, ov->name, ov->namelen, (LPOVERLAPPED)ov, NULL);
@@ -896,7 +730,7 @@ int PASCAL FAR hook_recvfrom (
                          _In_ int flags,
                          _Out_writes_bytes_to_opt_(*fromlen, *fromlen) struct sockaddr FAR * from,
                          _Inout_opt_ int FAR * fromlen) {
-    if (!canhook(s)) {
+    if (!cgo::hook::canhook(s)) {
         return recvfrom_hook(s, buf, len, flags, from, fromlen);
     }
 
@@ -910,7 +744,7 @@ int PASCAL FAR hook_recvfrom (
         ov->name = from;
         ov->namelen = fromlen;
 
-        auto state = check_fd_state((int)s, fd_state::read);
+        auto state = cgo::hook::check_fd_state((int)s, cgo::hook::fd_state::read);
         M_SET_STATE(state, fd_state::read);
 
         DWORD flag = 0;
@@ -954,7 +788,7 @@ int PASCAL FAR hook_send (
                      _In_reads_bytes_(len) const char FAR * buf,
                      _In_ int len,
                      _In_ int flags) {
-    if (!canhook((int)s)) {
+    if (!cgo::hook::canhook((int)s)) {
         return send_hook(s, buf, len, flags);
     }
 
@@ -966,7 +800,7 @@ int PASCAL FAR hook_send (
         ov->buf[0].buf = const_cast<char*>(buf);
         ov->buf[0].len = len;
 
-        auto state = check_fd_state((int)s, fd_state::write);
+        auto state = cgo::hook::check_fd_state((int)s, cgo::hook::fd_state::write);
         M_SET_STATE(state, fd_state::write);
 
         int ret = WSASend(s, ov->buf, 1, &ov->bytes, 0, (LPOVERLAPPED)ov, NULL);
@@ -1009,7 +843,7 @@ int PASCAL FAR hook_recv (
                      _Out_writes_bytes_to_(len, return) __out_data_source(NETWORK) char FAR * buf,
                      _In_ int len,
                      _In_ int flags) {
-    if (!canhook((int)s)) {
+    if (!cgo::hook::canhook((int)s)) {
         return recv_hook(s, buf, len, flags);
     }
 
@@ -1021,7 +855,7 @@ int PASCAL FAR hook_recv (
         ov->buf[0].buf = buf;
         ov->buf[0].len = len;
 
-        auto state = check_fd_state((int)s, fd_state::read);
+        auto state = cgo::hook::check_fd_state((int)s, cgo::hook::fd_state::read);
         M_SET_STATE(state, fd_state::read);
 
         DWORD flag = 0;
@@ -1109,68 +943,6 @@ bool win_hook_init() {
     HOOK_API("Ws2_32.dll", recv, recv);
 
     //HOOK_API2(gethostbyname, gethostbyname);
-
-    g_iocp_handle = CreateIoCompletionPort(INVALID_HANDLE_VALUE, 0, 0, 0);
-
-    auto iocp_proc = []() {
-        DWORD dwTrans = 0; // Number Of Bytes Transferred
-        ULONG_PTR lpCompletionKey = 0;
-        WinOverlapped* overlapped = 0;
-        BOOL ok = GetQueuedCompletionStatus(g_iocp_handle, &dwTrans, &lpCompletionKey, (LPOVERLAPPED*)&overlapped, 0);
-
-        if (ok == FALSE) {
-            if (overlapped == NULL) {
-                if (GetLastError() != WAIT_TIMEOUT) {
-                    throw "get iocp status error";
-                }
-            }
-            else {
-                overlapped->err = WSAEBADF;// GetLastError();
-                auto state = get_fd_state((int)lpCompletionKey);
-                cgo::scheduler::schedule_co(state->co_id);
-            }
-            return;
-        }
-
-        auto state = get_fd_state((int)lpCompletionKey);
-        overlapped->bytes = dwTrans; // dwTrans is 0 when socket is closed or error but accept
-        overlapped->err = ERROR_SUCCESS;
-        cgo::scheduler::schedule_co(state->co_id);
-    };
-
-    auto iocp_proc2 = []() {
-        static const int MAX_ENTRY = 200;
-        static OVERLAPPED_ENTRY completionPortEntries[MAX_ENTRY];
-        ULONG ulNumEntriesRemoved;
-        BOOL ok = GetQueuedCompletionStatusEx(g_iocp_handle, completionPortEntries, MAX_ENTRY, &ulNumEntriesRemoved, 0, true);
-        
-        if (ok == FALSE) {
-            return;
-        }
-
-        for (ULONG idx = 0; idx < ulNumEntriesRemoved; idx++) {
-            auto fd = completionPortEntries[idx].lpCompletionKey;
-            auto state = get_fd_state((int)fd);
-            if (state->flag & state->connect) {
-                int optVal = -1;
-                int optLen = sizeof(optVal);
-                if (getsockopt(fd, SOL_SOCKET, SO_CONNECT_TIME, (char*)&optVal, &optLen) == NO_ERROR) {
-                    if (optVal != 0xFFFFFFFF) {
-                        state->flag |= fd_state::connecok;
-                    }
-                }
-            }
-            else {
-                WinOverlapped* overlapped = (WinOverlapped*)completionPortEntries[idx].lpOverlapped;
-                overlapped->bytes = completionPortEntries[idx].dwNumberOfBytesTransferred; // dwTrans is 0 when socket is closed or error but accept
-                overlapped->err = ERROR_SUCCESS;
-            }
-            cgo::scheduler::schedule_post_signal(state->co_id, 0);
-        }
-    };
-
-    cgo::scheduler::cgo_add_loop(iocp_proc2);
-
     return true;
 }
 
@@ -1180,8 +952,6 @@ struct hook_init {
     hook_init() {
 #ifdef _MSC_VER
         win_hook_init();
-#elif __GNUC__
-        linux_hook_init();
 #endif
     }
 };
@@ -1198,37 +968,5 @@ namespace cgo {
 #pragma message("no msleep implement")
 #endif
         }
-
-        // hook a fd
-        void hook_fd(int fd) {
-            if (fd == 0) {
-                return;
-            }
-            auto state = get_fd_state(fd);
-            if ((state->flag & fd_state::set) == 1) {
-                return;
-            }
-
-            state->flag |= fd_state::set;
-#ifdef __GNUC__
-            set_nonblock(fd);
-            add_fd(fd);
-#elif _MSC_VER
-            if (CreateIoCompletionPort((HANDLE)fd, g_iocp_handle, fd, 0) == NULL) {
-                throw "bind iocp error";
-            }
-#endif
-        }
-
-        // default disable global hook
-        void set_global_hook(bool hook) {
-            g_global_hook = hook;
-        }
-
-        void hook_poll_select(bool hook) {
-            scheduler::co_hook(hook);
-        }
     }
 }
-
-#endif

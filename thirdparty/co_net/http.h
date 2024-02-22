@@ -30,7 +30,7 @@ namespace co_net {
             return &iter->second;
         }
 
-        const std::unordered_map<std::string_view, std::string_view>& Header() {
+        const std::unordered_map<std::string_view, std::string_view>& Header() const {
             return header_;
         }
 
@@ -103,47 +103,61 @@ namespace co_net {
     protected:
         static void NewConn(TcpConn* c, HttpHandler handler) {
             go [c, handler] {
-                const int buflen = 1024;
-                char buf[buflen];
-                std::string all;
-                all.reserve(buflen);
-                const char* mehtod = 0;
+                for (;;) {
+                    const int buflen = 1024;
+                    char buf[buflen];
+                    std::string all;
+                    all.reserve(buflen);
+                    const char* mehtod = 0;
 
-                http_parser parser;
-                http_parser_init(&parser, HTTP_REQUEST);
-                http_parser_settings settings;
-                http_parser_settings_init(&settings);
+                    http_parser parser;
+                    http_parser_init(&parser, HTTP_REQUEST);
+                    http_parser_settings settings;
+                    http_parser_settings_init(&settings);
 
-                HttpRequest request;
-                request.complete_ = false;
-                HttpResponse response(c);
+                    HttpRequest request;
+                    request.complete_ = false;
+                    HttpResponse response(c);
 
-                parser.data = &request;
-                settings.on_url = &HttpListener::on_url;
-                settings.on_header_field = &HttpListener::on_header_field;
-                settings.on_header_value = &HttpListener::on_header_value;
-                settings.on_body = &HttpListener::on_body;
-                settings.on_headers_complete = &HttpListener::on_header_complete;
-                settings.on_message_complete = &HttpListener::on_msg_complete;
+                    parser.data = &request;
+                    settings.on_url = &HttpListener::on_url;
+                    settings.on_header_field = &HttpListener::on_header_field;
+                    settings.on_header_value = &HttpListener::on_header_value;
+                    settings.on_body = &HttpListener::on_body;
+                    settings.on_headers_complete = &HttpListener::on_header_complete;
+                    settings.on_message_complete = &HttpListener::on_msg_complete;
 
-                while (true) {
-                    auto cnt = c->Read(buf, buflen);
-                    if (cnt <= 0) {
-                        goto parser_failed;
-                    }
+                    while (true) {
+                        auto cnt = c->Read(buf, buflen);
+                        if (cnt <= 0) {
+                            goto parser_failed;
+                        }
 
-                    auto oldsize = all.size();
-                    if (oldsize + cnt > all.capacity()) {
-                        std::string newall;
-                        newall.reserve(all.capacity() + buflen);
-                        newall.append(all);
-                        newall.append(buf, cnt);
-                        all.swap(newall);
+                        auto oldsize = all.size();
+                        if (oldsize + cnt > all.capacity()) {
+                            std::string newall;
+                            newall.reserve(all.capacity() + buflen);
+                            newall.append(all);
+                            newall.append(buf, cnt);
+                            all.swap(newall);
 
-                        // re-execute
-                        http_parser_init(&parser, HTTP_REQUEST);
-                        request.clear();
-                        http_parser_execute(&parser, &settings, all.c_str(), all.size());
+                            // re-execute
+                            http_parser_init(&parser, HTTP_REQUEST);
+                            request.clear();
+                            http_parser_execute(&parser, &settings, all.c_str(), all.size());
+                            if (!request.complete_) {
+                                continue;
+                            }
+                            if (parser.http_errno != 0) {
+                                goto parser_failed;
+                            }
+                            // finish
+                            goto parser_finish;
+                        }
+
+                        all.append(buf, cnt);
+                        http_parser_execute(&parser, &settings, all.c_str() + oldsize, cnt);
+
                         if (!request.complete_) {
                             continue;
                         }
@@ -153,25 +167,11 @@ namespace co_net {
                         // finish
                         goto parser_finish;
                     }
-
-                    all.append(buf, cnt);
-                    http_parser_execute(&parser, &settings, all.c_str() + oldsize, cnt);
-
-                    if (!request.complete_) {
-                        continue;
-                    }
-                    if (parser.http_errno != 0) {
-                        goto parser_failed;
-                    }
-                    // finish
-                    goto parser_finish;
-                }
-
 parser_finish:
-                mehtod = http_method_str((http_method)parser.method);
-                request.method_ = std::string_view(mehtod, strlen(mehtod));
-                handler(&response, &request);
-
+                    mehtod = http_method_str((http_method)parser.method);
+                    request.method_ = std::string_view(mehtod, strlen(mehtod));
+                    handler(&response, &request);
+                }
 parser_failed:
                 //std::cout << "close http connection\n";
                 delete c;

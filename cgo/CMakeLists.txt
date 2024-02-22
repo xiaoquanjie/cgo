@@ -26,6 +26,9 @@ add_library(cgo
         sync/mutex.cpp
         sync/channel.cpp
         hook/hook.cpp
+        hook/epoll_iocp.cpp
+        hook/epoll.cpp
+        hook/iocp.cpp
 )
 
 target_link_libraries(cgo
