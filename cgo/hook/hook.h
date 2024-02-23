@@ -33,7 +33,7 @@
 
 // set global hook flag
 #undef cgo_global_hook
-#define cgo_global_hook cgo::hook::set_global_hook
+#define cgo_global_hook cgo::hook::global_hook
 
 // hook select/poll function
 #undef cgo_hook_poll_select
@@ -47,7 +47,7 @@ namespace cgo {
         void hook_fd(int fd);
 
         // default disable global hook
-        void set_global_hook(bool hook);
+        void global_hook(bool hook);
 
         // hook select/poll function
         void hook_poll_select(bool hook);

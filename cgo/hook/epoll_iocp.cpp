@@ -77,7 +77,7 @@ namespace cgo {
         }
 
         // default disable global hook
-        void set_global_hook(bool hook) {
+        void global_hook(bool hook) {
             g_global_hook = hook;
         }
 
@@ -118,12 +118,12 @@ add:
             st->add_fd(fd);
             if (this->_threads[idx] == 0) {
                 this->_threads[idx] = new std::thread([this, st, idx] {
-                    //printf("[cgo] start new hook thread\n");
+                    //printf("[cgo debug] start new hook thread\n");
                     st->loop();
                     this->_mu.lock();
                     this->_threads[idx] = 0;
                     this->_mu.unlock();
-                    //printf("[cgo] quit hook thread\n");
+                    //printf("[cgo debug] quit hook thread\n");
                 });
                 this->_threads[idx]->detach();
             }
