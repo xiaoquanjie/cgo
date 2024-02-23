@@ -851,6 +851,22 @@ int PASCAL FAR hook_recv (
     return -1;
 }
 
+typedef int (PASCAL FAR *select_hook_t)(
+    _In_ int nfds,
+    _Inout_opt_ fd_set FAR* readfds,
+    _Inout_opt_ fd_set FAR* writefds,
+    _Inout_opt_ fd_set FAR* exceptfds,
+    _In_opt_ const struct timeval FAR* timeout
+);
+static select_hook_t select_hook = 0;
+int PASCAL FAR hook_select(_In_ int nfds,
+    _Inout_opt_ fd_set FAR* readfds,
+    _Inout_opt_ fd_set FAR* writefds,
+    _Inout_opt_ fd_set FAR* exceptfds,
+    _In_opt_ const struct timeval FAR* timeout) {
+    return 0;
+}
+
 typedef struct hostent FAR* (PASCAL FAR* gethostbyname_hook_t)(_In_z_ const char FAR* name);
 static gethostbyname_hook_t gethostbyname_hook = 0;
 struct hostent FAR * PASCAL FAR hook_gethostbyname(_In_z_ const char FAR * name) {
@@ -904,6 +920,7 @@ bool win_hook_init() {
     HOOK_API("Ws2_32.dll", recvfrom, recvfrom);
     HOOK_API("Ws2_32.dll", send, send);
     HOOK_API("Ws2_32.dll", recv, recv);
+    HOOK_API("Ws2_32.dll", select, select);
 
     //HOOK_API2(gethostbyname, gethostbyname);
     return true;
