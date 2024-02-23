@@ -42,7 +42,10 @@ void release_tpool(TimePoolInfo<Payload> * info) {
 
         for (uint32_t idx2 = 0; idx2 < info->_smallbucket; idx2++) {
             node_list* nl = small[idx2];
-            if (nl) delete nl;
+            if (nl) {
+                assert(nl->size() == 0);
+                delete nl;
+            }
         }
         free(small);
     }

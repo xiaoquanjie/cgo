@@ -5,6 +5,11 @@ project("co_net_test")
 include_directories(../../)
 include_directories(../)
 
+if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+else()
+    link_directories(/usr/local/lib)
+endif()
+
 add_executable(net_test
         main.cpp)
 
