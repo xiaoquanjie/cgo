@@ -864,7 +864,68 @@ int PASCAL FAR hook_select(_In_ int nfds,
     _Inout_opt_ fd_set FAR* writefds,
     _Inout_opt_ fd_set FAR* exceptfds,
     _In_opt_ const struct timeval FAR* timeout) {
-    return 0;
+    auto can = cgo::hook::canhook_poll_select();
+    if (!can) {
+        return select_hook(nfds, readfds, writefds, exceptfds, timeout);
+    }
+
+    hook_debug(__FUNCTION__);
+
+    // 切割轮询次数，精度是10毫秒，目前的实现方案性能不太好，只解决了使用的问题
+    int loops = 0;
+    if (!timeout) {
+        loops = -1;
+    }
+    else {
+        time_t mills = timeout->tv_sec * 1000 + timeout->tv_usec / 1000;
+        if (mills < 10) {
+            loops = 1;
+        }
+        else {
+            loops = mills % 10 == 0 ? (mills / 10) : (mills / 10 + 1);
+        }
+    }
+
+    auto op_select = [nfds, readfds, writefds, exceptfds]()->int {
+        fd_set rfs, wfs, efs;
+        FD_ZERO(&rfs);
+        FD_ZERO(&wfs);
+        FD_ZERO(&efs);
+
+        if (readfds) {
+            rfs = *readfds;
+        }
+        if (writefds) {
+            wfs = *writefds;
+        }
+        if (exceptfds) {
+            efs = *exceptfds;
+        }
+
+        int r = select_hook(nfds, readfds ? &rfs : 0, writefds ? &wfs : 0, exceptfds ? &efs : 0, 0);
+        if (r != 0) {
+            if (readfds) {
+                *readfds = rfs;
+            }
+            if (writefds) {
+                *writefds = wfs;
+            }
+            if (exceptfds) {
+                *exceptfds = efs;
+            }
+        }
+        return r;
+    };
+
+    for (int i = 0; i < loops || loops == -1; i++) {
+        int r = op_select();
+        if (r != 0) {
+            return r;
+        }
+        cgo::scheduler::schedule_wait(10);
+    }
+
+    return op_select();
 }
 
 typedef struct hostent FAR* (PASCAL FAR* gethostbyname_hook_t)(_In_z_ const char FAR* name);
