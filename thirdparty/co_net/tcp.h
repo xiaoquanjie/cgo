@@ -4,7 +4,9 @@
 
 #pragma once
 
-#include "net.h"
+#include <stdint.h>
+#include <string>
+#include "cgo/cgo.h"
 
 namespace co_net {
     class TCPAddr {
