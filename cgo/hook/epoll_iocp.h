@@ -30,7 +30,7 @@
 #include <MSWSock.h>
 #endif
 
-#define hook_debug //_hook_debug
+#define hook_debug(func) //_hook_debug(func)
 inline void _hook_debug(const char* name) {
     printf("hook: %s ok\n", name);
 }

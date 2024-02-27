@@ -426,31 +426,29 @@ void performance_test2() {
      *      自由线程：需要30~35秒
      *      单线程：2秒
      *  优化后：
-     *      自由线程: 400~500ms
+     *      自由线程: 200~220ms
      * */
 
-    //cgoprocs(1);
-    cgocore(1);
     for (int j = 0; j < 3; j++) {
+        cgo::WaitGroup wg;
         print_withtime("begin");
         std::atomic_int count = 0;
         auto beg = std::chrono::steady_clock::now();
-        const int total_count = 1000000;//1000000;
+        const int total_count = 1000000;
 
         auto add_beg = std::chrono::steady_clock::now();
         for (int i = 0; i < total_count; i++) {
-            go [&count]() {
+            wg.Add(1);
+            go [&count, &wg]() {
                 count++;
+                wg.Done();
             };
         }
         auto add_end = std::chrono::steady_clock::now();
         auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(add_end - add_beg);
         print_withtime(std::string("add end: ") + std::to_string(elapsed.count()));
 
-        while (count != total_count) {
-            //print_withtime("............");
-            //std::this_thread::sleep_for(std::chrono::microseconds(10));
-        }
+        wg.Wait();
 
         auto end = std::chrono::steady_clock::now();
         elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - beg);

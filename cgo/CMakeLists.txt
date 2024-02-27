@@ -28,6 +28,7 @@ add_library(cgo
         common/http_parser.cpp
         sync/mutex.cpp
         sync/channel.cpp
+        sync/waitgroup.cpp
         hook/hook.cpp
         hook/epoll_iocp.cpp
         hook/epoll.cpp

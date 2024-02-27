@@ -12,4 +12,5 @@
 #include "scheduler/syntax.h"
 #include "sync/mutex.h"
 #include "sync/channel.h"
+#include "sync/waitgroup.h"
 #include "hook/hook.h"
