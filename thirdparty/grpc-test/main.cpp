@@ -92,7 +92,23 @@ public:
     // 双流
     void ListName(::grpc::ServerContext* ctx,
                   GRPC_SRV_CO_RW(helloworld::FamilyRequest, helloworld::FamilyResponse) *rw) {
+//        for (int i = 0; i < 20; i++) {
+//            helloworld::FamilyRequest req;
+//            if (!rw->Read(&req)) {
+//                break;
+//            }
+//            print_withtime("req:" + req.ShortDebugString());
+//
+//            helloworld::FamilyResponse rsp;
+//            rsp.set_name("server");
+//            rw->Write(rsp);
+//        }
 
+        for (int i = 0; i < 10; i++) {
+            helloworld::FamilyResponse rsp;
+            rsp.set_name("server");
+            rw->Write(rsp);
+        }
     }
 };
 
@@ -184,9 +200,9 @@ void double_stream_test() {
     go gostack(16*1024) [rw]() {
         helloworld::FamilyResponse rsp;
         while (rw->Read(&rsp)) {
-            //print_withtime(rsp.ShortDebugString());
+            print_withtime("rsp:" + rsp.ShortDebugString());
         }
-        print_withtime("close");
+        print_withtime("client close");
         rw->Close();
     };
 
@@ -209,13 +225,13 @@ int main() {
 
     //msleep(1000);
 
-    go []() {
-        unary_test();
-        client_stream_test();
-        server_stream_test();
-    };
+//    go []() {
+//        unary_test();
+//        client_stream_test();
+//        server_stream_test();
+//    };
 
-    for (int i = 0; i < 100; i++) {
+    for (int i = 0; i < 1; i++) {
         go []() {
             //unary_test();
             //client_stream_test();

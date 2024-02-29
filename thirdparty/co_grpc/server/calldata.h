@@ -8,6 +8,7 @@
 #include <grpcpp/grpcpp.h>
 #include <list>
 #include <memory>
+#include <mutex>
 #include "co_grpc/runner/runner.h"
 #include "co_grpc/log.h"
 
@@ -376,8 +377,7 @@ namespace co_grpc {
                                    void*)> Method;
 
         typedef std::function<void(::grpc::ServerContext*, Self*)> ON_CALL;
-        typedef std::function<void(Request&, Self&)> READ_CALL;
-        typedef std::function<void(Self*)> CLOSE_CALL;
+        typedef std::function<void(bool)> READ_CALL;
 
         struct CallInfo : public IServerData {
             CallInfo(Self* f, int s)
@@ -411,9 +411,6 @@ namespace co_grpc {
             Method method;
             ON_CALL oncall;
 
-            READ_CALL readcall;
-            CLOSE_CALL closecall;
-
             Request req;
 
             CallInfo connect;
@@ -422,10 +419,11 @@ namespace co_grpc {
             CallInfo write;
             CallInfo finish;
 
-            bool to_close_flag_ = false;
-            bool closed_flag_ = false;
+            int closed_ = 0; // 0表示未关闭，1表示即将关闭, 2表示已关闭
             bool writing_flag_ = false;
-            bool reading_flag_ = false;
+
+            bool rok_ = false;
+            uint64_t rcoid_ = 0;
         };
 
         ServerStreamReaderWriter(::grpc::ServerCompletionQueue *cq, Method method, ON_CALL oncall)
@@ -458,81 +456,52 @@ namespace co_grpc {
                 if (ok) {
                     Runner()([this]() {
                         this->data_->oncall(&this->data_->ctx, this);
+                        this->_TryClose();
                     });
                 } else {
                     delete this;
                 }
             } else if (info->Status() == IServerData::READING) {
-                // ok==false: 相当于读通道关闭了,对方也发不出来了
-                //log("onread %d", ok);
-                if (ok) {
-                    Runner()([this]() {
-                        this->data_->reading_flag_ = true;
-                        this->data_->readcall(this->data_->req, *this);
-                        this->data_->reading_flag_ = false;
-                        this->data_->req.Clear();
-                        this->data_->responder.Read(&this->data_->req, &this->data_->read);
-                    });
-                } else {
-                    if (!data_->to_close_flag_) {
-                        //log("read over");
-                        data_->to_close_flag_ = true;
-                        // 发起finish
-                        data_->responder.Finish(grpc::Status::CANCELLED, &data_->finish);
-                    }
-                    _TryClose();
-                }
+                data_->rok_ = ok;
+                co_grpc::CoWaiter(data_->rcoid_).Resume();
             }
             else if (info->Status() == IServerData::WRITING) {
-                data_->writing_flag_ = false;
-                if (data_->closed_flag_) {
-                    _TryClose();
-                } else if (!rsp_list_.empty()){
+                this->mu_.lock();
+                // 一直将缓存发完, 不完美凑合用
+                if (rsp_list_.empty()) {
+                    data_->writing_flag_ = false;
+                    this->mu_.unlock();
+                    if (data_->closed_ > 0) {
+                        _TryClose();
+                    }
+                } else {
                     _TryWrite();
+                    this->mu_.unlock();
                 }
             } else if (info->Status() == IServerData::CLOSED) {
+                // 可以忽视此错误
                 //log("close over");
-                if (!data_->to_close_flag_) {
-                    data_->to_close_flag_ = true;
-                    // 发起finish
-                    data_->responder.Finish(grpc::Status::CANCELLED, &data_->finish);
-                }
+                //_TryClose();
             }
             else if (info->Status() == IServerData::FINISH) {
                 //log("finish");
-                data_->closed_flag_ = true;
-                _TryClose();
+                delete this;
             } else {
                 assert(false);
             }
         }
 
-        // 回调是串行运行的,即第一帧数据处理完返回才会触发第二帧数据的回调
-        void OnRead(READ_CALL on) {
-            if (data_->readcall) {
-                return;
-            }
-            data_->readcall = on;
-            data_->responder.Read(&data_->req, &data_->read);
-        }
-
-        void OnClose(CLOSE_CALL on) {
-            if (data_->closecall) {
-                return;
-            }
-            data_->closecall = on;
-        }
-
-        // 协程安全
-        bool Write(const Response& rsp) {
+        // 写数据
+        // 大于0表示成功发到缓存
+        // 等于0表示发到缓存失败
+        // 小于0表示链接被关闭了
+        int Write(const Response& rsp) {
             std::unique_lock<std::mutex> lock(mu_);
-
-            if (data_->closed_flag_) {
-                return false;
+            if (data_->closed_ > 0) {
+                return -1;
             }
-
             if (rsp_count_ >= 20000) {
-                return false;
+                return 0;
             }
 
             rsp_count_ += 1;
@@ -540,38 +509,54 @@ namespace co_grpc {
             nrsp->CopyFrom(rsp);
             rsp_list_.push_back(nrsp);
 
-            _TryWrite();
-            return true;
+            if (!data_->writing_flag_) {
+                data_->writing_flag_ = true;
+                _TryWrite();
+            }
+            return 1;
+        }
+
+        // 非协程安全接口，同时只能有一个协程在调用
+        // 读失败表示链接断开
+        bool Read(Request* req) {
+            co_grpc::CoWaiter waiter;
+            data_->rcoid_ = waiter.co_id_;
+            data_->rok_ = false;
+            this->data_->req.Clear();
+            data_->responder.Read(&data_->req, &data_->read);
+            waiter.wait();
+
+            if (data_->rok_) {
+                req->Swap(&this->data_->req);
+            }
+            return data_->rok_;
         }
 
     protected:
         void _TryWrite() {
-            if (data_->closed_flag_ || data_->writing_flag_) {
-                return;
-            }
-
+            assert(this->rsp_list_.empty() == false);
             auto rsp = rsp_list_.front();
             rsp_list_.pop_front();
             rsp_count_ -= 1;
 
-            data_->writing_flag_ = true;
             data_->responder.Write(*rsp, &data_->write);
-
             delete rsp;
         }
 
         void _TryClose() {
-            if (data_->closed_flag_
-                && !data_->writing_flag_
-                && !data_->reading_flag_) {
-                Runner()([this]() {
-                    if (this->data_->closecall) {
-                        this->data_->closecall(this);
-                    }
-                    delete this;
-                    // log("true close");
-                });
+            std::unique_lock<std::mutex> lock(mu_);
+            if (data_->closed_ == 2) {
+                return;
             }
+
+            data_->closed_ = 1;
+            if (data_->writing_flag_) {
+                return;
+            }
+
+            data_->closed_ = 2;
+            // 发起finish
+            data_->responder.Finish(grpc::Status::CANCELLED, &data_->finish);
         }
 
     private:

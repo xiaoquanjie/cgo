@@ -23,6 +23,11 @@ struct CoRunner {
 };
 
 struct CoWaiter {
+    CoWaiter(uint64_t co_id) {
+        co_id_ = co_id;
+        assert(co_id_ != (uint64_t)-1);
+    }
+
     CoWaiter() {
         co_id_ = cgocoid();
         assert(co_id_ != (uint64_t)-1);
