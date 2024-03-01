@@ -14,7 +14,7 @@
 
 namespace co_grpc {
 
-// 这里不需要虚析构函数，因为不会通过基类指针释放掉
+    // 这里不需要虚析构函数，因为不会通过基类指针释放掉
     template<class T>
     struct ServerDataCounter {
         static uint64_t construct_count;
