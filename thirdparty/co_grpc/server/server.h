@@ -9,14 +9,11 @@
 #include <string>
 #include <memory>
 #include <functional>
-#include "co_grpc/runner/runner.h"
-#include "co_grpc/server/calldata.h"
-#include "co_grpc/server/server_builder.h"
-#include "co_grpc/log.h"
+#include "server_builder.h"
 
 namespace co_grpc {
 
-template<class T, class Runner>
+template<class T>
 class BaseServer : public IServer {
 public:
     typedef typename T::AsyncService AsyncServiceType;
@@ -52,7 +49,12 @@ public:
                                 std::placeholders::_4,
                                 std::placeholders::_5,
                                 std::placeholders::_6);
-        new ServerData<Request, Response, Runner>(cq_, method, oncall);
+
+        typedef decltype(method) Method;
+        typedef ::grpc::ServerAsyncResponseWriter<Response> Responder;
+
+        auto data = new ServerUnaryData<Request, Response, Responder, Method, ON_CALL>(this->cq_, method, oncall);
+        data->doRequest();
     }
 
     template<class Request, class Response, class GRPC_FUNC, class ON_CALL>
@@ -69,7 +71,12 @@ public:
                                 std::placeholders::_3,
                                 std::placeholders::_4,
                                 std::placeholders::_5);
-        new ServerStreamReader<Request, Response, Runner>(cq_, method, oncall);
+
+        typedef decltype(method) Method;
+        typedef ::grpc::ServerAsyncReader<Response, Request> Responder;
+
+        auto data = new ServerCSData<Request, Response, Responder, Method, ON_CALL>(this->cq_, method, oncall);
+        data->doRequest();
     }
 
     template<class Request, class Response, class GRPC_FUNC, class ON_CALL>
@@ -87,7 +94,12 @@ public:
                                 std::placeholders::_4,
                                 std::placeholders::_5,
                                 std::placeholders::_6);
-        new ServerStreamWriter<Request, Response, Runner>(cq_, method, oncall);
+
+        typedef decltype(method) Method;
+        typedef ::grpc::ServerAsyncWriter<Response> Responder;
+
+        auto data = new ServerSSData<Request, Response, Responder, Method, ON_CALL>(this->cq_, method, oncall);
+        data->doRequest();
     }
 
     // 双向流
@@ -105,19 +117,17 @@ public:
                                 std::placeholders::_3,
                                 std::placeholders::_4,
                                 std::placeholders::_5);
-        new ServerStreamReaderWriter<Request, Response, Runner>(cq_, method, oncall);
+
+        typedef decltype(method) Method;
+        typedef ::grpc::ServerAsyncReaderWriter<Response, Request> Responder;
+
+        auto data = new ServerDSData<Request, Response, Responder, Method, ON_CALL>(this->cq_, method, oncall);
+        data->doRequest();
     }
 };
 
 template<typename T>
-class AsyncServer : public BaseServer<T, NormalRunner> {
-public:
-    AsyncServer() {
-    }
-};
-
-template<typename T>
-class CoServer : public BaseServer<T, CoRunner> {
+class CoServer : public BaseServer<T> {
 public:
     CoServer() {
     }

@@ -90,16 +90,16 @@ func genCppClient(fDesc *desc.FileDescriptor, dst string) []string {
 
 			if m.IsClientStreaming() && m.IsServerStreaming() {
 				// 双流
-				methodData += fmt.Sprintf("%s GRPC_CLIENT_CO_BS_METHOD(%s, %s, %s);\n\n", space(indent3), m.GetName(), request, response)
+				methodData += fmt.Sprintf("%s GRPC_CLIENT_BS_METHOD(%s, %s, %s);\n\n", space(indent3), m.GetName(), request, response)
 			} else if m.IsClientStreaming() {
 				// 客户端流
-				methodData += fmt.Sprintf("%s GRPC_CLIENT_CO_CS_METHOD(%s, %s, %s);\n\n", space(indent3), m.GetName(), request, response)
+				methodData += fmt.Sprintf("%s GRPC_CLIENT_CS_METHOD(%s, %s, %s);\n\n", space(indent3), m.GetName(), request, response)
 			} else if m.IsServerStreaming() {
 				// 服务器流
-				methodData += fmt.Sprintf("%s GRPC_CLIENT_CO_SS_METHOD(%s, %s, %s);\n\n", space(indent3), m.GetName(), request, response)
+				methodData += fmt.Sprintf("%s GRPC_CLIENT_SS_METHOD(%s, %s, %s);\n\n", space(indent3), m.GetName(), request, response)
 			} else {
 				// 一元
-				methodData += fmt.Sprintf("%s GRPC_CLIENT_CO_UNARY_METHOD(%s, %s, %s);\n\n", space(indent3), m.GetName(), request, response)
+				methodData += fmt.Sprintf("%s GRPC_CLIENT_UNARY_METHOD(%s, %s, %s);\n\n", space(indent3), m.GetName(), request, response)
 			}
 		}
 
@@ -162,16 +162,16 @@ func genCppServer(fDesc *desc.FileDescriptor, dst string) {
 
 			if m.IsClientStreaming() && m.IsServerStreaming() {
 				// 双流
-				methodData += fmt.Sprintf("%s GRPC_SRV_CO_BS_METHOD(%s, %s, %s);\n", space(indent4), m.GetName(), request, response)
+				methodData += fmt.Sprintf("%s GRPC_SRV_BS_METHOD(%s, %s, %s);\n", space(indent4), m.GetName(), request, response)
 			} else if m.IsClientStreaming() {
 				// 客户端流
-				methodData += fmt.Sprintf("%s GRPC_SRV_CO_CS_METHOD(%s, %s, %s);\n", space(indent4), m.GetName(), request, response)
+				methodData += fmt.Sprintf("%s GRPC_SRV_CS_METHOD(%s, %s, %s);\n", space(indent4), m.GetName(), request, response)
 			} else if m.IsServerStreaming() {
 				// 服务器流
-				methodData += fmt.Sprintf("%s GRPC_SRV_CO_SS_METHOD(%s, %s, %s);\n", space(indent4), m.GetName(), request, response)
+				methodData += fmt.Sprintf("%s GRPC_SRV_SS_METHOD(%s, %s, %s);\n", space(indent4), m.GetName(), request, response)
 			} else {
 				// 一元
-				methodData += fmt.Sprintf("%s GRPC_SRV_CO_UNARY_METHOD(%s, %s, %s);\n", space(indent4), m.GetName(), request, response)
+				methodData += fmt.Sprintf("%s GRPC_SRV_UNARY_METHOD(%s, %s, %s);\n", space(indent4), m.GetName(), request, response)
 			}
 		}
 		methodData += fmt.Sprintf("%s}\n", space(indent3))
@@ -183,15 +183,15 @@ func genCppServer(fDesc *desc.FileDescriptor, dst string) {
 
 			if m.IsClientStreaming() && m.IsServerStreaming() {
 				// 双流
-				methodData += fmt.Sprintf("%svoid %s(::grpc::ServerContext *ctx, GRPC_SRV_CO_RW(%s, %s) *rw) {\n", space(indent3), m.GetName(), request, response)
+				methodData += fmt.Sprintf("%svoid %s(::grpc::ServerContext *ctx, GRPC_SRV_RW(%s, %s) *rw) {\n", space(indent3), m.GetName(), request, response)
 				methodData += fmt.Sprintf("%s}\n\n", space(indent3))
 			} else if m.IsClientStreaming() {
 				// 客户端流
-				methodData += fmt.Sprintf("%s::grpc::Status %s(::grpc::ServerContext *ctx, GRPC_SRV_CO_READER(%s, %s) *reader, %s *rsp) {\n", space(indent3), m.GetName(), request, response, response)
+				methodData += fmt.Sprintf("%s::grpc::Status %s(::grpc::ServerContext *ctx, GRPC_SRV_READER(%s, %s) *reader, %s *rsp) {\n", space(indent3), m.GetName(), request, response, response)
 				methodData += fmt.Sprintf("%sreturn ::grpc::Status::OK;\n%s}\n\n", space(indent4), space(indent3))
 			} else if m.IsServerStreaming() {
 				// 服务器流
-				methodData += fmt.Sprintf("%s::grpc::Status %s(::grpc::ServerContext *ctx, const %s *req, GRPC_SRV_CO_WRITER(%s, %s) *writer) {\n", space(indent3), m.GetName(), request, request, response)
+				methodData += fmt.Sprintf("%s::grpc::Status %s(::grpc::ServerContext *ctx, const %s *req, GRPC_SRV_WRITER(%s, %s) *writer) {\n", space(indent3), m.GetName(), request, request, response)
 				methodData += fmt.Sprintf("%sreturn ::grpc::Status::OK;\n%s}\n\n", space(indent4), space(indent3))
 			} else {
 				// 一元

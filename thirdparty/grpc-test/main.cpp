@@ -4,7 +4,7 @@
 
 #include "./helloworld.grpc.pb.h"
 #include "../../cgo/cgo.h"
-#include "co_grpc/macro.h"
+#include "co_grpc/co_grpc.h"
 #include <memory>
 #include <iostream>
 #include <iomanip>
@@ -31,187 +31,207 @@ void print_withtime(const std::string& msg) {
     print_withtime(msg.c_str());
 }
 
-class GreeterClient : public co_grpc::CoClient<helloworld::Greeter> {
+class GreeterClient : public co_grpc::Client<helloworld::Greeter> {
 public:
-    //typedef std::shared_ptr<::grpc::ClientContext> ClientContextPtr;
+    GRPC_CLIENT_UNARY_METHOD(SayHello, helloworld::HelloRequest, helloworld::HelloReply);
 
-    GRPC_CLIENT_CO_UNARY_METHOD(SayHello, helloworld::HelloRequest, helloworld::HelloReply);
+    GRPC_CLIENT_CS_METHOD(ClientStreamSayHello, helloworld::HelloRequest, helloworld::HelloReply);
 
-    GRPC_CLIENT_CO_UNARY_METHOD(GetName, helloworld::FamilyRequest, helloworld::FamilyResponse);
+    GRPC_CLIENT_SS_METHOD(ServerStreamSayHello, helloworld::HelloRequest, helloworld::HelloReply);
 
-    GRPC_CLIENT_CO_BS_METHOD(ListName, helloworld::FamilyRequest, helloworld::FamilyResponse);
-
-    GRPC_CLIENT_CO_CS_METHOD(ClientStreamSayHello, helloworld::HelloRequest, helloworld::HelloReply);
-
-    GRPC_CLIENT_CO_SS_METHOD(ServerStreamSayHello, helloworld::HelloRequest, helloworld::HelloReply);
-
+    GRPC_CLIENT_BS_METHOD(ListName, helloworld::FamilyRequest, helloworld::FamilyResponse);
 
 };
 
 class GreeterServer : public co_grpc::Server<helloworld::Greeter> {
 public:
     void InitMethod() override {
-        GRPC_SRV_CO_UNARY_METHOD(SayHello, helloworld::HelloRequest, helloworld::HelloReply);
-        GRPC_SRV_CO_CS_METHOD(ClientStreamSayHello, helloworld::HelloRequest, helloworld::HelloReply);
-        GRPC_SRV_CO_SS_METHOD(ServerStreamSayHello, helloworld::HelloRequest, helloworld::HelloReply);
-        GRPC_SRV_CO_BS_METHOD(ListName, helloworld::FamilyRequest, helloworld::FamilyResponse);
+        GRPC_SRV_UNARY_METHOD(SayHello, helloworld::HelloRequest, helloworld::HelloReply);
+        GRPC_SRV_CS_METHOD(ClientStreamSayHello, helloworld::HelloRequest, helloworld::HelloReply);
+        GRPC_SRV_SS_METHOD(ServerStreamSayHello, helloworld::HelloRequest, helloworld::HelloReply);
+        GRPC_SRV_BS_METHOD(ListName, helloworld::FamilyRequest, helloworld::FamilyResponse);
     }
 
     // 一元类
     ::grpc::Status SayHello(::grpc::ServerContext* ctx,
                             const helloworld::HelloRequest* req,
                             helloworld::HelloReply* rsp) {
-        rsp->set_message("hello, this is server");
+        rsp->set_message("server.SayHello: hello, this is server");
         return ::grpc::Status::OK;
     }
 
     // 客户端流
     ::grpc::Status ClientStreamSayHello(::grpc::ServerContext* ctx,
-                                        GRPC_SRV_CO_READER(helloworld::HelloRequest, helloworld::HelloReply) *reader,
+                                        GRPC_SRV_READER(helloworld::HelloRequest, helloworld::HelloReply) *reader,
                                         helloworld::HelloReply* rsp) {
         helloworld::HelloRequest req;
         while (reader->Read(&req)) {
             print_withtime(std::string("server recv:") + req.ShortDebugString());
         }
 
-        rsp->set_message("server send: this is server");
+        rsp->set_message("server.ClientStreamSayHello: hello, this is server");
         return ::grpc::Status::OK;
     }
 
     //  服务器端流
     ::grpc::Status ServerStreamSayHello(::grpc::ServerContext* ctx,
                                         const helloworld::HelloRequest* req,
-                                        GRPC_SRV_CO_WRITER(helloworld::HelloRequest, helloworld::HelloReply) *writer) {
+                                        GRPC_SRV_WRITER(helloworld::HelloRequest, helloworld::HelloReply) *writer) {
         print_withtime(std::string("server recv:") + req->ShortDebugString());
-        helloworld::HelloReply rsp;
-        rsp.set_message("server send: this is server");
-        writer->Write(rsp);
+        for (int i = 0; i < 10; i++) {
+            helloworld::HelloReply rsp;
+            rsp.set_message("server.ServerStreamSayHello send: this is server");
+            writer->Write(rsp);
+        }
+
         return ::grpc::Status::OK;
     }
 
     // 双流
-    void ListName(::grpc::ServerContext* ctx,
-                  GRPC_SRV_CO_RW(helloworld::FamilyRequest, helloworld::FamilyResponse) *rw) {
-//        for (int i = 0; i < 20; i++) {
-//            helloworld::FamilyRequest req;
-//            if (!rw->Read(&req)) {
-//                break;
-//            }
-//            print_withtime("req:" + req.ShortDebugString());
-//
-//            helloworld::FamilyResponse rsp;
-//            rsp.set_name("server");
-//            rw->Write(rsp);
-//        }
+    ::grpc::Status ListName(::grpc::ServerContext* ctx,
+                            GRPC_SRV_RW(helloworld::FamilyRequest, helloworld::FamilyResponse) *rw) {
+        cgo::WaitGroup wg;
+        wg.Add(2);
 
-        for (int i = 0; i < 10; i++) {
-            helloworld::FamilyResponse rsp;
-            rsp.set_name("server");
-            rw->Write(rsp);
-        }
+        go [rw, &wg] {
+            for (int i = 0; i < 10; i++) {
+                helloworld::FamilyResponse rsp;
+                rsp.set_name("server");
+                rw->Write(rsp);
+            }
+            wg.Done();
+        };
+
+        go [rw, &wg] {
+            for (int i = 0; i< 10; i++) {
+                helloworld::FamilyRequest req;
+                if (!rw->Read(&req)) {
+                    break;
+                }
+                print_withtime("req:" + req.ShortDebugString());
+
+                helloworld::FamilyResponse rsp;
+                rsp.set_name("server");
+                rw->Write(rsp);
+            }
+
+            wg.Done();
+        };
+
+        wg.Wait();
+        print_withtime("server.ListName: over");
+        return ::grpc::Status::OK;
     }
 };
 
 void unary_test() {
-    GreeterClient client;
-    client.Bind("0.0.0.0:50051", "");
+    go [] {
+        GreeterClient client;
+        client.Bind("0.0.0.0:50051", "");
 
-    for (int i = 0; i < 10; i++) {
-        helloworld::HelloRequest req;
-        req.set_name("jack");
-        helloworld::HelloReply rsp;
+        for (int i = 0; i < 10; i++) {
+            helloworld::HelloRequest req;
+            req.set_name("jack");
+            helloworld::HelloReply rsp;
 
-        auto status = client.SayHello(nullptr, req, &rsp);
-        if (GRPC_OK(status)) {
-            print_withtime(rsp.message().c_str());
-        } else {
-            print_withtime("error");
-            break;
+            auto status = client.SayHello(nullptr, req, &rsp);
+            if (GRPC_OK(status)) {
+                print_withtime(rsp.message().c_str());
+            } else {
+                print_withtime("error");
+                break;
+            }
         }
-    }
+    };
 }
 
 void client_stream_test() {
-    GreeterClient client;
-    client.Bind("0.0.0.0:50051", "");
+    go [] {
+        GreeterClient client;
+        client.Bind("0.0.0.0:50051", "");
+        auto ctx = co_grpc::MakeContext();
+        helloworld::HelloReply rsp;
+        auto writer = client.ClientStreamSayHello(ctx, &rsp);
+        if (!writer) {
+            print_withtime("get writer error");
+            return;
+        }
 
-    helloworld::HelloReply rsp;
-    auto writer = client.ClientStreamSayHello(nullptr, &rsp);
-    if (!writer) {
-        print_withtime("get writer error");
-        return;
-    }
+        for (int i = 0; i < 10; i++) {
+            helloworld::HelloRequest req;
+            req.set_name("jack");
+            if (!writer->Write(req)) {
+                print_withtime("write error");
+                break;
+            }
+        }
 
-    helloworld::HelloRequest req;
-    req.set_name("jack");
-    writer->Write(req);
-
-    auto status = writer->Finish();
-    if (GRPC_OK(status)) {
-        print_withtime(rsp.message().c_str());
-    } else {
-        print_withtime("write error");
-    }
+        auto status = writer->Finish();
+        if (GRPC_OK(status)) {
+            print_withtime(rsp.message().c_str());
+        } else {
+            print_withtime("get write result error");
+        }
+    };
 }
 
 void server_stream_test() {
-    GreeterClient client;
-    client.Bind("0.0.0.0:50051", "");
+    go [] {
+        GreeterClient client;
+        client.Bind("0.0.0.0:50051", "");
 
-    helloworld::HelloRequest req;
-    req.set_name("jack");
-    req.set_count(2);
+        helloworld::HelloRequest req;
+        req.set_name("jack");
+        req.set_count(2);
 
-    auto reader = client.ServerStreamSayHello(nullptr, req);
-    if (!reader) {
-        print_withtime("get reader error");
-        return;
-    }
+        auto ctx = co_grpc::MakeContext();
+        auto reader = client.ServerStreamSayHello(ctx, req);
+        if (!reader) {
+            print_withtime("get reader error");
+            return;
+        }
 
-    helloworld::HelloReply rsp;
-    while (reader->Read(&rsp)) {
-        print_withtime(rsp.message().c_str());
-    }
-
-    reader->Finish();
+        helloworld::HelloReply rsp;
+        while (reader->Read(&rsp)) {
+            print_withtime(rsp.message().c_str());
+        }
+    };
 }
 
 void double_stream_test() {
-    GreeterClient client;
-    client.Bind("0.0.0.0:50051", "");
+    go [] {
+        GreeterClient client;
+        client.Bind("0.0.0.0:50051", "");
 
-    auto rw = client.ListName(nullptr);
-    if (!rw) {
-        print_withtime("get rw error");
-        return;
-    }
+        auto rw = client.ListName(nullptr);
+        if (!rw) {
+            print_withtime("get rw error");
+            return;
+        }
 
-    go gostack(16*1024) [rw]() {
-        for (;;) {
-            helloworld::FamilyRequest req;
-            req.set_family("jack family");
-            if (rw->Write(req) < 0) {
-                break;
+        //return;
+
+        go [rw]() {
+            for (;;) {
+                helloworld::FamilyRequest req;
+                req.set_family("jack family");
+                if (!rw->Write(req)) {
+                    print_withtime("client.ListName write error");
+                    break;
+                }
+                gowait(1000);
             }
-            gowait(1000);
-        }
-    };
+        };
 
-    go gostack(16*1024) [rw]() {
-        helloworld::FamilyResponse rsp;
-        while (rw->Read(&rsp)) {
-            print_withtime("rsp:" + rsp.ShortDebugString());
-        }
-        print_withtime("client close");
-        rw->Close();
-    };
+        go [rw]() {
+            helloworld::FamilyResponse rsp;
+            while (rw->Read(&rsp)) {
+                print_withtime("rsp:" + rsp.ShortDebugString());
+            }
 
-    go gostack(16*1024) [rw]() {
-        gowait(5000);
-        rw->Close();
+            print_withtime("client.ListName read error");
+        };
     };
-
-    //msleep(10000);
 }
 
 void grpc_listen() {
@@ -225,20 +245,16 @@ int main() {
 
     //msleep(1000);
 
-//    go []() {
-//        unary_test();
-//        client_stream_test();
-//        server_stream_test();
-//    };
+//    unary_test();
+//    msleep(1000*2);
+//
+    client_stream_test();
+    msleep(1000*2);
+//
+//    server_stream_test();
+//    msleep(1000*2);
 
-    for (int i = 0; i < 1; i++) {
-        go []() {
-            //unary_test();
-            //client_stream_test();
-            //server_stream_test();
-            double_stream_test();
-        };
-    }
+    //double_stream_test();
 
     while (true) {
         msleep(1000);

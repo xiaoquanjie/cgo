@@ -191,6 +191,7 @@ namespace cgo {
                     delete item;
                     return false;
                 }
+                item->_fn = nullptr;
                 _items.push_back(item);
                 return true;
             }

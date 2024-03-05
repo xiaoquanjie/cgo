@@ -11,9 +11,8 @@
 #include <cassert>
 #include <memory>
 #include <chrono>
-#include "co_grpc/client/calldata.h"
-#include "co_grpc/client/channel.h"
-#include "co_grpc/runner/runner.h"
+#include "clientdata.h"
+#include "channel.h"
 
 namespace co_grpc {
 
@@ -38,8 +37,6 @@ public:
 
 protected:
     bool Loop(uint32_t mil) {
-        ClientStatistics();
-
         void* tag = 0;
         bool ok = false;
         ::grpc::CompletionQueue::NextStatus status;
@@ -65,7 +62,7 @@ protected:
         // log("status %d", ok);
 
         bool shutdown = status == ::grpc::CompletionQueue::SHUTDOWN;
-        static_cast<IClientData*>(tag)->Proceed(shutdown, ok);
+        static_cast<ICallData*>(tag)->doResponse(shutdown, ok);
         return true;
     }
 

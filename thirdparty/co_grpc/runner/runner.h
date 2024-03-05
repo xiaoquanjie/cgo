@@ -7,6 +7,9 @@
 #include <functional>
 #include "cgo/cgo.h"
 
+#undef GoRun
+#define GoRun go
+
 namespace co_grpc {
 
     struct NormalRunner {
@@ -23,11 +26,6 @@ namespace co_grpc {
     };
 
     struct CoWaiter {
-        CoWaiter(uint64_t co_id) {
-            co_id_ = co_id;
-            assert(co_id_ != (uint64_t)-1);
-        }
-
         CoWaiter() {
             co_id_ = cgocoid();
             assert(co_id_ != (uint64_t)-1);
@@ -37,7 +35,7 @@ namespace co_grpc {
             cgoyield();
         }
 
-        void Resume() const {
+        void resume() const {
             cgoresume(co_id_);
         }
 
@@ -50,4 +48,35 @@ namespace co_grpc {
         }
     };
 
+    struct CoMutex {
+        cgo::mutex mu_;
+
+        inline void lock() {
+            this->mu_.lock();
+        }
+
+        inline void unlock() {
+            this->mu_.unlock();
+        }
+    };
+
+    struct CoScopedLock {
+        CoMutex& mu_;
+
+        CoScopedLock(CoMutex& mu) : mu_(mu) {
+            mu.lock();
+        }
+
+        ~CoScopedLock() {
+            mu_.unlock();
+        }
+    };
+
+    template<typename T>
+    struct PointScoped {
+        T* data_;
+        PointScoped(T* p) : data_(p) {}
+        ~PointScoped() { delete data_; }
+        T* operator->() { return data_;}
+    };
 }
