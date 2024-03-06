@@ -7,7 +7,7 @@
 #include "co_grpc/client/client_builder.h"
 #include "rmdbclient/encode.h"
 #include "rmdbclient/algorithm.h"
-#include "co_grpc/macro.h"
+#include "co_grpc/co_grpc.h"
 #include "rmdbclient/rmdb/config.pb.h"
 #include <chrono>
 #include <vector>

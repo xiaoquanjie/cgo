@@ -184,7 +184,7 @@ func genCppServer(fDesc *desc.FileDescriptor, dst string) {
 			if m.IsClientStreaming() && m.IsServerStreaming() {
 				// 双流
 				methodData += fmt.Sprintf("%s::grpc::Status %s(::grpc::ServerContext *ctx, GRPC_SRV_RW(%s, %s) *rw) {\n", space(indent3), m.GetName(), request, response)
-				methodData += fmt.Sprintf("%s}\n\n", space(indent3))
+				methodData += fmt.Sprintf("%sreturn ::grpc::Status::OK;\n%s}\n\n", space(indent4), space(indent3))
 			} else if m.IsClientStreaming() {
 				// 客户端流
 				methodData += fmt.Sprintf("%s::grpc::Status %s(::grpc::ServerContext *ctx, GRPC_SRV_READER(%s, %s) *reader, %s *rsp) {\n", space(indent3), m.GetName(), request, response, response)
