@@ -62,7 +62,7 @@ func genCppClient(fDesc *desc.FileDescriptor, dst string) []string {
 		data += fmt.Sprintf("#include \"%s/%s.grpc.pb.h\" \n", *protoInclude, fileName)
 	}
 
-	data += "#include \"co_grpc/macro.h\" \n\n"
+	data += "#include \"co_grpc/co_grpc.h\" \n\n"
 
 	indent := 0
 	if len(*cNameSpace) != 0 {
@@ -137,7 +137,7 @@ func genCppServer(fDesc *desc.FileDescriptor, dst string) {
 		data += fmt.Sprintf("#include \"%s/%s.grpc.pb.h\" \n", *protoInclude, fileName)
 	}
 
-	data += "#include \"co_grpc/macro.h\" \n\n"
+	data += "#include \"co_grpc/co_grpc.h\" \n\n"
 
 	indent := 0
 	if len(*sNameSapce) != 0 {
@@ -183,7 +183,7 @@ func genCppServer(fDesc *desc.FileDescriptor, dst string) {
 
 			if m.IsClientStreaming() && m.IsServerStreaming() {
 				// 双流
-				methodData += fmt.Sprintf("%svoid %s(::grpc::ServerContext *ctx, GRPC_SRV_RW(%s, %s) *rw) {\n", space(indent3), m.GetName(), request, response)
+				methodData += fmt.Sprintf("%s::grpc::Status %s(::grpc::ServerContext *ctx, GRPC_SRV_RW(%s, %s) *rw) {\n", space(indent3), m.GetName(), request, response)
 				methodData += fmt.Sprintf("%s}\n\n", space(indent3))
 			} else if m.IsClientStreaming() {
 				// 客户端流

@@ -5,7 +5,7 @@
 #pragma once
 
 #include "rmdbclient/rmdb/rmdb.grpc.pb.h"
-#include "co_grpc/macro.h"
+#include "co_grpc/co_grpc.h"
 
 namespace rmdbclient {
 
