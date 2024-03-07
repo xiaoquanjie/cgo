@@ -110,24 +110,27 @@ namespace sheetcfg {
                 return false;
             }
 
-            mSheet = std::make_shared<SHEET_TYPE>();
-            mItemMap = std::make_shared<std::map<KEY, std::shared_ptr<NEW_ITEM_TYPE>>>();
+            auto newSheet = std::make_shared<SHEET_TYPE>();
+            auto newItemMap = std::make_shared<std::map<KEY, std::shared_ptr<NEW_ITEM_TYPE>>>();
 
             google::protobuf::io::IstreamInputStream inputStream(&ifs);
-            if (!google::protobuf::TextFormat::Parse(&inputStream, mSheet.get())) {
+            if (!google::protobuf::TextFormat::Parse(&inputStream, newSheet.get())) {
                 printf("failed to parser proto file:%s\n", file_path);
                 return false;
             }
 
-            for (size_t idx = 0; idx < mSheet->items_size(); ++idx) {
+            for (size_t idx = 0; idx < newSheet->items_size(); ++idx) {
                 std::shared_ptr<NEW_ITEM_TYPE> ptr = std::make_shared<NEW_ITEM_TYPE>();
                 KEY key;
-                if (!parser(key, *ptr.get(), *(mSheet->mutable_items(idx)))) {
-                    printf("failed to parser item:%s|%s\n", file_path, mSheet->mutable_items(idx)->ShortDebugString().c_str());
+                if (!parser(key, *ptr.get(), *(newSheet->mutable_items(idx)))) {
+                    printf("failed to parser item:%s|%s\n", file_path, newSheet->mutable_items(idx)->ShortDebugString().c_str());
                     return false;
                 }
-                (*mItemMap)[key] = ptr;
+                (*newItemMap)[key] = ptr;
             }
+
+            mSheet = newSheet;
+            mItemMap = newItemMap;
             return true;
         }
 

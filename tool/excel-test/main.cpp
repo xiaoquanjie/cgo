@@ -13,6 +13,7 @@ int main() {
         return 0;
     }
 
+    sheetcfg::gErrorCodeKitReader.GetItemMap();
     std::cout << sheetcfg::gErrorCodeKitReader.GetSheet()->ShortDebugString() << "\n";
     return 0;
 }
