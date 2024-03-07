@@ -1,0 +1,12 @@
+# 文件生成时间: 2024-03-07 16:01:06.877343 +0800 CST m=+0.015512301
+# D:\doc\workspace\cgo\tool\excel-test\excel\AI性格表.xlsx => [AITemperamentConfig].sheet
+items: [
+  { Id:1, NameID:180001557},
+  { Id:2, NameID:180001558},
+  { Id:3, NameID:180001559},
+  { Id:4, NameID:180001560},
+  { Id:5, NameID:180001561},
+  { Id:6, NameID:180001562},
+  { Id:7, NameID:180001563},
+  { Id:8, NameID:45645.89}
+]

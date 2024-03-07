@@ -1,0 +1,13 @@
+syntax = "proto3";
+package sheetcfg;
+
+// 文件生成时间: 2024-03-07 16:01:06.8721344 +0800 CST m=+0.010303701
+// D:\doc\workspace\cgo\tool\excel-test\excel\AI性格表.xlsx => [AITemperamentConfig].sheet
+message AITemperamentConfig {
+  int64 Id = 1; // id
+  int64 NameID = 2; // 性格名对应的表id
+}
+
+message AITemperamentConfigSheet {
+  repeated AITemperamentConfig items = 1;
+}

@@ -1,0 +1,13 @@
+syntax = "proto3";
+package sheetcfg;
+
+// 文件生成时间: 2024-03-07 16:01:07.0925628 +0800 CST m=+0.230730701
+// D:\doc\workspace\cgo\tool\excel-test\excel\c错误码文本.xlsx => [ErrorCodeKit].sheet
+message ErrorCodeKit {
+  int64 Id = 1; // 编码
+  repeated string ArrContent = 2; // 简体中文
+}
+
+message ErrorCodeKitSheet {
+  repeated ErrorCodeKit items = 1;
+}

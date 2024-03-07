@@ -1,0 +1,11 @@
+# 文件生成时间: 2024-03-07 16:01:07.0925628 +0800 CST m=+0.230730701
+# D:\doc\workspace\cgo\tool\excel-test\excel\c错误码文本.xlsx => [ErrorCodeKit].sheet
+items: [
+  { Id:0, ArrContent:["成功","Success"]},
+  { Id:14, ArrContent:["网络连接错误，请重试","Network connection error, please try again"]},
+  { Id:140006, ArrContent:["验证码错误","Verification code error"]},
+  { Id:140007, ArrContent:["账号密码不一致","Inconsistent account and password"]},
+  { Id:190023, ArrContent:["对面已经是你的好友","Across from you is already your friend"]},
+  { Id:230015, ArrContent:["钢琴弹奏中","English"]},
+  { Id:230016, ArrContent:["钢琴状态错误","English"]}
+]
