@@ -1,5 +1,5 @@
-# 文件生成时间: 2024-03-07 16:20:12.93864 +0800 CST m=+0.015471801
-# D:\doc\workspace\cgo\tool\excel-test\excel\AI性格表.xlsx => [AITemperamentConfig].sheet
+# 文件生成时间: 2024-03-08 12:08:40.637956 +0800 CST m=+0.004153601
+# AI性格表.xlsx => [AITemperamentConfig].sheet
 items: [
   { Id:1, NameID:180001557},
   { Id:2, NameID:180001558},

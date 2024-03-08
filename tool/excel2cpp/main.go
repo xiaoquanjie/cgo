@@ -8,30 +8,58 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"strings"
 	"time"
 )
 
 var (
-	excelDir   = flag.String("excel", "./excel", "excel表目录")
-	dataDir    = flag.String("data", "./data", "生成的数据文件目录")
-	cppDir     = flag.String("cpp", "./cpp", "生成的cpp文件目录")
-	protoc     = flag.String("protoc", "", "protoc工具的路径")
-	allReaders = []string{}
+	excelDir = flag.String("excel", "./excel", "excel表目录")
+	dataDir  = flag.String("data", "./data", "生成的数据文件目录")
+	cppDir   = flag.String("cpp", "./cpp", "生成的cpp文件目录")
+	protoc   = flag.String("protoc", "", "protoc工具的路径")
+	oneProto = flag.Bool("oneproto", true, "所有proto结构输出到一个文件中")
+)
+
+var (
+	allSheetDesc = []*sheetDesc{}
 )
 
 func main() {
 	flag.Parse()
 
 	files := findExcels(*excelDir)
-	for _, f := range files {
-		if err := genFile(filepath.Join(*excelDir, f)); err != nil {
+	for _, file := range files {
+		descs, err := parseFile(filepath.Join(*excelDir, file))
+		if err != nil {
 			return
 		}
+
+		allSheetDesc = append(allSheetDesc, descs...)
 	}
 
-	genReaderVariable(allReaders)
+	if genData(allSheetDesc) != nil {
+		return
+	}
+
+	if genProto(allSheetDesc) != nil {
+		return
+	}
+
+	if genCpp(allSheetDesc) != nil {
+		return
+	}
+
+	if genReader(allSheetDesc) != nil {
+		return
+	}
+
+	if genReaderVariable(allSheetDesc) != nil {
+		return
+	}
+
+	for _, desc := range allSheetDesc {
+		desc.sheet.Close()
+	}
 }
 
 func findExcels(dir string) []string {
@@ -57,54 +85,108 @@ func findExcels(dir string) []string {
 	return files
 }
 
-// 生成文件
-func genFile(filename string) error {
-	file, err := xlsx.OpenFile(filename)
-	if err != nil {
-		fmt.Println("打开excel文件错误:", filename, err)
-		return err
+// 生成proto文件
+func genProto(descs []*sheetDesc) error {
+	writeFile := func(protoname, content string) error {
+		file, err := os.Create(protoname)
+		if err != nil {
+			fmt.Println("生成proto文件失败:", protoname, err)
+			return nil
+		}
+
+		defer file.Close()
+		file.WriteString("syntax = \"proto3\";\n")
+		file.WriteString("package sheetcfg;\n\n")
+		file.WriteString(content)
+		return nil
 	}
 
-	for _, sheet := range file.Sheets {
-		os.MkdirAll(*cppDir, os.ModeDir)
-		protoname := filepath.Join(*cppDir, sheet.Name+".proto")
-		fields := genProto(filename, protoname, sheet)
-		if fields == nil {
+	writeProto := func(desc *sheetDesc) string {
+		content := ""
+		content += fmt.Sprintf("// 文件生成时间: %s\n", time.Now().String())
+		content += fmt.Sprintf("// %s => [%s].sheet\n", desc.excelName, desc.sheetName)
+		content += fmt.Sprintf("message %s {\n", desc.sheetName)
+		for idx, field := range desc.desc {
+			isRepeated := len(field.col) > 1
+			content += "  "
+			if isRepeated {
+				content += "repeated "
+			}
+
+			if field.fieldType == "int" {
+				field.fieldType = "int64"
+			}
+
+			content += fmt.Sprintf("%s %s = %d; // %s \n", field.fieldType, field.field, idx+1, field.comment)
+		}
+		content += "}\n"
+
+		content += fmt.Sprintf("message %sSheet {\n", desc.sheetName)
+		content += fmt.Sprintf("  repeated %s items = 1;\n", desc.sheetName)
+		content += "}\n\n"
+		return content
+	}
+
+	os.MkdirAll(*cppDir, os.ModeDir)
+
+	if *oneProto {
+		content := ""
+		for _, desc := range descs {
+			content += writeProto(desc)
+		}
+		if err := writeFile(filepath.Join(*cppDir, "sheet.proto"), content); err != nil {
 			return err
 		}
-
-		os.MkdirAll(*dataDir, os.ModeDir)
-		dataname := filepath.Join(*dataDir, sheet.Name+".data")
-		if err = genData(filename, dataname, fields, sheet); err != nil {
-			return err
+	} else {
+		for _, desc := range descs {
+			content := writeProto(desc)
+			if err := writeFile(filepath.Join(*cppDir, desc.protoName), content); err != nil {
+				return err
+			}
 		}
-
-		cppname := filepath.Join(*cppDir, sheet.Name)
-		if err = genCpp(cppname, protoname); err != nil {
-			return err
-		}
-
-		readername := filepath.Join(*cppDir, sheet.Name+"Reader.h")
-		if err = genSheetReader(readername, fields, sheet); err != nil {
-			return err
-		}
-
-		allReaders = append(allReaders, sheet.Name+"Reader")
 	}
 
 	return nil
 }
 
-// 生成proto文件
-func genProto(filename string, protoname string, sheet *xlsx.Sheet) []*dataDesc {
+// 解析文件
+func parseFile(filename string) ([]*sheetDesc, error) {
+	file, err := xlsx.OpenFile(filename)
+	if err != nil {
+		fmt.Println("打开excel文件错误:", filename, err)
+		return nil, err
+	}
+
+	descs := []*sheetDesc{}
+
+	for _, sheet := range file.Sheets {
+		dDesc := parseDataDesc(filename, sheet)
+		if dDesc == nil {
+			continue
+		}
+
+		desc := &sheetDesc{
+			excelName:  filepath.Base(filename),
+			sheetName:  sheet.Name,
+			readerName: fmt.Sprintf("%sReader", sheet.Name),
+			protoName:  fmt.Sprintf("%s.proto", sheet.Name),
+			dataName:   fmt.Sprintf("%s.data", sheet.Name),
+			desc:       dDesc,
+			sheet:      sheet,
+		}
+		descs = append(descs, desc)
+	}
+
+	return descs, nil
+}
+
+// 解析表头描述
+func parseDataDesc(filename string, sheet *xlsx.Sheet) []*dataDesc {
 	if sheet.MaxCol <= 0 || sheet.MaxRow <= 0 {
 		return nil
 	}
 
-	content := "syntax = \"proto3\";\n"
-	content += "package sheetcfg;\n\n"
-
-	fields := []*dataDesc{}
+	desc := []*dataDesc{}
 	for ncol := 0; ncol < sheet.MaxCol; ncol++ {
 		field := &dataDesc{}
 		field.col = append(field.col, ncol)
@@ -131,7 +213,7 @@ func genProto(filename string, protoname string, sheet *xlsx.Sheet) []*dataDesc 
 			if nrow == 0 {
 				field.field = cell.Value
 			} else if nrow == 1 {
-				field.fieldType = cell.Value
+				field.fieldType = strings.Split(cell.Value, "[]")[0]
 			} else if nrow == 2 {
 				field.comment = strings.ReplaceAll(cell.Value, "\r", " ")
 				field.comment = strings.ReplaceAll(field.comment, "\n", " ")
@@ -143,63 +225,28 @@ func genProto(filename string, protoname string, sheet *xlsx.Sheet) []*dataDesc 
 			continue
 		}
 
-		if idx := findDataDesc(fields, field.field); idx == -1 {
-			fields = append(fields, field)
+		if idx := findDataDesc(desc, field.field); idx == -1 {
+			desc = append(desc, field)
 		} else {
-			if fields[idx].fieldType != field.fieldType {
+			if desc[idx].fieldType != field.fieldType {
 				fmt.Print("字段%s重复，sheet:%s|文件:%s\n", field.field, sheet.Name, filename)
 				return nil
 			}
-			fields[idx].col = append(fields[idx].col, field.col...)
+			desc[idx].col = append(desc[idx].col, field.col...)
 		}
 	}
 
-	// 生成结构
-	content += fmt.Sprintf("// 文件生成时间: %s\n", time.Now().String())
-	content += "// " + filename + " => [" + sheet.Name + "].sheet\n"
-	content += "message " + sheet.Name + " {\n"
-	for idx, field := range fields {
-		isRepeated := false
-		if strings.Contains(field.fieldType, "[]") {
-			isRepeated = true
-			subs := strings.Split(field.fieldType, "[]")
-			field.fieldType = subs[0]
-		}
-
-		content += "  "
-		if isRepeated {
-			content += "repeated "
-		}
-
-		if field.fieldType == "int" {
-			field.fieldType = "int64"
-		}
-
-		content += field.fieldType + " " + field.field + " = " + strconv.Itoa(idx+1) + "; // " + field.comment + "\n"
-	}
-	content += "}\n\n"
-
-	// 生成结构数组
-	content += "message " + sheet.Name + "Sheet {\n"
-	content += "  repeated " + sheet.Name + " items = 1;\n"
-	content += "}\n"
-
-	file, err := os.Create(protoname)
-	if err != nil {
-		fmt.Println("生成proto文件失败:", protoname, err)
-		return nil
-	}
-
-	defer file.Close()
-	file.WriteString(content)
-	return fields
+	return desc
 }
 
-// 生成数据文件
-func genData(filename string, dataname string, fields []*dataDesc, sheet *xlsx.Sheet) error {
-	content := fmt.Sprintf("# 文件生成时间: %s\n", time.Now().String())
-	content += "# " + filename + " => [" + sheet.Name + "].sheet\n"
-	content += "items: [\n"
+// 解析表数据
+func parseData(desc *sheetDesc) (string, error) {
+	sheet := desc.sheet
+	fields := desc.desc
+
+	content := ""
+	content += fmt.Sprintf("items: [\n")
+
 	for nrow := 4; nrow < sheet.MaxRow; nrow++ {
 		datas := map[string][]string{}
 		for ncol := 0; ncol < sheet.MaxCol; ncol++ {
@@ -210,8 +257,8 @@ func genData(filename string, dataname string, fields []*dataDesc, sheet *xlsx.S
 
 			cell, err := sheet.Cell(nrow, ncol)
 			if err != nil {
-				fmt.Print("打开[第%n行, 第%n列]错误，sheet:%s|文件:%s\n", nrow, ncol, sheet.Name, filename)
-				return err
+				fmt.Print("打开[第%n行, 第%n列]错误，sheet:%s|文件:%s\n", nrow, ncol, sheet.Name, desc.excelName)
+				return "", err
 			}
 
 			fieldname := fields[idx].field
@@ -243,8 +290,8 @@ func genData(filename string, dataname string, fields []*dataDesc, sheet *xlsx.S
 		if nrow != 4 {
 			content += ",\n"
 		}
-		content += "  {"
 
+		content += "  {"
 		for idx, field := range fields {
 			if idx > 0 {
 				content += ","
@@ -257,8 +304,9 @@ func genData(filename string, dataname string, fields []*dataDesc, sheet *xlsx.S
 				if idx2 > 0 {
 					content += ","
 				}
+				//fmt.Println(field.field, field.fieldType)
 				if field.fieldType == "string" {
-					content += "\"" + value + "\""
+					content += fmt.Sprintf("\"%s\"", value)
 				} else {
 					if len(value) == 0 {
 						content += "0"
@@ -271,24 +319,57 @@ func genData(filename string, dataname string, fields []*dataDesc, sheet *xlsx.S
 				content += "]"
 			}
 		}
-
 		content += "}"
 	}
-	content += "\n]\n"
 
-	file, err := os.Create(dataname)
-	if err != nil {
-		fmt.Println("生成data文件失败:", dataname, err)
-		return err
+	content += "\n]\n"
+	return content, nil
+}
+
+// 生成数据文件
+func genData(descs []*sheetDesc) error {
+	writeFile := func(dataname, content string) error {
+		file, err := os.Create(dataname)
+		if err != nil {
+			fmt.Println("生成data文件失败:", dataname, err)
+			return err
+		}
+
+		defer file.Close()
+		file.WriteString(content)
+		return nil
 	}
 
-	defer file.Close()
-	file.WriteString(content)
+	writeData := func(desc *sheetDesc) (string, error) {
+		content := ""
+		content += fmt.Sprintf("# 文件生成时间: %s\n", time.Now().String())
+		content += fmt.Sprintf("# %s => [%s].sheet\n", desc.excelName, desc.sheetName)
+		c, err := parseData(desc)
+		if err != nil {
+			return "", err
+		}
+		content += c
+		return content, nil
+	}
+
+	os.MkdirAll(*dataDir, os.ModeDir)
+
+	for _, desc := range descs {
+		content, err := writeData(desc)
+		if err != nil {
+			return err
+		}
+
+		if err = writeFile(filepath.Join(*dataDir, desc.dataName), content); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
 // 生成cpp文件
-func genCpp(cppname string, protoname string) error {
+func genCpp(descs []*sheetDesc) error {
 	protocExe := *protoc
 	if len(protocExe) == 0 {
 		if runtime.GOOS == "windows" {
@@ -298,114 +379,146 @@ func genCpp(cppname string, protoname string) error {
 		}
 	}
 
-	cmd := exec.Command(protocExe, "--cpp_out=./", protoname)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		fmt.Println("生成cpp文件失败:", protoname)
-		fmt.Println(string(out))
-		return err
+	writeCpp := func(name string) error {
+		cmd := exec.Command(protocExe, "--cpp_out=./", name)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			fmt.Println("生成cpp文件失败:", name)
+			fmt.Println(string(out))
+			return err
+		}
+		return nil
 	}
+
+	if *oneProto {
+		return writeCpp(filepath.Join(*cppDir, "sheet.proto"))
+	} else {
+		for _, desc := range descs {
+			if err := writeCpp(filepath.Join(*cppDir, desc.protoName)); err != nil {
+				return err
+			}
+		}
+	}
+
 	return nil
 }
 
 // 生成sheet_reader文件
-func genSheetReader(readername string, fields []*dataDesc, sheet *xlsx.Sheet) error {
-	_, err := os.Lstat(readername)
-	if !os.IsNotExist(err) {
+func genReader(descs []*sheetDesc) error {
+	writeFile := func(readername string, content string) error {
+		file, err := os.Create(readername)
+		if err != nil {
+			fmt.Println("生成reader文件失败:", readername, err)
+			return err
+		}
+
+		defer file.Close()
+		file.WriteString(content)
 		return nil
 	}
 
-	content := fmt.Sprintf("// 文件首次生成于时间: %s \n", time.Now().String())
-	content += "#pragma once\n\n"
-	content += "#include \"sheet_reader.h\"\n"
-	content += "#include \"" + sheet.Name + ".pb.h\"\n\n"
+	writeReader := func(desc *sheetDesc) (string, error) {
+		content := ""
+		content += fmt.Sprintf("// 文件首次生成于时间: %s \n", time.Now().String())
+		content += "#pragma once\n\n"
+		content += "#include \"sheet_reader.h\"\n"
 
-	content += "namespace sheetcfg {\n"
-	content += "    // 索引类型\n"
-	content += fmt.Sprintf("    using %sKey=SheetKey<>;\n", sheet.Name)
-	content += fmt.Sprintf("    // 模板参数分别为：索引类型，自定义结构类型，默认类型(proto生成), proto表类型\n")
-	content += fmt.Sprintf("    using %sBaseReader=SheetReader<%s, %s, %s, %s>;\n\n",
-		sheet.Name,
-		sheet.Name+"Key",
-		sheet.Name,
-		sheet.Name,
-		sheet.Name+"Sheet")
-	content += fmt.Sprintf("    struct %sReader : public %sBaseReader {\n", sheet.Name, sheet.Name)
-	content += "    protected:\n"
-	content += "        //解析器实现\n"
-	content += fmt.Sprintf("        bool parser(%s& key, %s& newitem, %s& item) {\n",
-		sheet.Name+"Key",
-		sheet.Name,
-		sheet.Name)
-	content += "            newitem = item;\n"
-	content += "            key.key1 = newitem.id();\n"
-	content += "            return true;\n"
-	content += "        }\n"
-	content += "    };\n"
-	content += "}"
+		if *oneProto {
+			content += fmt.Sprintf("#include \"%s.pb.h\"\n\n", "sheet")
+		} else {
+			content += fmt.Sprintf("#include \"%s.pb.h\"\n\n", desc.sheetName)
+		}
 
-	file, err := os.Create(readername)
-	if err != nil {
-		fmt.Println("生成reader文件失败:", readername, err)
-		return err
+		content += "namespace sheetcfg {\n"
+		content += "    // 索引类型\n"
+		content += fmt.Sprintf("    using %sKey=SheetKey<>;\n", desc.sheetName)
+		content += fmt.Sprintf("    // 模板参数分别为：索引类型，自定义结构类型，默认类型(proto生成), proto表类型\n")
+		content += fmt.Sprintf("    using %sBaseReader=SheetReader<%s, %s, %s, %s>;\n\n",
+			desc.sheetName,
+			desc.sheetName+"Key",
+			desc.sheetName,
+			desc.sheetName,
+			desc.sheetName+"Sheet")
+		content += fmt.Sprintf("    struct %s : public %sBaseReader {\n", desc.readerName, desc.sheetName)
+		content += "    protected:\n"
+		content += "        //解析器实现\n"
+		content += fmt.Sprintf("        bool parser(%s& key, %s& newitem, %s& item) {\n",
+			desc.sheetName+"Key",
+			desc.sheetName,
+			desc.sheetName)
+		content += "            newitem = item;\n"
+		content += "            key.key1 = newitem.id();\n"
+		content += "            return true;\n"
+		content += "        }\n"
+		content += "    };\n"
+		content += "}"
+		return content, nil
 	}
 
-	defer file.Close()
-	file.WriteString(content)
+	for _, desc := range descs {
+		content, err := writeReader(desc)
+		if err != nil {
+			return err
+		}
+		err = writeFile(filepath.Join(*cppDir, desc.readerName+".h"), content)
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
 // 生成reader变量
-func genReaderVariable(names []string) error {
-	//fmt.Println(names, len(names))
+func genReaderVariable(descs []*sheetDesc) error {
+	headers := "#pragma once\n\n"
+	cpps := ""
 
-	headers := fmt.Sprintf("// 文件生成时间: %s\n", time.Now().String())
-	headers += "#pragma once\n\n"
-	for _, name := range names {
-		headers += fmt.Sprintf("#include \"%s.h\"\n", name)
+	for _, desc := range descs {
+		headers += fmt.Sprintf("#include \"%s.h\"\n", desc.readerName)
 	}
 
 	headers += "\nnamespace sheetcfg {\n"
-	for _, name := range names {
-		headers += fmt.Sprintf("    extern %s g%s;\n", name, name)
+	cpps += "#include \"AllSheetReader.h\"\n\n"
+	cpps += "namespace sheetcfg {\n"
+
+	for _, desc := range descs {
+		headers += fmt.Sprintf("    extern %s g%s;\n", desc.readerName, desc.readerName)
+		cpps += fmt.Sprintf("    %s g%s;\n", desc.readerName, desc.readerName)
 	}
+
+	writeFile := func(filename, content string) error {
+		file, err := os.Create(filename)
+		if err != nil {
+			fmt.Print("生成%s文件错误: %v\n", filename, err)
+			return err
+		}
+
+		defer file.Close()
+		file.WriteString(fmt.Sprintf("// 文件生成时间: %s\n\n", time.Now().String()))
+		file.WriteString(content)
+		return nil
+	}
+
 	headers += "    bool LoadAllReader(const std::string&);\n"
 	headers += "}\n"
 
-	headerFile, err := os.Create(filepath.Join(*cppDir, "AllSheetReader.h"))
-	if err != nil {
-		fmt.Println("生成SheetReader.h文件错误:", err)
-		return err
-	}
-
-	defer headerFile.Close()
-	headerFile.WriteString(headers)
-
-	////////////////////////////////////////////////
-
-	cpps := fmt.Sprintf("// 文件生成时间: %s\n", time.Now().String())
-	cpps += "#include \"AllSheetReader.h\"\n\n"
-	cpps += "namespace sheetcfg {\n"
-	for _, name := range names {
-		cpps += fmt.Sprintf("   %s %s;\n", name, "g"+name)
-	}
 	cpps += "\n"
 	cpps += "    bool LoadAllReader(const std::string& dir) {\n"
-	for _, name := range names {
-		dataname := fmt.Sprintf("(dir+\"/%s.data\").c_str()", name[0:len(name)-6])
-		cpps += fmt.Sprintf("       if (%s.Load(%s) == false) return false;\n", "g"+name, dataname)
+	for _, desc := range descs {
+		dataname := fmt.Sprintf("(dir+\"/%s\").c_str()", desc.dataName)
+		cpps += fmt.Sprintf("        if (%s.Load(%s) == false) return false;\n", "g"+desc.readerName, dataname)
 	}
-	cpps += "       return true;"
+	cpps += "        return true;\n"
 	cpps += "    }\n"
 	cpps += "}"
 
-	cppFile, err := os.Create(filepath.Join(*cppDir, "AllSheetReader.cpp"))
-	if err != nil {
-		fmt.Println("生成SheetReader.cpp文件错误:", err)
+	if err := writeFile(filepath.Join(*cppDir, "AllSheetReader.h"), headers); err != nil {
 		return err
 	}
 
-	defer cppFile.Close()
-	cppFile.WriteString(cpps)
+	if err := writeFile(filepath.Join(*cppDir, "AllSheetReader.cpp"), cpps); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -434,4 +547,14 @@ func findDataDescByCol(fields []*dataDesc, col int) int {
 		}
 	}
 	return -1
+}
+
+type sheetDesc struct {
+	excelName  string      // excel表名字
+	sheetName  string      // sheet表名字
+	readerName string      // reader名字
+	protoName  string      // proto文件名字
+	dataName   string      // data文件名字
+	desc       []*dataDesc // 表头描述
+	sheet      *xlsx.Sheet // 表
 }

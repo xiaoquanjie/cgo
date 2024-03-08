@@ -18,8 +18,7 @@ endif()
 
 add_executable(excel-test
         main.cpp
-        cpp/AITemperamentConfig.pb.cc
-        cpp/ErrorCodeKit.pb.cc
+        cpp/sheet.pb.cc
         cpp/AllSheetReader.cpp)
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
