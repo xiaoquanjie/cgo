@@ -119,7 +119,7 @@ namespace sheetcfg {
                 return false;
             }
 
-            for (size_t idx = 0; idx < newSheet->items_size(); ++idx) {
+            for (int idx = 0; idx < newSheet->items_size(); ++idx) {
                 std::shared_ptr<NEW_ITEM_TYPE> ptr = std::make_shared<NEW_ITEM_TYPE>();
                 KEY key;
                 if (!parser(key, *ptr.get(), *(newSheet->mutable_items(idx)))) {

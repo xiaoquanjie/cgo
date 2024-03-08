@@ -79,6 +79,9 @@ func findExcels(dir string) []string {
 		if ext := filepath.Ext(entry.Name()); ext != ".xlsx" {
 			continue
 		}
+		if strings.HasPrefix(entry.Name(), "~") {
+			continue
+		}
 		files = append(files, entry.Name())
 	}
 
@@ -112,11 +115,6 @@ func genProto(descs []*sheetDesc) error {
 			if isRepeated {
 				content += "repeated "
 			}
-
-			if field.fieldType == "int" {
-				field.fieldType = "int64"
-			}
-
 			content += fmt.Sprintf("%s %s = %d; // %s \n", field.fieldType, field.field, idx+1, field.comment)
 		}
 		content += "}\n"
@@ -160,7 +158,13 @@ func parseFile(filename string) ([]*sheetDesc, error) {
 	descs := []*sheetDesc{}
 
 	for _, sheet := range file.Sheets {
-		dDesc := parseDataDesc(filename, sheet)
+		if strings.HasPrefix(sheet.Name, "#") {
+			continue
+		}
+		dDesc, err := parseDataDesc(filename, sheet)
+		if err != nil {
+			return nil, err
+		}
 		if dDesc == nil {
 			continue
 		}
@@ -181,9 +185,9 @@ func parseFile(filename string) ([]*sheetDesc, error) {
 }
 
 // 解析表头描述
-func parseDataDesc(filename string, sheet *xlsx.Sheet) []*dataDesc {
+func parseDataDesc(filename string, sheet *xlsx.Sheet) ([]*dataDesc, error) {
 	if sheet.MaxCol <= 0 || sheet.MaxRow <= 0 {
-		return nil
+		return nil, nil
 	}
 
 	desc := []*dataDesc{}
@@ -193,27 +197,35 @@ func parseDataDesc(filename string, sheet *xlsx.Sheet) []*dataDesc {
 		for nrow := 0; nrow < 4; nrow++ {
 			cell, err := sheet.Cell(nrow, ncol)
 			if err != nil {
-				fmt.Print("打开[第%n行, 第%n列]错误，sheet:%s|文件:%s\n", nrow, ncol, sheet.Name, filename)
-				return nil
+				fmt.Printf("打开[第%d行, 第%d列]错误，sheet:%s|文件:%s\n", nrow, ncol, sheet.Name, filename)
+				return nil, err
 			}
 
 			// check
-			if cell.Value == "#" {
+			if strings.HasPrefix(cell.Value, "#") || len(cell.Value) == 0 {
 				if nrow == 0 {
 					break
 				}
-			}
-			if cell.Value == "" {
-				if nrow != 3 {
-					fmt.Print("[第%n行, 第%n列]为空，sheet:%s|文件:%s\n", nrow, ncol, sheet.Name, filename)
-					return nil
+				if nrow == 1 {
+					fmt.Printf("[第%d行, 第%d列]无效(%s)，sheet:%s|文件:%s\n", nrow, ncol, cell.Value, sheet.Name, filename)
+					return nil, fmt.Errorf("")
 				}
 			}
 
 			if nrow == 0 {
 				field.field = cell.Value
 			} else if nrow == 1 {
-				field.fieldType = strings.Split(cell.Value, "[]")[0]
+				if strings.HasPrefix(cell.Value, "enum") {
+					field.fieldType = strings.Split(cell.Value, ":")[1]
+					field.isenum = true
+				} else if strings.HasSuffix(cell.Value, "[]") {
+					field.fieldType = strings.Split(cell.Value, "[]")[0]
+				} else {
+					field.fieldType = cell.Value
+				}
+				if field.fieldType == "int" {
+					field.fieldType = "int64"
+				}
 			} else if nrow == 2 {
 				field.comment = strings.ReplaceAll(cell.Value, "\r", " ")
 				field.comment = strings.ReplaceAll(field.comment, "\n", " ")
@@ -229,14 +241,14 @@ func parseDataDesc(filename string, sheet *xlsx.Sheet) []*dataDesc {
 			desc = append(desc, field)
 		} else {
 			if desc[idx].fieldType != field.fieldType {
-				fmt.Print("字段%s重复，sheet:%s|文件:%s\n", field.field, sheet.Name, filename)
-				return nil
+				fmt.Printf("字段%s重复，sheet:%s|文件:%s\n", field.field, sheet.Name, filename)
+				return nil, fmt.Errorf("")
 			}
 			desc[idx].col = append(desc[idx].col, field.col...)
 		}
 	}
 
-	return desc
+	return desc, nil
 }
 
 // 解析表数据
@@ -257,7 +269,7 @@ func parseData(desc *sheetDesc) (string, error) {
 
 			cell, err := sheet.Cell(nrow, ncol)
 			if err != nil {
-				fmt.Print("打开[第%n行, 第%n列]错误，sheet:%s|文件:%s\n", nrow, ncol, sheet.Name, desc.excelName)
+				fmt.Printf("打开[第%d行, 第%d列]错误，sheet:%s|文件:%s\n", nrow, ncol, sheet.Name, desc.excelName)
 				return "", err
 			}
 
@@ -304,15 +316,17 @@ func parseData(desc *sheetDesc) (string, error) {
 				if idx2 > 0 {
 					content += ","
 				}
-				//fmt.Println(field.field, field.fieldType)
+
 				if field.fieldType == "string" {
 					content += fmt.Sprintf("\"%s\"", value)
 				} else {
-					if len(value) == 0 {
-						content += "0"
-					} else {
-						content += value
+					if field.isenum {
+						value = strings.Split(value, ":")[0]
 					}
+					if len(value) == 0 {
+						value = "0"
+					}
+					content += value
 				}
 			}
 			if len(field.col) > 1 {
@@ -380,7 +394,7 @@ func genCpp(descs []*sheetDesc) error {
 	}
 
 	writeCpp := func(name string) error {
-		cmd := exec.Command(protocExe, "--cpp_out=./", name)
+		cmd := exec.Command(protocExe, "--cpp_out="+*cppDir, "-I="+*cppDir, name)
 		if out, err := cmd.CombinedOutput(); err != nil {
 			fmt.Println("生成cpp文件失败:", name)
 			fmt.Println(string(out))
@@ -488,7 +502,7 @@ func genReaderVariable(descs []*sheetDesc) error {
 	writeFile := func(filename, content string) error {
 		file, err := os.Create(filename)
 		if err != nil {
-			fmt.Print("生成%s文件错误: %v\n", filename, err)
+			fmt.Printf("生成%s文件错误: %v\n", filename, err)
 			return err
 		}
 
@@ -527,6 +541,7 @@ type dataDesc struct {
 	fieldType string // 字段类型
 	comment   string // 注释
 	col       []int  // 列标号
+	isenum    bool   // 是否为enum
 }
 
 func findDataDesc(fields []*dataDesc, field string) int {
