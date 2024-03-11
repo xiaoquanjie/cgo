@@ -73,6 +73,7 @@ namespace co_grpc {
             DefCliBuilder()->StartLoop();
         }
 
+    protected:
         // 协程发送接口
         template<class Request, class Response, class GRPC_FUNC>
         ::grpc::Status
@@ -125,10 +126,12 @@ namespace co_grpc {
             PointScoped start(new ClientCSStartData<Request, Response, Responder>(responder));
             start->doRequest();
             if (!start->ok_) {
+                // 释放response
                 delete response;
                 return nullptr;
             }
 
+            // response的生命令周期由writer来接管
             auto writer = std::make_shared<ClientStreamWriter<Request, Response, Responder>>
                 (responder, context, rsp, response);
             return writer;

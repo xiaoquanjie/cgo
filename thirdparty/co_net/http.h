@@ -101,7 +101,7 @@ namespace co_net {
         }
 
     protected:
-        static void NewConn(TcpConn* c, HttpHandler handler) {
+        static void NewConn(TcpConn* c, HttpHandler& handler) {
             go [c, handler] {
                 for (;;) {
                     const int buflen = 1024;

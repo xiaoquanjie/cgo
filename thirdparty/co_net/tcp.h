@@ -200,7 +200,7 @@ namespace co_net {
                 return false;
             }
 
-            if (listen(fd_, 10) == -1) {
+            if (listen(fd_, 1000) == -1) {
                 return false;
             }
 

@@ -65,16 +65,14 @@ namespace co_grpc {
             }
 
             GoRun [this, ok] {
+                PointScoped This(this);
                 if (ok) {
-                    auto status = this->cb_(&this->ctx_, &this->request_, &this->response_);
+                    auto status = This->cb_(&This->ctx_, &This->request_, &This->response_);
 
                     // 回复
-                    PointScoped finish(new ServerUnaryFinishData<RequestType, ResponseType, Responder>(this->responder_, this->response_, status));
+                    PointScoped finish(new ServerUnaryFinishData<RequestType, ResponseType, Responder>(This->responder_, This->response_, status));
                     finish->doRequest();
                 }
-
-                // 删除自己
-                delete this;
             };
         }
     };
@@ -177,6 +175,7 @@ namespace co_grpc {
             }
 
             GoRun [this, ok] {
+                PointScoped This(this);
                 if (ok) {
                     ResponseType response;
                     // 起一个reader
@@ -186,9 +185,6 @@ namespace co_grpc {
                     PointScoped finish(new ServerCSFinishData<RequestType, ResponseType, Responder>(this->responder_, response, status));
                     finish->doRequest();
                 }
-
-                // 删除自己
-                delete this;
             };
         }
     };
@@ -290,6 +286,7 @@ namespace co_grpc {
             }
 
             go [this, ok] {
+                PointScoped This(this);
                 if (ok) {
                     // 起一个writer
                     ServerStreamWriter<RequestType, ResponseType, Responder> writer(this->responder_);
@@ -298,9 +295,6 @@ namespace co_grpc {
                     PointScoped finish(new ServerSSFinishData<RequestType, ResponseType, Responder>(this->responder_, status));
                     finish->doRequest();
                 }
-
-                // 删除自己
-                delete this;
             };
         }
     };
@@ -431,6 +425,7 @@ namespace co_grpc {
             }
 
             GoRun [this, ok] {
+                PointScoped This(this);
                 if (ok) {
                     // 起一个readwrite
                     ServerStreamReaderWriter<RequestType, ResponseType, Responder> rw(this->responder_);
@@ -439,9 +434,6 @@ namespace co_grpc {
                     PointScoped finish(new ServerDSFinishData<RequestType, ResponseType, Responder>(this->responder_, status));
                     finish->doRequest();
                 }
-
-                // 删除自己
-                delete this;
             };
         }
     };

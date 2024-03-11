@@ -22,7 +22,7 @@ enum CoroutineStatus {
 #define M_INVALID_COROUTINE_ID (uint64_t)(-1)
 
 #undef M_PRIVATE_STACK_SIZE
-#define M_PRIVATE_STACK_SIZE 1024*64
+#define M_PRIVATE_STACK_SIZE 1024*16
 
 #undef GROWUP_COROUTINE
 #define GROWUP_COROUTINE (1024*100)
@@ -51,5 +51,5 @@ enum CoroutineStatus {
 #define M_MAX_CO_WAIT_TIME (1800)
 
 #undef M_CO_POOL_SIZE
-#define M_CO_POOL_SIZE (1000)
+#define M_CO_POOL_SIZE (100)
 

@@ -161,7 +161,7 @@ namespace co_grpc {
 
         Responder responder_;
         ResponseType* outresponse_;
-        ResponseType* newresponse_;
+        PointScoped<ResponseType> newresponse_;
         Context ctx_;
         CoMutex mu_;
 
@@ -170,14 +170,12 @@ namespace co_grpc {
                            Context ctx,
                            ResponseType* outresponse,
                            ResponseType* newresponse)
-            : responder_(responder) {
+            : responder_(responder), newresponse_(newresponse)  {
             this->ctx_ = ctx;
             this->outresponse_ = outresponse;
-            this->newresponse_ = newresponse;
         }
 
         ~ClientStreamWriter() {
-            delete this->newresponse_;
         }
 
         // 协程安全

@@ -21,10 +21,7 @@ namespace cgo {
 
         _co_st_* _co_st_::alloc(const std::function<void()>& routine, int stack) {
             auto co = new _co_st_;
-            assert(co != 0);
-            if (stack <= 0) {
-                stack = M_PRIVATE_STACK_SIZE;
-            }
+            assert(co != 0 && stack >= M_PRIVATE_STACK_SIZE);
             return init(co, routine, stack);
         }
 
