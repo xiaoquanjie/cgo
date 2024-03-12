@@ -21,9 +21,6 @@ else()
     target_link_libraries(example
             cgo
             pthread
-            dl
             #profiler
             tcmalloc)
 endif ()
-
-add_dependencies(example cgo)

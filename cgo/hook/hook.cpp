@@ -451,6 +451,24 @@ int select(int maxfd, fd_set *readfds, fd_set *writefds, fd_set *exceptfds, stru
     return op_select();
 }
 
+void linux_hook_init() {
+    assert(socket_hook != 0);
+    assert(accept_hook != 0);
+    assert(connect_hook != 0);
+    assert(close_hook != 0);
+    assert(read_hook != 0);
+    assert(recv_hook != 0);
+    assert(send_hook != 0);
+    assert(write_hook != 0);
+    assert(sendto_hook != 0);
+    assert(recvfrom_hook != 0);
+    assert(gethostbyname_hook != 0);
+    assert(sleep_hook != 0);
+    assert(usleep_hook != 0);
+    assert(poll_hook != 0);
+    assert(select_hook != 0);
+}
+
 #elif _MSC_VER
 
 #define WIN32_LEAN_AND_MEAN
@@ -993,6 +1011,8 @@ struct hook_init {
     hook_init() {
 #ifdef _MSC_VER
         win_hook_init();
+#else
+        linux_hook_init();
 #endif
     }
 };

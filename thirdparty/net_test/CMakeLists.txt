@@ -22,5 +22,3 @@ else()
             tcmalloc
             )
 endif()
-
-add_dependencies(example cgo)

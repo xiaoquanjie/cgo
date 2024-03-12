@@ -5,6 +5,7 @@ set(CMAKE_CXX_STANDARD 17)
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
 else()
+    add_compile_options(-fPIC)
     add_compile_options(-Wno-error=deprecated-declarations)
     add_compile_options(-Wno-deprecated-declarations)
     add_compile_options(-Werror=unused-variable)
@@ -13,7 +14,7 @@ endif ()
 
 include_directories(./)
 
-add_library(cgo
+add_library(cgo SHARED
         coroutine/structure.cpp
         coroutine/coroutine.cpp
         coroutine/coroutine_linux2.cpp
@@ -37,8 +38,7 @@ add_library(cgo
 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
 else()
-    target_link_libraries(cgo
-            pthread
+    target_link_libraries(cgo PRIVATE
             dl
             )
 endif()

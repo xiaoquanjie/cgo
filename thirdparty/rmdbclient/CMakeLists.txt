@@ -1,5 +1,4 @@
-set(TARGET_NAME "rmdbclient")
-project(${TARGET_NAME})
+project(rmdbclient)
 
 if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
     message(STATUS "using windows")
@@ -20,9 +19,9 @@ include_directories(/usr/local/include
         ../
         ../../)
 
-add_library(${TARGET_NAME} ${ALL_CPP})
-add_dependencies(${TARGET_NAME} cgo)
-target_link_libraries(${TARGET_NAME} PRIVATE
+add_library(rmdbclient SHARED ${ALL_CPP})
+
+target_link_libraries(rmdbclient PRIVATE
         cgo
         bson-1.0
         ${GRPC_LIBS})
