@@ -20,7 +20,6 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
 else()
     target_link_libraries(example
             cgo
-            pthread
             #profiler
-            tcmalloc)
+            )
 endif ()

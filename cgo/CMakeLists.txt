@@ -14,7 +14,8 @@ endif ()
 
 include_directories(./)
 
-add_library(cgo SHARED
+# 编静态库，使用动态库可能会因为库的加载顺序导致hook功能出问题
+add_library(cgo
         coroutine/structure.cpp
         coroutine/coroutine.cpp
         coroutine/coroutine_linux2.cpp
@@ -38,7 +39,10 @@ add_library(cgo SHARED
 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
 else()
+    # 貌似对其他项目有继承关系，暂时没搞懂
     target_link_libraries(cgo PRIVATE
+            pthread
             dl
+            tcmalloc
             )
 endif()

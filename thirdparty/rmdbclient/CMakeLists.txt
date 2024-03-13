@@ -19,7 +19,7 @@ include_directories(/usr/local/include
         ../
         ../../)
 
-add_library(rmdbclient SHARED ${ALL_CPP})
+add_library(rmdbclient ${ALL_CPP})
 
 target_link_libraries(rmdbclient PRIVATE
         cgo
