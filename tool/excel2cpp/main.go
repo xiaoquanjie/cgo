@@ -318,6 +318,8 @@ func parseData(desc *sheetDesc) (string, error) {
 				}
 
 				if field.fieldType == "string" {
+					value = strings.ReplaceAll(value, "\n", "\\n")
+					value = strings.ReplaceAll(value, "\"", "\\\"")
 					content += fmt.Sprintf("\"%s\"", value)
 				} else {
 					if field.isenum {
@@ -326,6 +328,8 @@ func parseData(desc *sheetDesc) (string, error) {
 					if len(value) == 0 {
 						value = "0"
 					}
+					// 去除逗号
+					value = strings.ReplaceAll(value, ",", "")
 					content += value
 				}
 			}
@@ -419,6 +423,11 @@ func genCpp(descs []*sheetDesc) error {
 // 生成sheet_reader文件
 func genReader(descs []*sheetDesc) error {
 	writeFile := func(readername string, content string) error {
+		_, err := os.Lstat(readername)
+		if !os.IsNotExist(err) {
+			return nil
+		}
+
 		file, err := os.Create(readername)
 		if err != nil {
 			fmt.Println("生成reader文件失败:", readername, err)
