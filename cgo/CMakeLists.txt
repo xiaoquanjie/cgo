@@ -40,7 +40,7 @@ add_library(cgo
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
 else()
     # 貌似对其他项目有继承关系，暂时没搞懂
-    target_link_libraries(cgo PRIVATE
+    target_link_libraries(cgo
             pthread
             dl
             tcmalloc

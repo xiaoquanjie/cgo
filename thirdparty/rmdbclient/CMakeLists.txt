@@ -21,7 +21,7 @@ include_directories(/usr/local/include
 
 add_library(rmdbclient ${ALL_CPP})
 
-target_link_libraries(rmdbclient PRIVATE
+target_link_libraries(rmdbclient
         cgo
         bson-1.0
         ${GRPC_LIBS})
