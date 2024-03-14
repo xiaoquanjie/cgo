@@ -128,33 +128,26 @@ namespace co_grpc {
             }
         }
 
-        bool Loop(uint32_t mil) {
+        bool Loop(uint32_t) {
             // uniquely identifies a request.
             void* tag = 0;
             bool ok = false;
-            ::grpc::CompletionQueue::NextStatus status;
+            bool shutdown = false;
 
-            if (mil == 0) {
-                gpr_timespec deadline;
-                deadline.tv_sec = 0;
-                deadline.tv_nsec = 0;
-                deadline.clock_type = GPR_CLOCK_MONOTONIC;
-                status = this->cq_->AsyncNext(&tag, &ok, deadline);
-            } else {
-                auto deadline = std::chrono::system_clock::now() + std::chrono::milliseconds(mil);
-                status = cq_->AsyncNext(&tag, &ok, deadline);
+            for (;;) {
+                tag = 0;
+                ok = false;
+                shutdown = false;
+
+                shutdown = this->cq_->Next(&tag, &ok) == false;
+                if (!tag) {
+                    assert(false);
+                }
+
+                // ok为true表示事件成功，false表示事件失败
+                static_cast<ICallData*>(tag)->doResponse(shutdown, ok);
             }
 
-            if (status == grpc::CompletionQueue::TIMEOUT) {
-                return false;
-            }
-            if (!tag) {
-                return true;
-            }
-
-            // ok为true表示事件成功，false表示事件失败
-            bool shutdown = status == ::grpc::CompletionQueue::SHUTDOWN;
-            static_cast<ICallData*>(tag)->doResponse(shutdown, ok);
             return true;
         }
 

@@ -5,6 +5,7 @@
 #pragma once
 
 #include <functional>
+#include <thread>
 #include "cgo/cgo.h"
 
 #undef GoRun
@@ -44,7 +45,8 @@ namespace co_grpc {
 
     struct CoLooper {
         void operator()(std::function<void()> op) {
-            cgoloop(op);
+            std::thread(op).detach();
+            //cgoloop(op);
         }
     };
 

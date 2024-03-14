@@ -4,7 +4,7 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
     message(STATUS "using windows")
 else ()
     include(common.cmake)
-
+    link_directories(/usr/local/lib)
     set(PROTOBUF_LIBS "absl::flags" "absl::flags_parse" ${_PROTOBUF_LIBPROTOBUF})
     set(GRPC_LIBS ${_REFLECTION} ${_GRPC_GRPCPP} ${PROTOBUF_LIBS})
 endif ()
