@@ -16,7 +16,7 @@
 #include "client_builder.h"
 
 namespace co_grpc {
-    std::shared_ptr<::grpc::ClientContext> MakeContext(int timeout = 3000) {
+    inline std::shared_ptr<::grpc::ClientContext> MakeContext(int timeout = 3000) {
         auto ctx = std::make_shared<grpc::ClientContext>();
         if (timeout > 0) {
             auto deadline = std::chrono::system_clock::now() + std::chrono::milliseconds(timeout);

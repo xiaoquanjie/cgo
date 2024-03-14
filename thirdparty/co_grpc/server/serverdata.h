@@ -48,7 +48,8 @@ namespace co_grpc {
         RequestType request_;
         ResponseType response_;
 
-        ServerUnaryData(::grpc::ServerCompletionQueue *cq, Method method, Callback cb) : responder_(&ctx_), cq_(cq), method_(method), cb_(cb) {
+        ServerUnaryData(::grpc::ServerCompletionQueue *cq, Method method, Callback cb)
+            : cq_(cq), responder_(&ctx_), method_(method), cb_(cb) {
         }
 
         virtual ~ServerUnaryData() override = default;
@@ -158,7 +159,8 @@ namespace co_grpc {
         Method method_;
         Callback cb_;
 
-        ServerCSData(::grpc::ServerCompletionQueue *cq, Method method, Callback cb) : responder_(&ctx_), cq_(cq), method_(method), cb_(cb) {
+        ServerCSData(::grpc::ServerCompletionQueue *cq, Method method, Callback cb)
+            : cq_(cq), responder_(&ctx_), method_(method), cb_(cb) {
         }
 
         virtual ~ServerCSData() override = default;
@@ -269,7 +271,7 @@ namespace co_grpc {
         Callback cb_;
 
         ServerSSData(::grpc::ServerCompletionQueue *cq, Method method, Callback cb)
-                : responder_(&ctx_), cq_(cq), method_(method), cb_(cb) {
+            : cq_(cq), responder_(&ctx_), method_(method), cb_(cb) {
         }
 
         virtual ~ServerSSData() override = default;
@@ -408,7 +410,7 @@ namespace co_grpc {
         Callback cb_;
 
         ServerDSData(::grpc::ServerCompletionQueue *cq, Method method, Callback cb)
-                : responder_(&ctx_), cq_(cq), method_(method), cb_(cb) {
+            : cq_(cq), responder_(&ctx_), method_(method), cb_(cb) {
         }
 
         virtual ~ServerDSData() override = default;
