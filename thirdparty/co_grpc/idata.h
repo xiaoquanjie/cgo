@@ -4,11 +4,55 @@
 
 #pragma once
 
+#include <grpcpp/grpcpp.h>
+#include <vector>
+#include <functional>
+
 namespace co_grpc {
     struct ICallData {
         virtual ~ICallData() = default;
         virtual void doRequest() = 0;
         virtual void doResponse(bool, bool) = 0;
+    };
+
+    // 全局中间件
+    class ClientMiddles {
+    protected:
+    public:
+        void Add(const std::function<void(::grpc::ClientContext*)>& fn) {
+
+        }
+    };
+
+    class ServerMiddles {
+        typedef std::function<void(::grpc::ServerContext*, const char*, const char*)> middle;
+    protected:
+        static std::vector<middle>& before_middles_vec() {
+            static std::vector<middle> middles;
+            return middles;
+        }
+
+        static std::vector<middle>& after_middles_vec() {
+            static std::vector<middle> middles;
+            return middles;
+        }
+    public:
+        static void Before(const middle& fn) {
+            before_middles_vec().push_back(fn);
+        }
+        static void After(const middle& fn) {
+            after_middles_vec().push_back(fn);
+        }
+        static void DoBefore(::grpc::ServerContext* ctx, const char* fullmethod, const char* sname) {
+            for (auto& fn : before_middles_vec()) {
+                fn(ctx, fullmethod, sname);
+            }
+        }
+        static void DoAfter(::grpc::ServerContext* ctx, const char* fullmethod, const char* sname) {
+            for (auto& fn : after_middles_vec()) {
+                fn(ctx, fullmethod, sname);
+            }
+        }
     };
 }
 

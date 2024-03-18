@@ -7,7 +7,6 @@
 #include "co_grpc/idata.h"
 #include "co_grpc/runner/runner.h"
 #include <grpc/support/log.h>
-#include <grpcpp/grpcpp.h>
 #include <functional>
 
 namespace co_grpc {
@@ -66,6 +65,7 @@ namespace co_grpc {
             }
 
             GoRun [this, ok] {
+                ServerMiddles::DoBefore(&this->ctx_, "", "");
                 PointScoped This(this);
                 if (ok) {
                     auto status = This->cb_(&This->ctx_, &This->request_, &This->response_);
@@ -74,6 +74,7 @@ namespace co_grpc {
                     PointScoped finish(new ServerUnaryFinishData<RequestType, ResponseType, Responder>(This->responder_, This->response_, status));
                     finish->doRequest();
                 }
+                ServerMiddles::DoAfter(&this->ctx_, "", "");
             };
         }
     };
@@ -177,6 +178,7 @@ namespace co_grpc {
             }
 
             GoRun [this, ok] {
+                ServerMiddles::DoBefore(&this->ctx_, "", "");
                 PointScoped This(this);
                 if (ok) {
                     ResponseType response;
@@ -187,6 +189,7 @@ namespace co_grpc {
                     PointScoped finish(new ServerCSFinishData<RequestType, ResponseType, Responder>(this->responder_, response, status));
                     finish->doRequest();
                 }
+                ServerMiddles::DoAfter(&this->ctx_, "", "");
             };
         }
     };
@@ -287,7 +290,8 @@ namespace co_grpc {
                 newdata->doRequest();
             }
 
-            go [this, ok] {
+            GoRun [this, ok] {
+                ServerMiddles::DoBefore(&this->ctx_, "", "");
                 PointScoped This(this);
                 if (ok) {
                     // 起一个writer
@@ -297,6 +301,7 @@ namespace co_grpc {
                     PointScoped finish(new ServerSSFinishData<RequestType, ResponseType, Responder>(this->responder_, status));
                     finish->doRequest();
                 }
+                ServerMiddles::DoAfter(&this->ctx_, "", "");
             };
         }
     };
@@ -427,6 +432,7 @@ namespace co_grpc {
             }
 
             GoRun [this, ok] {
+                ServerMiddles::DoBefore(&this->ctx_, "", "");
                 PointScoped This(this);
                 if (ok) {
                     // 起一个readwrite
@@ -436,6 +442,7 @@ namespace co_grpc {
                     PointScoped finish(new ServerDSFinishData<RequestType, ResponseType, Responder>(this->responder_, status));
                     finish->doRequest();
                 }
+                ServerMiddles::DoAfter(&this->ctx_, "", "");
             };
         }
     };

@@ -7,7 +7,6 @@
 #include "co_grpc/idata.h"
 #include "co_grpc/runner/runner.h"
 #include <grpc/support/log.h>
-#include <grpcpp/grpcpp.h>
 #include <functional>
 
 namespace co_grpc {
