@@ -31,7 +31,7 @@ void print_withtime(const std::string& msg) {
     print_withtime(msg.c_str());
 }
 
-class GreeterClient : public co_grpc::Client<helloworld::Greeter> {
+class GreeterClient : public cogrpc::Client<helloworld::Greeter> {
 public:
     GRPC_CLIENT_UNARY_METHOD(SayHello, helloworld::HelloRequest, helloworld::HelloReply);
 
@@ -43,7 +43,7 @@ public:
 
 };
 
-class GreeterServer : public co_grpc::Server<helloworld::Greeter> {
+class GreeterServer : public cogrpc::Server<helloworld::Greeter> {
 public:
     void InitMethod() override {
         GRPC_SRV_UNARY_METHOD(SayHello, helloworld::HelloRequest, helloworld::HelloReply);
@@ -149,7 +149,7 @@ void client_stream_test() {
     go [] {
         GreeterClient client;
         client.Bind("0.0.0.0:50051", "");
-        auto ctx = co_grpc::MakeContext();
+        auto ctx = cogrpc::MakeContext();
         helloworld::HelloReply rsp;
         auto writer = client.ClientStreamSayHello(ctx, &rsp);
         if (!writer) {
@@ -184,7 +184,7 @@ void server_stream_test() {
         req.set_name("jack");
         req.set_count(2);
 
-        auto ctx = co_grpc::MakeContext();
+        auto ctx = cogrpc::MakeContext();
         auto reader = client.ServerStreamSayHello(ctx, req);
         if (!reader) {
             print_withtime("get reader error");
@@ -235,9 +235,9 @@ void double_stream_test() {
 }
 
 void grpc_listen() {
-    co_grpc::DefSrvBuilder()->RegisterService<GreeterServer>();
-    co_grpc::DefSrvBuilder()->AddListeningPort("0.0.0.0:50051");
-    co_grpc::DefSrvBuilder()->Run();
+    cogrpc::DefSrvBuilder()->RegisterService<GreeterServer>();
+    cogrpc::DefSrvBuilder()->AddListeningPort("0.0.0.0:50051");
+    cogrpc::DefSrvBuilder()->Run();
 }
 
 int main() {

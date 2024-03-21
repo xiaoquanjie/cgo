@@ -7,3 +7,5 @@
 
 #include "redis_exception.h"
 #include "redis_connection.h"
+
+namespace coredis = co_redis;

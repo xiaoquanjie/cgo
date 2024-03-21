@@ -141,3 +141,5 @@ protected:
         return size * count;
     }
 };
+
+using cocurl = co_curl;

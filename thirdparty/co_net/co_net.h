@@ -85,3 +85,5 @@ namespace co_net {
         return new UdpConn(network, fd);
     }
 }
+
+namespace conet = co_net;

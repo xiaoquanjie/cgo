@@ -85,6 +85,8 @@ GRPC_CLIENT_RW(request, response) rpcMethod(std::shared_ptr<::grpc::ClientContex
 
 //////////////////////////////////////////////// 客户端相关的宏 end //////////////////////////////////////
 
+namespace cogrpc = co_grpc;
+
 // 错误码判断
 #define GRPC_MSG(status) status.error_message()
 #define GRPC_OK(status) status.ok()

@@ -349,3 +349,5 @@ mysqlerr:
         }
     };
 }
+
+namespace comysql = co_mysql;
