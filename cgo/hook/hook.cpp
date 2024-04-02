@@ -1,24 +1,21 @@
-//
-// Created by xiaoqj on 2023/12/20.
-//
-
-#include "hook.h"
+Ôªø#include "hook.h"
 #include "epoll_iocp.h"
 #include "scheduler/scheduler.h"
+#include <stdexcept>
 
 #define M_SET_STATE(data, state) data->co_id = cgo::scheduler::cur_coid(); data->flag |= cgo::hook::state;
 
 #ifdef __GNUC__
 
 typedef int (*socket_hook_t)(int, int, int);
-static socket_hook_t socket_hook = (socket_hook_t)dlsym(RTLD_NEXT,"socket");
+static socket_hook_t socket_hook = nullptr;
 int socket(int domain, int type, int protocol) {
     hook_debug(__FUNCTION__);
     return socket_hook(domain, type, protocol);
 }
 
 typedef int (*accept_hook_t)(int fd, struct sockaddr *addr, socklen_t *addrlen);
-static accept_hook_t accept_hook = (accept_hook_t)dlsym(RTLD_NEXT,"accept");
+static accept_hook_t accept_hook = nullptr;
 int accept(int fd, struct sockaddr *addr, socklen_t *addrlen) {
     if (!cgo::hook::canhook(fd)) {
         return accept_hook(fd, addr, addrlen);
@@ -53,7 +50,7 @@ int accept(int fd, struct sockaddr *addr, socklen_t *addrlen) {
 }
 
 typedef int (*connect_hook_t)(int, const struct sockaddr*, socklen_t);
-static connect_hook_t connect_hook = (connect_hook_t)dlsym(RTLD_NEXT,"connect");
+static connect_hook_t connect_hook = nullptr;
 int connect(int fd, const struct sockaddr *address, socklen_t addrlen) {
     if (!cgo::hook::canhook(fd)) {
         return connect_hook(fd, address, addrlen);
@@ -88,7 +85,7 @@ int connect(int fd, const struct sockaddr *address, socklen_t addrlen) {
 }
 
 typedef int (*close_hook_t)(int fd);
-static close_hook_t close_hook = (close_hook_t)dlsym(RTLD_NEXT,"close");
+static close_hook_t close_hook = nullptr;
 int close(int fd) {
     auto state = cgo::hook::get_fd_state(fd);
     if (state->flag & cgo::hook::fd_state::set) {
@@ -99,7 +96,7 @@ int close(int fd) {
 }
 
 typedef ssize_t (*read_hook_t)(int fildes, void *buf, size_t);
-static read_hook_t read_hook = (read_hook_t)dlsym(RTLD_NEXT,"read");
+static read_hook_t read_hook = nullptr;
 ssize_t read(int fd, void *buf, size_t bytes) {
     if (!cgo::hook::canhook(fd)) {
         return read_hook(fd, buf, bytes);
@@ -135,7 +132,7 @@ ssize_t read(int fd, void *buf, size_t bytes) {
 }
 
 typedef ssize_t (*recv_hook_t) (int, void *__buff, size_t __len, int __flags);
-static recv_hook_t recv_hook = (recv_hook_t)dlsym(RTLD_NEXT,"recv");
+static recv_hook_t recv_hook = nullptr;
 ssize_t recv(int fd, void *buf, size_t len, int flags) {
     if (!cgo::hook::canhook(fd)) {
         return recv_hook(fd, buf, len, flags);
@@ -170,7 +167,7 @@ ssize_t recv(int fd, void *buf, size_t len, int flags) {
 }
 
 typedef ssize_t (*send_hook_t)(int, const void *__buff, size_t __len, int __flags);
-static send_hook_t send_hook = (send_hook_t)dlsym(RTLD_NEXT,"send");
+static send_hook_t send_hook = nullptr;
 ssize_t send(int fd, const void *buf, size_t len, int flags) {
     if (!cgo::hook::canhook(fd)) {
         return send_hook(fd, buf, len, flags);
@@ -205,7 +202,7 @@ ssize_t send(int fd, const void *buf, size_t len, int flags) {
 }
 
 typedef ssize_t (*write_hook_t)(int, const void*, size_t);
-static write_hook_t write_hook = (write_hook_t)dlsym(RTLD_NEXT,"write");
+static write_hook_t write_hook = nullptr;
 ssize_t write(int fd, const void *buf, size_t bytes) {
     if (!cgo::hook::canhook(fd)) {
         return write_hook(fd, buf, bytes);
@@ -240,7 +237,7 @@ ssize_t write(int fd, const void *buf, size_t bytes) {
 }
 
 typedef ssize_t (*sendto_hook_t)(int fd, const void *, size_t, int, const struct sockaddr*, socklen_t);
-static sendto_hook_t sendto_hook = (sendto_hook_t)dlsym(RTLD_NEXT,"sendto");
+static sendto_hook_t sendto_hook = nullptr;
 ssize_t sendto(int fd, const void *buf, size_t len, int flags, const struct sockaddr *dstaddr, socklen_t addrlen) {
     if (!cgo::hook::canhook(fd)) {
         return sendto_hook(fd, buf, len, flags, dstaddr, addrlen);
@@ -275,7 +272,7 @@ ssize_t sendto(int fd, const void *buf, size_t len, int flags, const struct sock
 }
 
 typedef ssize_t (*recvfrom_hook_t)(int fd, void *buf, size_t len, int flags, struct sockaddr *srcaddr, socklen_t *addrlen);
-static recvfrom_hook_t recvfrom_hook = (recvfrom_hook_t)dlsym(RTLD_NEXT,"recvfrom");
+static recvfrom_hook_t recvfrom_hook = nullptr;
 ssize_t recvfrom(int fd, void *buf, size_t len, int flags, struct sockaddr *srcaddr, socklen_t *addrlen) {
     if (!cgo::hook::canhook(fd)) {
         return recvfrom_hook(fd, buf, len, flags, srcaddr, addrlen);
@@ -310,14 +307,14 @@ ssize_t recvfrom(int fd, void *buf, size_t len, int flags, struct sockaddr *srca
 }
 
 typedef struct hostent* (*gethostbyname_hook_t)(const char *name);
-static gethostbyname_hook_t gethostbyname_hook = (gethostbyname_hook_t)dlsym(RTLD_NEXT,"gethostbyname");
+static gethostbyname_hook_t gethostbyname_hook = nullptr;
 struct hostent* gethostbyname(const char *name) {
     hook_debug(__FUNCTION__);
     return gethostbyname_hook(name);
 }
 
 typedef unsigned int(*sleep_hook_t)(unsigned int seconds);
-static sleep_hook_t sleep_hook = (sleep_hook_t)dlsym(RTLD_NEXT,"sleep");
+static sleep_hook_t sleep_hook = nullptr;
 unsigned int sleep(unsigned int seconds) {
     if (cgo::scheduler::cur_coid() == (uint64_t)-1) {
         return sleep_hook(seconds);
@@ -329,7 +326,7 @@ unsigned int sleep(unsigned int seconds) {
 }
 
 typedef int (*usleep_hook_t)(useconds_t usec);
-static usleep_hook_t usleep_hook = (usleep_hook_t)dlsym(RTLD_NEXT, "usleep");
+static usleep_hook_t usleep_hook = nullptr;
 int usleep(useconds_t microseconds) {
     if (cgo::scheduler::cur_coid() == (uint64_t)-1) {
         return usleep_hook(microseconds);
@@ -341,7 +338,7 @@ int usleep(useconds_t microseconds) {
 }
 
 typedef int (*poll_hook_t)(struct pollfd *fdarray,unsigned long nfds,int timeout);
-static poll_hook_t poll_hook = (poll_hook_t)dlsym(RTLD_NEXT,"poll");
+static poll_hook_t poll_hook = nullptr;
 int poll(struct pollfd *fdarray, unsigned long nfds, int timeout) {
     auto can = cgo::hook::canhook_poll_select();
 
@@ -352,12 +349,14 @@ int poll(struct pollfd *fdarray, unsigned long nfds, int timeout) {
 
     hook_debug(__FUNCTION__);
 
-    // «–∏Ó¬÷—Ø¥Œ ˝£¨æ´∂» «10∫¡√Î£¨ƒø«∞µƒ µœ÷∑Ω∞∏–‘ƒ‹≤ªÃ´∫√£¨÷ªΩ‚æˆ¡À π”√µƒŒ Ã‚
+    // ÂàáÂâ≤ËΩÆËØ¢Ê¨°Êï∞,Á≤æÂ∫¶ÊòØ10ÊØ´Áßí,ÁõÆÂâçÁöÑÂÆûÁé∞ÊñπÊ°àÊÄßËÉΩ‰∏çÂ§™Â•Ω,Âè™Ëß£ÂÜ≥‰∫Ü‰ΩøÁî®ÁöÑÈóÆÈ¢ò.
+    // .
     int loops = 0;
     if (timeout < 0) {
         loops = -1;
     } else if (timeout == 0) {
-        // timeoutŒ™0£¨‘⁄Õ‚≤øÕ˘Õ˘∂º «“ª∏ˆwhile—≠ª∑£¨À˘“‘Œ™¡À±‹√‚œﬂ≥Ã◊Ë»˚£¨–Ë“™«ø÷∆gosleep
+        // timeout‰∏∫0,Âú®Â§ñÈÉ®ÂæÄÂæÄÈÉΩÊòØ‰∏Ä‰∏™whileÂæ™ÁéØ,ÊâÄ‰ª•‰∏∫‰∫ÜÈÅøÂÖçÁ∫øÁ®ãÈòªÂ°û,ÈúÄË¶ÅÂº∫Âà∂gosleep.
+        // .
         loops = 1;
     } else if (timeout < 10) {
         loops = 1;
@@ -366,7 +365,8 @@ int poll(struct pollfd *fdarray, unsigned long nfds, int timeout) {
     }
 
     for (int i = 0; i < loops || loops == -1; i++) {
-        // ƒ⁄—≠ª∑1∫¡√Î
+        // ÂÜÖÂæ™ÁéØ1ÊØ´Áßí.
+        // .
         for (int j = 0; j < 10; j++) {
             int r = poll_hook(fdarray, nfds, 0);
             if (r != 0) {
@@ -382,7 +382,7 @@ int poll(struct pollfd *fdarray, unsigned long nfds, int timeout) {
 }
 
 typedef int (*select_hook_t)(int maxfd, fd_set *readfds, fd_set *writefds, fd_set *exceptfds, struct timeval *timeout);
-static select_hook_t select_hook = (select_hook_t)dlsym(RTLD_NEXT,"select");
+static select_hook_t select_hook = nullptr;
 int select(int maxfd, fd_set *readfds, fd_set *writefds, fd_set *exceptfds, struct timeval *timeout) {
     auto can = cgo::hook::canhook_poll_select();
 
@@ -392,7 +392,8 @@ int select(int maxfd, fd_set *readfds, fd_set *writefds, fd_set *exceptfds, stru
 
     hook_debug(__FUNCTION__);
 
-    // «–∏Ó¬÷—Ø¥Œ ˝£¨æ´∂» «10∫¡√Î£¨ƒø«∞µƒ µœ÷∑Ω∞∏–‘ƒ‹≤ªÃ´∫√£¨÷ªΩ‚æˆ¡À π”√µƒŒ Ã‚
+    // ÂàáÂâ≤ËΩÆËØ¢Ê¨°Êï∞,Á≤æÂ∫¶ÊòØ10ÊØ´Áßí,ÁõÆÂâçÁöÑÂÆûÁé∞ÊñπÊ°àÊÄßËÉΩ‰∏çÂ§™Â•Ω,Âè™Ëß£ÂÜ≥‰∫Ü‰ΩøÁî®ÁöÑÈóÆÈ¢ò.
+    // .
     int loops = 0;
     if (!timeout) {
         loops = -1;
@@ -437,7 +438,8 @@ int select(int maxfd, fd_set *readfds, fd_set *writefds, fd_set *exceptfds, stru
     };
 
     for (int i = 0; i < loops || loops == -1; i++) {
-        // ƒ⁄—≠ª∑1∫¡√Î
+        // ÂÜÖÂæ™ÁéØ1ÊØ´Áßí.
+        // .
         for (int j = 0; j < 10; j++) {
             int r = op_select();
             if (r != 0) {
@@ -452,6 +454,22 @@ int select(int maxfd, fd_set *readfds, fd_set *writefds, fd_set *exceptfds, stru
 }
 
 void linux_hook_init() {
+    socket_hook = (socket_hook_t)dlsym(RTLD_NEXT,"socket");
+    accept_hook = (accept_hook_t)dlsym(RTLD_NEXT,"accept");
+    connect_hook = (connect_hook_t)dlsym(RTLD_NEXT,"connect");
+    close_hook = (close_hook_t)dlsym(RTLD_NEXT,"close");
+    read_hook = (read_hook_t)dlsym(RTLD_NEXT,"read");
+    recv_hook = (recv_hook_t)dlsym(RTLD_NEXT,"recv");
+    send_hook = (send_hook_t)dlsym(RTLD_NEXT,"send");
+    write_hook = (write_hook_t)dlsym(RTLD_NEXT,"write");
+    sendto_hook = (sendto_hook_t)dlsym(RTLD_NEXT,"sendto");
+    recvfrom_hook = (recvfrom_hook_t)dlsym(RTLD_NEXT,"recvfrom");
+    gethostbyname_hook = (gethostbyname_hook_t)dlsym(RTLD_NEXT,"gethostbyname");
+    sleep_hook = (sleep_hook_t)dlsym(RTLD_NEXT,"sleep");
+    usleep_hook = (usleep_hook_t)dlsym(RTLD_NEXT, "usleep");
+    poll_hook = (poll_hook_t)dlsym(RTLD_NEXT,"poll");
+    select_hook = (select_hook_t)dlsym(RTLD_NEXT,"select");
+
     assert(socket_hook != 0);
     assert(accept_hook != 0);
     assert(connect_hook != 0);
@@ -476,7 +494,6 @@ void linux_hook_init() {
 #include <WinSock2.h>
 #include <MSWSock.h>
 #include "minhook.h"
-#include "epoll_iocp.h"
 
 #pragma comment(lib, "ws2_32.lib")
 #pragma comment(lib, "Mswsock.lib")
@@ -484,7 +501,7 @@ void linux_hook_init() {
 typedef SOCKET (PASCAL FAR *socket_hook_t)(_In_ int af,
     _In_ int type,
     _In_ int protocol);
-static socket_hook_t socket_hook = 0;
+static socket_hook_t socket_hook = nullptr;
 SOCKET PASCAL FAR hook_socket(
     _In_ int af,
     _In_ int type,
@@ -498,7 +515,7 @@ typedef SOCKET(PASCAL FAR *accept_hook_t)(
     _In_ SOCKET s,
     _Out_writes_bytes_opt_(*addrlen) struct sockaddr FAR* addr,
     _Inout_opt_ int FAR* addrlen);
-static accept_hook_t accept_hook = 0;
+static accept_hook_t accept_hook = nullptr;
 SOCKET PASCAL FAR hook_accept (
                           _In_ SOCKET s,
                           _Out_writes_bytes_opt_(*addrlen) struct sockaddr FAR *addr,
@@ -515,7 +532,7 @@ SOCKET PASCAL FAR hook_accept (
             return INVALID_SOCKET;
         }
 
-        AcceptOverlapped* ov = new AcceptOverlapped;
+        auto ov = new AcceptOverlapped;
         memset(ov, 0, sizeof(AcceptOverlapped));
         ov->l_fd = s;
         ov->c_fd = c_fd;
@@ -523,7 +540,6 @@ SOCKET PASCAL FAR hook_accept (
         auto state = cgo::hook::check_fd_state((int)s, cgo::hook::fd_state::accept);
         M_SET_STATE(state, fd_state::accept);
 
-        int addr = sizeof(sockaddr_in) + 16;
         int ret = AcceptEx(ov->l_fd,
             ov->c_fd,
             ov->addr_buf,
@@ -568,7 +584,7 @@ typedef int (PASCAL FAR *connect_hook_t)(
     _In_ SOCKET s,
     _In_reads_bytes_(namelen) const struct sockaddr FAR* name,
     _In_ int namelen);
-static connect_hook_t connect_hook = 0;
+static connect_hook_t connect_hook = nullptr;
 int PASCAL FAR hook_connect (
                         _In_ SOCKET s,
                         _In_reads_bytes_(namelen) const struct sockaddr FAR *name,
@@ -579,17 +595,17 @@ int PASCAL FAR hook_connect (
 
     hook_debug(__FUNCTION__);
 
-    DWORD dwBytes;
-    LPFN_CONNECTEX lpfnConn = NULL;
+    DWORD dwBytes = 0;
+    LPFN_CONNECTEX lpfnConn = nullptr;
     GUID guidConnectEx = WSAID_CONNECTEX;
     if (SOCKET_ERROR == WSAIoctl(s, SIO_GET_EXTENSION_FUNCTION_POINTER,
-        &guidConnectEx, sizeof(guidConnectEx), &lpfnConn, sizeof(lpfnConn), &dwBytes, NULL, NULL))
+        &guidConnectEx, sizeof(guidConnectEx), &lpfnConn, sizeof(lpfnConn), &dwBytes, nullptr, nullptr))
     {
         return -1;
     }
 
     for (;;) {
-        ConnOverlapped* ov = new ConnOverlapped;
+        auto ov = new ConnOverlapped;
         memset(ov, 0, sizeof(ConnOverlapped));
         ov->name = name;
         ov->namelen = namelen;
@@ -626,12 +642,12 @@ int PASCAL FAR hook_connect (
 }
 
 typedef int (PASCAL FAR* closesocket_hook_t)(IN SOCKET s);
-static closesocket_hook_t closesocket_hook = 0;
+static closesocket_hook_t closesocket_hook = nullptr;
 int PASCAL FAR hook_closesocket (IN SOCKET s) {
     auto state = cgo::hook::get_fd_state((int)s);
     if (state->flag & cgo::hook::fd_state::set) {
         hook_debug(__FUNCTION__);
-        cgo::hook::clear_fd_state(s);
+        cgo::hook::clear_fd_state((int)s);
     }
     return closesocket_hook(s);
 }
@@ -643,7 +659,7 @@ typedef int (PASCAL FAR* sendto_hook_t)(
     _In_ int flags,
     _In_reads_bytes_opt_(tolen) const struct sockaddr FAR* to,
     _In_ int tolen);
-static sendto_hook_t sendto_hook = 0;
+static sendto_hook_t sendto_hook = nullptr;
 int PASCAL FAR hook_sendto (
                        _In_ SOCKET s,
                        _In_reads_bytes_(len) const char FAR * buf,
@@ -651,14 +667,14 @@ int PASCAL FAR hook_sendto (
                        _In_ int flags,
                        _In_reads_bytes_opt_(tolen) const struct sockaddr FAR *to,
                        _In_ int tolen) {
-    if (!cgo::hook::canhook(s)) {
+    if (!cgo::hook::canhook((int)s)) {
         return sendto_hook(s, buf, len, flags, to, tolen);
     }
 
     hook_debug(__FUNCTION__);
 
     for (;;) {
-        SendtoOverlapped* ov = new SendtoOverlapped;
+        auto ov = new SendtoOverlapped;
         memset(ov, 0, sizeof(SendtoOverlapped));
         ov->buf[0].buf = const_cast<char*>(buf);
         ov->buf[0].len = len;
@@ -668,7 +684,7 @@ int PASCAL FAR hook_sendto (
         auto state = cgo::hook::check_fd_state((int)s, cgo::hook::fd_state::write);
         M_SET_STATE(state, fd_state::write);
 
-        int ret = WSASendTo(s, ov->buf, 1, &ov->bytes, flags, ov->name, ov->namelen, (LPOVERLAPPED)ov, NULL);
+        int ret = WSASendTo(s, ov->buf, 1, &ov->bytes, flags, ov->name, ov->namelen, (LPOVERLAPPED)ov, nullptr);
         int err = ERROR_SUCCESS;
 
         do {
@@ -691,7 +707,7 @@ int PASCAL FAR hook_sendto (
         if (err != ERROR_SUCCESS) {
             WSASetLastError(err);
         }
-        return bytes;
+        return (int)bytes;
     }
     return -1;
 }
@@ -703,7 +719,7 @@ typedef int (PASCAL FAR* recvfrom_hook_t)(
     _In_ int flags,
     _Out_writes_bytes_to_opt_(*fromlen, *fromlen) struct sockaddr FAR* from,
     _Inout_opt_ int FAR* fromlen);
-static recvfrom_hook_t recvfrom_hook = 0;
+static recvfrom_hook_t recvfrom_hook = nullptr;
 int PASCAL FAR hook_recvfrom (
                          _In_ SOCKET s,
                          _Out_writes_bytes_to_(len, return) __out_data_source(NETWORK) char FAR * buf,
@@ -711,14 +727,14 @@ int PASCAL FAR hook_recvfrom (
                          _In_ int flags,
                          _Out_writes_bytes_to_opt_(*fromlen, *fromlen) struct sockaddr FAR * from,
                          _Inout_opt_ int FAR * fromlen) {
-    if (!cgo::hook::canhook(s)) {
+    if (!cgo::hook::canhook((int)s)) {
         return recvfrom_hook(s, buf, len, flags, from, fromlen);
     }
 
     hook_debug(__FUNCTION__);
 
     for (;;) {
-        RecvfromOverlapped* ov = new RecvfromOverlapped;
+        auto ov = new RecvfromOverlapped;
         memset(ov, 0, sizeof(RecvfromOverlapped));
         ov->buf[0].buf = buf;
         ov->buf[0].len = len;
@@ -729,7 +745,7 @@ int PASCAL FAR hook_recvfrom (
         M_SET_STATE(state, fd_state::read);
 
         DWORD flag = 0;
-        int ret = WSARecvFrom(s, ov->buf, 1, &ov->bytes, &flag, ov->name, ov->namelen, (LPOVERLAPPED)ov, NULL);
+        int ret = WSARecvFrom(s, ov->buf, 1, &ov->bytes, &flag, ov->name, ov->namelen, (LPOVERLAPPED)ov, nullptr);
         int err = ERROR_SUCCESS;
 
         do {
@@ -752,7 +768,7 @@ int PASCAL FAR hook_recvfrom (
         if (err != ERROR_SUCCESS) {
             WSASetLastError(err);
         }
-        return bytes;
+        return (int)bytes;
     }
 
     return -1;
@@ -763,7 +779,7 @@ typedef int (PASCAL FAR* send_hook_t)(
     _In_reads_bytes_(len) const char FAR* buf,
     _In_ int len,
     _In_ int flags);
-static send_hook_t send_hook = 0;
+static send_hook_t send_hook = nullptr;
 int PASCAL FAR hook_send (
                      _In_ SOCKET s,
                      _In_reads_bytes_(len) const char FAR * buf,
@@ -776,7 +792,7 @@ int PASCAL FAR hook_send (
     hook_debug(__FUNCTION__);
     
     for (;;) {
-        SendOverlapped* ov = new SendOverlapped;
+        auto ov = new SendOverlapped;
         memset(ov, 0, sizeof(SendOverlapped));
         ov->buf[0].buf = const_cast<char*>(buf);
         ov->buf[0].len = len;
@@ -784,7 +800,7 @@ int PASCAL FAR hook_send (
         auto state = cgo::hook::check_fd_state((int)s, cgo::hook::fd_state::write);
         M_SET_STATE(state, fd_state::write);
 
-        int ret = WSASend(s, ov->buf, 1, &ov->bytes, 0, (LPOVERLAPPED)ov, NULL);
+        int ret = WSASend(s, ov->buf, 1, &ov->bytes, 0, (LPOVERLAPPED)ov, nullptr);
         int err = ERROR_SUCCESS;
 
         do {
@@ -807,7 +823,7 @@ int PASCAL FAR hook_send (
         if (err != ERROR_SUCCESS) {
             WSASetLastError(err);
         }
-        return bytes;
+        return (int)bytes;
     }
 
     return -1;
@@ -818,7 +834,7 @@ typedef int (PASCAL FAR* recv_hook_t)(
     _Out_writes_bytes_to_(len, return) __out_data_source(NETWORK) char FAR* buf,
     _In_ int len,
     _In_ int flags);
-static recv_hook_t recv_hook = 0;
+static recv_hook_t recv_hook = nullptr;
 int PASCAL FAR hook_recv (
                      _In_ SOCKET s,
                      _Out_writes_bytes_to_(len, return) __out_data_source(NETWORK) char FAR * buf,
@@ -831,7 +847,7 @@ int PASCAL FAR hook_recv (
     hook_debug(__FUNCTION__);
 
     for (;;) {
-        RecvOverlapped* ov = new RecvOverlapped;
+        auto ov = new RecvOverlapped;
         memset(ov, 0, sizeof(RecvOverlapped));
         ov->buf[0].buf = buf;
         ov->buf[0].len = len;
@@ -840,7 +856,7 @@ int PASCAL FAR hook_recv (
         M_SET_STATE(state, fd_state::read);
 
         DWORD flag = 0;
-        int ret = WSARecv(s, ov->buf, 1, &ov->bytes, &flag, (LPOVERLAPPED)ov, NULL);
+        int ret = WSARecv(s, ov->buf, 1, &ov->bytes, &flag, (LPOVERLAPPED)ov, nullptr);
         int err = ERROR_SUCCESS;
 
         do {
@@ -863,7 +879,7 @@ int PASCAL FAR hook_recv (
         if (err != ERROR_SUCCESS) {
             WSASetLastError(err);
         }
-        return bytes;
+        return (int)bytes;
     }
 
     return -1;
@@ -876,7 +892,7 @@ typedef int (PASCAL FAR *select_hook_t)(
     _Inout_opt_ fd_set FAR* exceptfds,
     _In_opt_ const struct timeval FAR* timeout
 );
-static select_hook_t select_hook = 0;
+static select_hook_t select_hook = nullptr;
 int PASCAL FAR hook_select(_In_ int nfds,
     _Inout_opt_ fd_set FAR* readfds,
     _Inout_opt_ fd_set FAR* writefds,
@@ -889,8 +905,8 @@ int PASCAL FAR hook_select(_In_ int nfds,
 
     hook_debug(__FUNCTION__);
 
-    // «–∏Ó¬÷—Ø¥Œ ˝£¨æ´∂» «10∫¡√Î£¨ƒø«∞µƒ µœ÷∑Ω∞∏–‘ƒ‹≤ªÃ´∫√£¨÷ªΩ‚æˆ¡À π”√µƒŒ Ã‚
-    int loops = 0;
+    // ÂàáÂâ≤ËΩÆËØ¢Ê¨°Êï∞ÔºåÁ≤æÂ∫¶ÊòØ10ÊØ´ÁßíÔºåÁõÆÂâçÁöÑÂÆûÁé∞ÊñπÊ°àÊÄßËÉΩ‰∏çÂ§™Â•ΩÔºåÂè™Ëß£ÂÜ≥‰∫Ü‰ΩøÁî®ÁöÑÈóÆÈ¢ò.
+    time_t loops = 0;
     if (!timeout) {
         loops = -1;
     }
@@ -920,7 +936,7 @@ int PASCAL FAR hook_select(_In_ int nfds,
             efs = *exceptfds;
         }
 
-        int r = select_hook(nfds, readfds ? &rfs : 0, writefds ? &wfs : 0, exceptfds ? &efs : 0, 0);
+        int r = select_hook(nfds, readfds ? &rfs : nullptr, writefds ? &wfs : nullptr, exceptfds ? &efs : nullptr, nullptr);
         if (r != 0) {
             if (readfds) {
                 *readfds = rfs;
@@ -947,47 +963,47 @@ int PASCAL FAR hook_select(_In_ int nfds,
 }
 
 typedef struct hostent FAR* (PASCAL FAR* gethostbyname_hook_t)(_In_z_ const char FAR* name);
-static gethostbyname_hook_t gethostbyname_hook = 0;
+static gethostbyname_hook_t gethostbyname_hook = nullptr;
 struct hostent FAR * PASCAL FAR hook_gethostbyname(_In_z_ const char FAR * name) {
     return gethostbyname_hook(name);
 }
 
 typedef void (WINAPI *sleep_hook_t)(_In_ DWORD dwMilliseconds);
-static sleep_hook_t sleep_hook = 0;
+static sleep_hook_t sleep_hook = nullptr;
 void WINAPI hook_sleep(_In_ DWORD dwMilliseconds) {
     if (cgo::scheduler::cur_coid() == (uint64_t)-1) {
         sleep_hook(dwMilliseconds);
     }
     else {
         hook_debug(__FUNCTION__);
-        cgo::scheduler::schedule_wait(dwMilliseconds);
+        cgo::scheduler::schedule_wait((int)dwMilliseconds);
     }
 }
 
 #define HOOK_API(module, oriname, name) \
 if (MH_CreateHookApi(TEXT(module), #oriname, &hook_##name, reinterpret_cast<LPVOID*>(&name##_hook)) != MH_OK) { \
-    throw "hook " #oriname " error"; \
+    throw std::runtime_error( "hook " #oriname " error" ); \
 } \
 if (MH_EnableHookApi(TEXT(module), #oriname) != MH_OK) {\
-    throw "enable hook " #oriname " error"; \
+    throw std::runtime_error( "enable hook " #oriname " error" ); \
 }
 
 #define HOOK_API2(oriname, name) \
 if (MH_CreateHook(&oriname, &hook_##name, reinterpret_cast<LPVOID*>(&name##_hook)) != MH_OK) { \
-    throw "hook " #oriname " error"; \
+    throw std::runtime_error( "hook " #oriname " error" ); \
 } \
 if (MH_EnableHook(&oriname) != MH_OK) {\
-    throw "enable hook " #oriname " error"; \
+    throw std::runtime_error( "enable hook " #oriname " error" ); \
 }
 
 bool win_hook_init() {
     WSADATA wsadata;
     if (WSAStartup(MAKEWORD(2, 2), &wsadata) != 0) {
-        throw "wsa startup error";
+        throw std::runtime_error("wsa startup error");
     }
 
     if (MH_Initialize() != MH_OK) {
-        throw "init minhook error";
+        throw std::runtime_error("init minhook error");
     }
 
     HOOK_API("kernel32.dll", Sleep, sleep);
@@ -1007,27 +1023,22 @@ bool win_hook_init() {
 
 #endif
 
-struct hook_init {
-    hook_init() {
+void hook_init() {
 #ifdef _MSC_VER
-        win_hook_init();
+    win_hook_init();
 #else
-        linux_hook_init();
+    linux_hook_init();
 #endif
-    }
-};
-static hook_init shookinit;
+}
 
-namespace cgo {
-    namespace hook {
-        void mSleep(unsigned int millisecond) {
+namespace cgo::hook {
+    void mSleep(unsigned int millisecond) {
 #ifdef __GNUC__
-            usleep((useconds_t)(millisecond*1000));
+        usleep((useconds_t)(millisecond*1000));
 #elif _MSC_VER
-            Sleep(millisecond);
+        Sleep(millisecond);
 #else
 #pragma message("no msleep implement")
 #endif
-        }
     }
 }

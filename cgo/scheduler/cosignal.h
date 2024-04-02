@@ -7,10 +7,11 @@
 namespace cgo {
     class co_signal {
         unsigned long long _id = 0;
-        void* _sig = 0;
+        void* _sig = nullptr;
 
     public:
-        unsigned long long id();
+        [[nodiscard]]
+        unsigned long long id() const;
 
         void init();
         void init(unsigned long long id);

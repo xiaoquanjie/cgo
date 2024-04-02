@@ -4,7 +4,7 @@
 
 #include "semaphore.h"
 #include <malloc.h>
-#include <assert.h>
+#include <cassert>
 
 #ifdef __GNUC__
 #include <semaphore.h>
@@ -19,7 +19,7 @@ Semaphore::Semaphore() {
     sem_init(sem, 0, 0);
     this->_sem = sem;
 #else
-    this->_sem = (void*)CreateSemaphore(NULL, 0, 1, NULL);
+    this->_sem = (void*)CreateSemaphore(nullptr, 0, 1, nullptr);
     assert(this->_sem);
 #endif
 }
@@ -45,6 +45,6 @@ void Semaphore::post() {
 #ifdef __GNUC__
     sem_post((sem_t*)this->_sem);
 #else
-    ReleaseSemaphore((HANDLE)this->_sem, 1, NULL);
+    ReleaseSemaphore((HANDLE)this->_sem, 1, nullptr);
 #endif
 }

@@ -8,9 +8,10 @@ class Semaphore {
 protected:
     void* _sem;
 
+public:
     Semaphore(const Semaphore&) = delete;
     Semaphore& operator=(const Semaphore&) = delete;
-public:
+
     Semaphore();
 
     ~Semaphore();

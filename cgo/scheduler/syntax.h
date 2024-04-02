@@ -17,14 +17,14 @@ namespace cgo {
     };
 
     struct _cgo_syntax_st_ {
-        const char* _file = 0;
+        const char* _file = nullptr;
         int _line = 0;
         int _stack = 0;
 
         inline _cgo_syntax_st_(const char* f, int l) : _file(f), _line(l) {}
         void operator >>(const std::function<void()>& routine);
         _cgo_syntax_st_& operator >>(const _cgo_stack_st_& stack);
-    private:
+
         _cgo_syntax_st_(const _cgo_syntax_st_&) = delete;
         _cgo_syntax_st_& operator=(const _cgo_syntax_st_&) = delete;
     };

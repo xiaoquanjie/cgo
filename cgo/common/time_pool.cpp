@@ -9,8 +9,9 @@
 
 #include "time_pool.h"
 #include "print.h"
-#include <string.h>
-#include <assert.h>
+#include <string>
+#include <cstring>
+#include <cassert>
 
 template<typename Payload>
 bool init_tpool(TimePoolInfo<Payload> * info, uint32_t max_interval) {
@@ -73,7 +74,7 @@ bool calc_bucket(TimePoolInfo<Payload> * info,
 }
 
 void** alloc_small_bucket(uint32_t smallbucket) {
-    const int size = sizeof(void*)*smallbucket;
+    const size_t size = sizeof(void*)*smallbucket;
     void** small = (void**) malloc(size);
     memset(small, 0, size);
     assert(small);
@@ -131,7 +132,7 @@ bool update_tpool(TimePoolInfo<Payload> * info, typename TimePoolInfo<Payload>::
 
         if (nl->empty()) {
             free((void*)bucket[small]);
-            bucket[small] = 0;
+            bucket[small] = nullptr;
         }
     }
 
@@ -159,14 +160,14 @@ inline void decode_timeid(TimePoolInfo<Payload> * info, uint64_t tid, uint32_t& 
 template<typename Payload>
 typename TimePoolInfo<Payload>::tnode* alloc_node(TimePoolInfo<Payload> * info, uint32_t interval) {
     if (interval <= 0 || interval > info->_bigbucket * 1000) {
-        return 0;
+        return nullptr;
     }
 
     auto now = std::chrono::steady_clock::now();
     uint32_t bigbucket = 0;
     uint32_t smallbucket = 0;
     if (!calc_bucket(info, now, interval, bigbucket, smallbucket)) {
-        return 0;
+        return nullptr;
     }
 
     auto node = new typename TimePoolInfo<Payload>::tnode;

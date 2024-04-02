@@ -5,15 +5,15 @@
 #include "cosignal.h"
 #include "common/semaphore.h"
 #include "scheduler.h"
-#include <assert.h>
+#include <cassert>
 
 namespace cgo {
     struct co_sig {
         Semaphore sem;
-        void* volatile data;
+        void* volatile data = nullptr;
     };
 
-    unsigned long long co_signal::id() {
+    unsigned long long co_signal::id() const {
         return _id;
     }
 

@@ -1,4 +1,4 @@
-/*
+﻿/*
  *  MinHook - The Minimalistic API Hooking Library for x64/x86
  *  Copyright (C) 2009-2017 Tsuda Kageyu. All rights reserved.
  *
@@ -30,6 +30,8 @@
 #include <string.h>
 #include <tlhelp32.h>
 #include <limits.h>
+
+#pragma warning(disable:4819)
 
 #if !(defined _M_IX86) && !(defined _M_X64) && !(defined __i386__) && !(defined __x86_64__)
 #error MinHook supports only x86 and x64 systems.
@@ -198,6 +200,7 @@ typedef UINT32 uint32_t;
 typedef UINT64 uint64_t;
 
 #if not defined(_M_X64) and not defined(__x86_64__)
+
 // 32bit stuff
 
 ////////////////////////////////////////////////////////////

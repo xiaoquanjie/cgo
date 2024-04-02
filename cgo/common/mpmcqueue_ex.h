@@ -18,7 +18,7 @@ class MPMCQueueEx {
     std::shared_mutex _mu;
 
 public:
-    MPMCQueueEx(size_t init_capactiy) : _size(init_capactiy) {
+    explicit MPMCQueueEx(size_t init_capactiy) : _size(init_capactiy) {
         if (_size < 2) _size = 2;
         _que = new_queue(nullptr, _size);
     }
@@ -42,7 +42,7 @@ public:
 
             _mu.lock();
             if (oldsize == _size) {
-                _size = (size_t)(oldsize * 1.5);
+                _size = (size_t)((double)oldsize * 1.5);
                 _que = new_queue(_que, _size);
             }
             _mu.unlock();
@@ -64,7 +64,7 @@ private:
             while (from->try_pop(v)) {
                 newq->try_push(v);
             }
-            assert(from->size() == 0);
+            assert(from->empty());
             delete from;
         }
         return newq;

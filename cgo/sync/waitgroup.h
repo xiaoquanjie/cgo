@@ -10,12 +10,12 @@ namespace cgo {
     class WaitGroup {
     protected:
         std::atomic_uint64_t _state = 0; // high 32 bits are counter, low 32 bits are waiter count.
-        void* volatile _waiter = 0;
+        void* volatile _waiter = nullptr;
 
+    public:
         WaitGroup(const WaitGroup&) = delete;
         WaitGroup& operator=(const WaitGroup&) = delete;
 
-    public:
         WaitGroup() = default;
 
         void Add(int delta);

@@ -1,0 +1,9 @@
+{
+    "version": 4,
+    "vendor": {
+        "conan": {}
+    },
+    "include": [
+        "/root/workspace/CLionProjects/cgo/build/Debug/generators/CMakePresets.json"
+    ]
+}

@@ -6,7 +6,7 @@
 
 #include <stdio.h>
 #include <atomic>
-#include <assert.h>
+#include <cassert>
 #include <list>
 #include <vector>
 #include <mutex>
@@ -67,61 +67,59 @@ struct RecvfromOverlapped : public RecvOverlapped {
 };
 #endif
 
-namespace cgo {
-    namespace hook {
-        struct _epoll_iocp_st_;
+namespace cgo::hook {
+    struct _epoll_iocp_st_;
 
-        struct fd_state {
-            enum {
-                set = 1,
-                read = 2,
-                write = 4,
-                accept = 8,
-                connect = 16,
-                connecok = 32,
-            };
-
-            volatile uint64_t co_id = -1;
-            std::atomic_char flag = 0;
-            _epoll_iocp_st_* volatile epoll_iocp = 0;
+    struct fd_state {
+        enum {
+            set = 1,
+            read = 2,
+            write = 4,
+            accept = 8,
+            connect = 16,
+            connecok = 32,
         };
 
-        fd_state* get_fd_state(int fd);
-        void clear_fd_state(int fd);
-        fd_state* check_fd_state(int fd, int fs);
-        bool canhook(int fd);
-        bool canhook_poll_select();
-        ///////////////////////////////////////////
+        volatile uint64_t co_id = -1;
+        std::atomic_char flag = 0;
+        _epoll_iocp_st_* volatile epoll_iocp = 0;
+    };
 
-        struct _epoll_iocp_st_ {
-            std::atomic_int _fd_cnt = 0;
+    fd_state* get_fd_state(int fd);
+    void clear_fd_state(int fd);
+    fd_state* check_fd_state(int fd, int fs);
+    bool canhook(int fd);
+    bool canhook_poll_select();
+    ///////////////////////////////////////////
+
+    struct _epoll_iocp_st_ {
+        std::atomic_int _fd_cnt = 0;
 #ifdef __GNUC__
-            int _epoll_fd = -1;
+        int _epoll_fd = -1;
 #elif _MSC_VER
-            void* _iocp_handle = NULL;
+        void* _iocp_handle = nullptr;
 #endif
-            void init();
+        void init();
 
-            void add_fd(int fd);
+        void add_fd(int fd);
 
-            void remove_fd(int fd);
+        void remove_fd(int fd);
 
-            void setnonblock(int fd);
+        void setnonblock(int fd);
 
-            void loop();
+        void loop();
 
-            int fd_count();
-        };
+        int fd_count();
+    };
 
-        struct _epoll_iocp_mgr_ {
-            std::vector<_epoll_iocp_st_*> _epoll_iocps;
-            std::vector<std::thread*> _threads;
-            std::mutex _mu;
+    struct _epoll_iocp_mgr_ {
+        std::vector<_epoll_iocp_st_*> _epoll_iocps;
+        std::vector<std::thread*> _threads;
+        std::mutex _mu;
 
-            _epoll_iocp_mgr_();
-            _epoll_iocp_st_* add_fd(int fd);
-        };
+        _epoll_iocp_mgr_();
+        _epoll_iocp_st_* add_fd(int fd);
+    };
 
-        _epoll_iocp_mgr_* default_epoll_iocp_mgr();
-    }
+    _epoll_iocp_mgr_* default_epoll_iocp_mgr();
 }

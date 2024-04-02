@@ -1,4 +1,4 @@
-//
+﻿//
 // Created by xiaoqj on 2023/12/20.
 //
 
@@ -21,10 +21,10 @@
 #define msleep cgo::hook::mSleep
 
 /*
- * hook的规则：
- * 当设置了cgo_global_hook时，可以不用设置其他hook
- * 当设置了cgo_hook_fd时，只是某个fd有hook
- * 当设置了cgo_hook_poll_select时，只是接下来调用的poll/select这两个函数有hook，有效范围是调用此函数的协程
+ * hook的规则.
+ * 当设置了cgo_global_hook时,可以不用设置其他hook.
+ * 当设置了cgo_hook_fd时,只是某个fd有hook.
+ * 当设置了cgo_hook_poll_select时,只是接下来调用的poll/select这两个函数有hook,有效范围是调用此函数的协程.
  * */
 
 // hook a fd
@@ -39,17 +39,15 @@
 #undef cgo_hook_poll_select
 #define cgo_hook_poll_select cgo::hook::hook_poll_select
 
-namespace cgo {
-    namespace hook {
-        void mSleep(unsigned int millisecond);
+namespace cgo::hook {
+    void mSleep(unsigned int millisecond);
 
-        // hook a fd
-        void hook_fd(int fd);
+    // hook a fd
+    void hook_fd(int fd);
 
-        // default disable global hook
-        void global_hook(bool hook);
+    // default disable global hook
+    void global_hook(bool hook);
 
-        // hook select/poll function
-        void hook_poll_select(bool hook);
-    }
+    // hook select/poll function
+    void hook_poll_select(bool hook);
 }

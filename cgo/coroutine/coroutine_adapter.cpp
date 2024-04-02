@@ -4,7 +4,7 @@
 
 #include "coroutine_adapter.h"
 #include "common/spinlock.h"
-#include <assert.h>
+#include <cassert>
 #include <atomic>
 
 #if defined(USE_CGO_COROUTINE)
@@ -34,54 +34,53 @@
 #define M_LOCK_CO(info) info->spinlock.lock()
 #define M_UNLOCK_CO(info) info->spinlock.unlock()
 
-namespace cgo {
-    namespace coro_adapter {
-        enum {
-            WaitSignal = 1 << 0,
-            ActiveSignal = 1 << 1,
-        };
+namespace cgo::coro_adapter {
+    enum {
+        WaitSignal = 1 << 0,
+        ActiveSignal = 1 << 1,
+    };
 
-        struct co_multiplexing_info {
+    struct co_multiplexing_info {
 #if defined(USE_MINI_CORO)
-            std::function<void()> routine;
+        std::function<void()> routine;
 #endif
-            const char* volatile file;
-            volatile unsigned short line;
-            void* volatile data;
-            volatile bool hook;
-            volatile char state;
-            folly::MicroSpinLock spinlock;
+        const char* volatile file;
+        volatile unsigned short line;
+        void* volatile data;
+        volatile bool hook;
+        volatile char state;
+        folly::MicroSpinLock spinlock;
 
-            void init() {
-                hook = false;
-                file = 0;
-                line = 0;
-                data = 0;
-                state = 0;
-                spinlock.init();
-            }
-        };
+        void init() {
+            hook = false;
+            file = nullptr;
+            line = 0;
+            data = nullptr;
+            state = 0;
+            spinlock.init();
+        }
+    };
 
 #if defined(USE_MINI_CORO)
-        void minicoro_routine(mco_coro* co) {
+    void minicoro_routine(mco_coro* co) {
             co_multiplexing_info* info = (co_multiplexing_info*)mco_get_user_data(co);
             info->routine();
         }
 #endif
 
-        // 曾考虑过这里是否要使用协程池，但经过测试发现协程池也只能提升10%左右的性能(只测试了linux下的性能)，因此暂时没有动机添加协程池
-        uint64_t create_co(const std::function<void()>& routine, int stack, const char* file, int line) {
-            uint64_t co_id = 0;
-            auto info = new co_multiplexing_info;
-            info->init();
-            info->file = file;
-            info->line = (unsigned short)line;
+    // 曾考虑过这里是否要使用协程池，但经过测试发现协程池也只能提升10%左右的性能(只测试了linux下的性能)，因此暂时没有动机添加协程池
+    uint64_t create_co(const std::function<void()>& routine, int stack, const char* file, int line) {
+        uint64_t co_id = 0;
+        auto info = new co_multiplexing_info;
+        info->init();
+        info->file = file;
+        info->line = (unsigned short)line;
 
 #if defined(USE_CGO_COROUTINE)
-            co_id = coroutine::create(routine, stack);
-            coroutine::set_udata(co_id, info);
+        co_id = coroutine::create(routine, stack);
+        coroutine::set_udata(co_id, info);
 #elif defined(USE_MINI_CORO)
-            mco_desc desc = mco_desc_init(minicoro_routine, stack);
+        mco_desc desc = mco_desc_init(minicoro_routine, stack);
             info->routine = routine;
             desc.user_data = (void*)info;
 
@@ -92,91 +91,92 @@ namespace cgo {
 #else
 #pragma message("no coroutine implement")
 #endif
-            return co_id;
-        }
+        return co_id;
+    }
 
-        void resume_co(uint64_t co_id) {
-            auto info = M_GET_MULTI_INFO(co_id);
-            auto status = M_RESUME_CO(co_id);
-            switch (status) {
-                case COROUTINE_SUSPEND: {
-                    if (info->state & WaitSignal) {
-                        M_UNLOCK_CO(info);
-                    }
-                    break;
+    void resume_co(uint64_t co_id) {
+        auto info = M_GET_MULTI_INFO(co_id);
+        auto status = M_RESUME_CO(co_id);
+        switch (status) {
+            case COROUTINE_SUSPEND: {
+                if (info->state & WaitSignal) {
+                    M_UNLOCK_CO(info);
                 }
-                case COROUTINE_DEAD: {
-                    M_DELETE_CO(co_id, info);
-                    break;
-                }
+                break;
             }
-        }
-
-        void co_wait_signal(void*& data) {
-            auto co_id = M_CUR_COID();
-            auto info = M_GET_MULTI_INFO(co_id);
-            M_LOCK_CO(info);
-            assert((info->state & WaitSignal) == 0);
-            if (info->state & ActiveSignal) {
-                // 如果状态是激活的, 取消状态
-                info->state = 0;
-                data = info->data;
-                M_UNLOCK_CO(info);
-            } else {
-                // 如果状态是未激活
-                info->state = WaitSignal;
-                // 挂起协程
-                M_YIELD_CO(co_id);
-                data = info->data;
+            case COROUTINE_DEAD: {
+                M_DELETE_CO(co_id, info);
+                break;
             }
+            default:
+                break;
         }
+    }
 
-        void co_post_signal(uint64_t co_id, void* data) {
-            auto info = M_GET_MULTI_INFO(co_id);
-            M_LOCK_CO(info);
-            assert((info->state & ActiveSignal) == 0);
-            if (info->state & WaitSignal) {
-                // 如果状态是等待, 取消状态
-                info->state = 0;
-                info->data = data;
-                M_UNLOCK_CO(info);
-                // 唤醒协程
-                coro_adapter::resume_co(co_id);
-            } else {
-                info->data = data;
-                info->state = ActiveSignal;
-                M_UNLOCK_CO(info);
-            }
-        }
-
-        void yield_co() {
-            auto co_id = M_CUR_COID();
+    void co_wait_signal(void*& data) {
+        auto co_id = M_CUR_COID();
+        auto info = M_GET_MULTI_INFO(co_id);
+        M_LOCK_CO(info);
+        assert((info->state & WaitSignal) == 0);
+        if (info->state & ActiveSignal) {
+            // 如果状态是激活的, 取消状态
+            info->state = 0;
+            data = info->data;
+            M_UNLOCK_CO(info);
+        } else {
+            // 如果状态是未激活
+            info->state = WaitSignal;
+            // 挂起协程
             M_YIELD_CO(co_id);
+            data = info->data;
         }
+    }
 
-        void run_co(const std::function<void()>& routine, int stack, const char* file, int line) {
-            auto co_id = create_co(routine, stack, file, line);
-            resume_co(co_id);
+    void co_post_signal(uint64_t co_id, void* data) {
+        auto info = M_GET_MULTI_INFO(co_id);
+        M_LOCK_CO(info);
+        assert((info->state & ActiveSignal) == 0);
+        if (info->state & WaitSignal) {
+            // 如果状态是等待, 取消状态
+            info->state = 0;
+            info->data = data;
+            M_UNLOCK_CO(info);
+            // 唤醒协程
+            coro_adapter::resume_co(co_id);
+        } else {
+            info->data = data;
+            info->state = ActiveSignal;
+            M_UNLOCK_CO(info);
         }
+    }
 
-        uint64_t cur_coid() {
-            auto co_id = M_CUR_COID();
-            if (co_id == 0) {
-                return (uint64_t)-1;
-            }
-            return co_id;
-        }
+    void yield_co() {
+        auto co_id = M_CUR_COID();
+        M_YIELD_CO(co_id);
+    }
 
-        void co_hook(bool enable) {
-            auto co_id = M_CUR_COID();
-            auto info = M_GET_MULTI_INFO(co_id);
-            info->hook = enable;
-        }
+    void run_co(const std::function<void()>& routine, int stack, const char* file, int line) {
+        auto co_id = create_co(routine, stack, file, line);
+        resume_co(co_id);
+    }
 
-        bool co_hook() {
-            auto co_id = M_CUR_COID();
-            auto info = M_GET_MULTI_INFO(co_id);
-            return info->hook;
+    uint64_t cur_coid() {
+        auto co_id = M_CUR_COID();
+        if (co_id == 0) {
+            return (uint64_t)-1;
         }
+        return co_id;
+    }
+
+    void co_hook(bool enable) {
+        auto co_id = M_CUR_COID();
+        auto info = M_GET_MULTI_INFO(co_id);
+        info->hook = enable;
+    }
+
+    bool co_hook() {
+        auto co_id = M_CUR_COID();
+        auto info = M_GET_MULTI_INFO(co_id);
+        return info->hook;
     }
 }

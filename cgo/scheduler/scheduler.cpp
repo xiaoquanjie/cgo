@@ -21,6 +21,8 @@
 #include <algorithm>
 #include <string>
 
+void hook_init();
+
 namespace cgo {
     namespace coro_adapter {
         uint64_t create_co(const std::function<void()>& routine, int stack, const char* file, int line);
@@ -37,8 +39,8 @@ namespace cgo {
 
     namespace scheduler {
         struct co_pool_item {
-            uint64_t _co_id;
-            routine_fn _fn;
+            uint64_t _co_id = 0;
+            routine_fn _fn = nullptr;
         };
         struct _schedule_task_st_ {
             enum {
@@ -49,14 +51,14 @@ namespace cgo {
             unsigned char _type;
         };
         struct _schedule_comm_task_st_ : public _schedule_task_st_ {
-            uint64_t _co_id;
-            void* _data;
+            uint64_t _co_id = 0;
+            void* _data = nullptr;
         };
         struct _schedule_newco_task_st_ : public _schedule_task_st_{
-            routine_fn _fn;
-            int _statck;
-            const char* _f;
-            int _l;
+            routine_fn _fn = nullptr;
+            int _statck = 0;
+            const char* _f = nullptr;
+            int _l = 0;
         };
 
         using concurrent_task_queue_type = moodycamel::ConcurrentQueue<_schedule_task_st_*>;
@@ -119,7 +121,7 @@ namespace cgo {
                 return false;
             }
 
-            virtual ~_schedule_base_queue_st_() {}
+            virtual ~_schedule_base_queue_st_() = default;
             virtual bool is_init() { return true; }
             virtual std::size_t size() = 0;
             virtual void enqueue(_schedule_task_st_*) = 0;
@@ -133,7 +135,7 @@ namespace cgo {
             wsq_task_queue_type* _queue;
         public:
             _schedule_local_queue_st_();
-            ~_schedule_local_queue_st_();
+            ~_schedule_local_queue_st_() override;
             bool is_init() override;
             inline std::size_t size() override;
             inline void enqueue(_schedule_task_st_*) override;
@@ -150,7 +152,7 @@ namespace cgo {
             concurrent_task_queue_type* _queue;
         public:
             _schedule_global_queue_st_();
-            ~_schedule_global_queue_st_();
+            ~_schedule_global_queue_st_() override;
             inline std::size_t size() override;
             inline void enqueue(_schedule_task_st_*) override;
             bool try_dequeue(_schedule_task_st_*&) override;
@@ -177,7 +179,7 @@ namespace cgo {
                             coro_adapter::co_wait_signal(tmp);
                         }
                         // M_CO_DEBUG_PRINT("[cgo_debug] release co_pool_item\n");
-                    }, stack, 0, 0);
+                    }, stack, nullptr, 0);
                     coro_adapter::resume_co(item->_co_id);
                 } else {
                     auto item = _items.back();
@@ -199,9 +201,9 @@ namespace cgo {
 
         struct _schedule_thread_st_ {
             int _work_id = 0;
-            std::thread* _thr = 0;
-            _scheduler_st_* _scheduler = 0;
-            _schedule_base_queue_st_* _local_tqueue = 0;
+            std::thread* _thr = nullptr;
+            _scheduler_st_* _scheduler = nullptr;
+            _schedule_base_queue_st_* _local_tqueue = nullptr;
             _co_pool_st_ _local_cpool;
             std::uint64_t _task_op_cnt = 0;
             volatile bool _stop = false;
@@ -216,8 +218,8 @@ namespace cgo {
             void on_run();
             void join();
             inline void wait();
-            inline void resume(_schedule_base_queue_st_* from = 0);
-            inline bool is_stop();
+            inline void resume(_schedule_base_queue_st_* from = nullptr);
+            inline bool is_stop() const;
             void stop();
             _schedule_thread_st_(const _schedule_thread_st_&) = delete;
             _schedule_thread_st_& operator=(const _schedule_thread_st_&) = delete;
@@ -225,7 +227,7 @@ namespace cgo {
 
         struct _schedule_watch_thread_st_ {
             std::thread _thr;
-            _schedule_watch_thread_st_(void(*f)()) : _thr(f) {}
+            explicit _schedule_watch_thread_st_(void(*f)()) : _thr(f) {}
             inline void join() {
                 this->_thr.join();
             }
@@ -267,9 +269,9 @@ namespace cgo {
 
             bool run();
 
-            bool can_start();
+            bool can_start() const;
 
-            bool start_thread(_schedule_base_queue_st_* newq);
+            bool start_thread(_schedule_base_queue_st_* fromq);
 
             void steal_task(_schedule_base_queue_st_* from, _schedule_base_queue_st_* to, int32_t count);
 
@@ -441,8 +443,8 @@ namespace cgo {
             }
 
             for (auto item : this->_local_cpool._items) {
-                item->_fn = 0;
-                coro_adapter::co_post_signal(item->_co_id, 0);
+                item->_fn = nullptr;
+                coro_adapter::co_post_signal(item->_co_id, nullptr);
                 delete item;
             }
 
@@ -527,7 +529,7 @@ namespace cgo {
             this->_sem.post();
         }
 
-        inline bool _schedule_thread_st_::is_stop() {
+        inline bool _schedule_thread_st_::is_stop() const {
             return this->_stop || this->_scheduler->_stop;
         }
 
@@ -546,6 +548,9 @@ namespace cgo {
             _max_thr_cnt = (int)(std::thread::hardware_concurrency() * M_MAX_PROCS_FACTOR);
             _core_thr_cnt = (int)(_max_thr_cnt * M_CORE_POOL_FACTOR);
             _global_tqueue = new _schedule_global_queue_st_;
+
+            ::hook_init();
+
             std::atexit(cgo::scheduler::cgo_stop);
         }
 
@@ -595,7 +600,7 @@ namespace cgo {
             return true;
         }
 
-        bool _scheduler_st_::can_start() {
+        bool _scheduler_st_::can_start() const {
             if (_thr_cnt >= _max_thr_cnt) {
                 return false;
             }
@@ -813,7 +818,7 @@ namespace cgo {
                 st.get_work_idle_threads(work_thrs, idle_thrs);
 
                 for (int i = 0; i < 2; i++) {
-                    std::vector<schedule_thread_st_type>* thrs = 0;
+                    std::vector<schedule_thread_st_type>* thrs = nullptr;
                     if (i == 0 && !work_thrs.empty()) {
                         thrs = &work_thrs;
                         output += "working threads:\n";
@@ -923,7 +928,7 @@ namespace cgo {
         }
 
         void _scheduler_st_::notify_wait(integer_async_time_pool::Node* node) {
-            schedule_post_signal(node->payload, (void*)0);
+            schedule_post_signal(node->payload, nullptr);
         }
 
         void set_cgo_procs(int cnt) {
@@ -1028,7 +1033,7 @@ namespace cgo {
             assert(co_id != M_INVALID_COROUTINE_ID);
             auto task = new _schedule_comm_task_st_;
             task->_co_id = co_id;
-            task->_data = 0;
+            task->_data = nullptr;
             task->_type = _schedule_task_st_::ResumeCo;
             add_global_task(task);
         }
@@ -1041,7 +1046,7 @@ namespace cgo {
             }
 
             scheduler_inst()._time_pool.add_timer(wait_mil, co_id);
-            void* data = 0;
+            void* data = nullptr;
             schedule_wait_signal(data);
         }
     }

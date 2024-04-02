@@ -9,8 +9,9 @@
 
 #pragma once
 
-#include <stdlib.h>
-#include <assert.h>
+#include <cstdlib>
+#include <cassert>
+#include <stdexcept>
 
 template<typename T>
 class squeue {
@@ -36,10 +37,12 @@ public:
 		free(_head);
 	}
 
+    [[nodiscard]]
 	bool empty()const {
 		return (_size == 0);
 	}
 
+    [[nodiscard]]
 	size_t size()const {
 		return _size;
 	}
@@ -56,6 +59,7 @@ public:
 		other._head = tmp2;
 	}
 
+    [[nodiscard]]
 	T& back() {
 		return _head[_size-1];
 	}
@@ -74,7 +78,7 @@ public:
             auto head = (T*)realloc(this->_head, sizeof(T)*this->_cap);
             if (!head) {
                 assert(false);
-                throw "memory realloc error";
+                throw std::bad_alloc();
             }
 			this->_head = head;
 			return;
@@ -91,6 +95,7 @@ public:
 		_size = 0;
 	}
 
+    [[nodiscard]]
 	T& operator[](int i) {
 		return _head[i];
 	}

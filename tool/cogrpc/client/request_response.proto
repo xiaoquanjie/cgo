@@ -1,9 +1,0 @@
-syntax = "proto3";
-package protocol;
-import "google/protobuf/any.proto";
-
-option go_package="./protocol;protocol";
-
-message GetUserReq {}
-
-message GetUserRsp {}

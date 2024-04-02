@@ -11,10 +11,10 @@
 
 #include <chrono>
 #include <utility>
-#include <time.h>
+#include <ctime>
 
 #ifndef M_CO_DEBUG_PRINT
-#include <stdio.h>
+#include <cstdio>
 #define M_CO_DEBUG_PRINT co_printf //printf //
 #endif
 

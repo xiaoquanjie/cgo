@@ -4,7 +4,8 @@
 
 #include "waitgroup.h"
 #include "scheduler/cosignal.h"
-#include <assert.h>
+#include <cassert>
+#include <stdexcept>
 
 namespace cgo {
     void WaitGroup::Add(int delta) {
@@ -14,10 +15,10 @@ namespace cgo {
         auto w = (uint32_t)(state);
 
         if (v < 0) {
-            throw "[cgo.WaitGroup]: negative WaitGroup counter";
+            throw std::runtime_error("[cgo.WaitGroup]: negative WaitGroup counter");
         }
         if (w != 0 && delta > 0 && v == (int32_t)delta) {
-            throw "[cgo.WaitGroup]: WaitGroup misuse: Add called concurrently with Wait";
+            throw std::runtime_error("[cgo.WaitGroup]: WaitGroup misuse: Add called concurrently with Wait");
         }
         if (v > 0 || w == 0) {
             return;
@@ -28,7 +29,7 @@ namespace cgo {
         // - Wait does not increment waiters if it sees counter == 0.
         // Still do a cheap sanity check to detect WaitGroup misuse.
         if (this->_state.load() != state) {
-            throw "[cgo.WaitGroup]: WaitGroup misuse: Add called concurrently with Wait";
+            throw std::runtime_error("[cgo.WaitGroup]: WaitGroup misuse: Add called concurrently with Wait");
         }
         this->_state.store(0);
         assert(w == 1);
@@ -49,18 +50,19 @@ namespace cgo {
                 return;
             }
             if (w != 0) {
-                throw "[cgo.WaitGroup]: WaitGroup misuse: call Wait over one time";
+                throw std::runtime_error("[cgo.WaitGroup]: WaitGroup misuse: call Wait over one time");
             }
 
             co_signal sig;
             sig.init();
-            this->_waiter = &sig;
+            //
+            this->_waiter = static_cast<void*>(&sig);
             if (this->_state.compare_exchange_weak(state, state+1)) {
                 sig.wait();
                 sig.close();
 
                 if (this->_state.load() != 0) {
-                    throw "[cgo.WaitGroup]: WaitGroup is reused before previous Wait has returned";
+                    throw std::runtime_error("[cgo.WaitGroup]: WaitGroup is reused before previous Wait has returned");
                 }
                 return;
             }

@@ -3,8 +3,11 @@
 //
 
 #ifdef __GNUC__
+
 #include "epoll_iocp.h"
 #include "scheduler/scheduler.h"
+#include <stdexcept>
+
 namespace cgo {
     namespace hook {
         void _epoll_iocp_st_::init() {
@@ -14,7 +17,7 @@ namespace cgo {
 
             this->_epoll_fd = epoll_create(1);
             if (this->_epoll_fd == -1) {
-                throw "epoll_create error";
+                throw std::runtime_error("epoll_create error");
             }
         }
 
@@ -27,7 +30,7 @@ namespace cgo {
             event.events = EPOLLIN | EPOLLOUT | EPOLLERR;
             if (epoll_ctl(this->_epoll_fd, EPOLL_CTL_ADD, fd, &event) == -1) {
                 if (errno != EEXIST) {
-                    throw "epoll add fd error";
+                    throw std::runtime_error("epoll add fd error");
                 }
             }
         }
@@ -44,7 +47,7 @@ namespace cgo {
             }
 
             if (flags == -1) {
-                throw "fcntl nonblock fd error";
+                throw std::runtime_error("fcntl nonblock fd error");
             }
         }
 
@@ -67,7 +70,7 @@ namespace cgo {
                     int cnt = epoll_wait(this->_epoll_fd, eventList, MAX_EVENTS, 1000 * 10);
                     if (cnt < 0) {
                         if (errno != EINTR) {
-                            throw "epoll_wait error";
+                            throw std::runtime_error("epoll_wait error");
                         }
                     } else if (cnt == 0) {
                         continue;

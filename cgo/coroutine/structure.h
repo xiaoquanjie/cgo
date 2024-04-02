@@ -30,12 +30,12 @@ namespace cgo {
         struct _co_st_ {
             volatile int _status = 0;
             std::function<void()> _routine;
-            void* volatile _data = 0;
+            void* volatile _data = nullptr;
             int _ssize = 0;
 
 #ifdef _MSC_VER
-            LPVOID _ctx = 0;
-            LPVOID _mctx = 0;
+            LPVOID _ctx = nullptr;
+            LPVOID _mctx = nullptr;
 #else
             ucontext_t _ctx;
             ucontext_t *_mctx = 0;

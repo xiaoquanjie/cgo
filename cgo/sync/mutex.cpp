@@ -6,7 +6,7 @@
 #include "scheduler/cosignal.h"
 #include "scheduler/scheduler.h"
 #include "common/mpmcqueue_ex.h"
-#include "common/print.h"
+#include <stdexcept>
 
 #define M_WAITERS(waiter) ((co_waiter_list*)waiter)
 
@@ -14,7 +14,7 @@ namespace cgo {
     using co_waiter_list = MPMCQueueEx<cgo::signal>;
 
     co_mutex::co_mutex() {
-        _waiters = (void*)new co_waiter_list(8);
+        _waiters = (void*)(new co_waiter_list(8));
         _lock.clear();
         _owner = 0;
     }
@@ -31,7 +31,7 @@ namespace cgo {
         cgo::signal self;
         self.init();
         if (self.id() == _owner) {
-            throw "not recursive lock";
+            throw std::runtime_error("not recursive lock");
         }
 
         M_WAITERS(_waiters)->push(self);
@@ -57,7 +57,7 @@ namespace cgo {
     void co_mutex::unlock() {
         auto id = scheduler::cur_coid();
         if (id != _owner) {
-            throw "not lock owner";
+            throw std::runtime_error("not lock owner");
         }
 
         cgo::signal ot;
@@ -78,7 +78,7 @@ namespace cgo {
 
         cgo::signal ot;
         if (!M_WAITERS(_waiters)->try_pop(ot)) {
-            throw "lock error";
+            throw std::runtime_error("lock error");
         }
 
         _owner = ot.id();

@@ -9,7 +9,7 @@
 
 #pragma once
 
-#include <stdlib.h>
+#include <cstdlib>
 #include <functional>
 
 template<typename T>
@@ -34,10 +34,12 @@ public:
         delete _head;
     }
 
+    [[nodiscard]]
     bool empty() const {
         return _size == 0;
     }
 
+    [[nodiscard]]
     size_t size() const {
         return _size;
     }
@@ -128,7 +130,6 @@ public:
         other._size = tmp_size;
     }
 
-protected:
     slist(const slist&) = delete;
     slist& operator=(const slist&) = delete;
 };

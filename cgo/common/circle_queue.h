@@ -9,12 +9,11 @@
 
 #pragma once
 
-#include <stdlib.h>
 #include <atomic>
 #include <mutex>
 #include <list>
 
-// 只适用于有默认构造函数的结构
+// 只适用于有默认构造函数的结构.
 template<typename T>
 class cqueue {
 protected:
@@ -22,8 +21,9 @@ protected:
     size_t _cap = 1;
     size_t _read = 0;
     size_t _write = 0;
+
 public:
-    cqueue(size_t cap) {
+    explicit cqueue(size_t cap) {
         if (cap > 0) {
             _cap = cap + 1;
         }
@@ -44,22 +44,27 @@ public:
         _read = _write = 0;
     }
 
+    [[nodiscard]]
     size_t cap() const {
         return _cap - 1;
     }
 
+    [[nodiscard]]
     size_t size() const {
         return (_write + _cap - _read) % _cap;
     }
 
+    [[nodiscard]]
     bool full() const {
         return (_write + 1) % _cap == _read;
     }
 
+    [[nodiscard]]
     bool empty() const {
         return _read == _write;
     }
 
+    [[nodiscard]]
     bool push(const T& v) {
         if (full()) {
             return false;
@@ -71,54 +76,20 @@ public:
         return true;
     }
 
+    [[nodiscard]]
     bool pop(T& v) {
         if (empty()) {
             return false;
+        } else {
+            T* p = &_head[_read];
+            _read = (_read + 1) % _cap;
+            v = *p;
+            return true;
         }
-
-        T* p = &_head[_read];
-        _read = (_read + 1) % _cap;
-        v = *p;
-        return true;
     }
 
+    [[nodiscard]]
     const T& front() {
         return _head[_read];
-    }
-};
-
-template<typename T>
-class cqueue2 {
-    std::list<T> _data;
-    size_t _size;
-
-public:
-    cqueue2(size_t size) {
-        _size = size;
-    }
-
-    bool full() {
-        return _data.size() == _size;
-    }
-
-    bool empty() {
-        return _data.empty();
-    }
-
-    bool push(const T& v) {
-        if (full()) {
-            return false;
-        }
-        _data.push_back(v);
-        return true;
-    }
-
-    bool pop(T& v) {
-        if (empty()) {
-            return false;
-        }
-        v = _data.front();
-        _data.pop_front();
-        return true;
     }
 };

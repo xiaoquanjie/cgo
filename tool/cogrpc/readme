@@ -1,3 +1,0 @@
-1、借助cogrpc.exe工具可以自动生成co_grpc的客户端和服务器代码
-2、cogrpc.exe是由go编写的
-3、命令例子：.\cogrpc.exe --proto .\test_proto\ --out .\test_proto\

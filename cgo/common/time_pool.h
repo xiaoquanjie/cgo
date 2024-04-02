@@ -52,12 +52,13 @@ class time_pool {
     static void notify_node(TimePoolInfo<Payload>::tnode*);
 public:
     // one hour
-    time_pool(uint32_t max_interval = 1800);
+    explicit time_pool(uint32_t max_interval = 1800);
 
     ~time_pool();
 
     bool update();
 
+    [[nodiscard]]
     uint32_t timer_count() const;
 
     // @interval: max interval is one hour
@@ -74,7 +75,7 @@ protected:
     moodycamel::ConcurrentQueue<typename TimePoolInfo<Payload>::tnode*> _waits;
 
 public:
-    async_time_pool(uint32_t max_interval = 1800);
+    explicit async_time_pool(uint32_t max_interval = 1800);
 
     ~async_time_pool();
 
