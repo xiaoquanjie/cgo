@@ -19,31 +19,31 @@ int main() {
 
             for (;;) {
                 std::string input;
-                std::cin >> input;
-                if (input == "end") {
-                    break;
-                }
+                std::getline(std::cin, input);
+                if (input == "end") break;
                 if (conn->Write(input.c_str(), (int)input.length()) <= 0) {
                     break;
                 }
-                for (char c : input) {
-                    if (c == '\n') {
-                        auto buf = new char[1024];
-                        int cnt = 0;
-                        while ((cnt = conn->Read(buf, 1024)) > 0) {
-                            buf[cnt] = 0;
-                            std::cout << buf;
-                            for (decltype(cnt) idx = 0; idx < cnt; idx++) {
-                                if (buf[idx] == '\n') {
-                                    break;
-                                }
-                            }
+                char c = '\n';
+                conn->Write(&c, 1);
+
+                auto buf = new char[1024];
+                int cnt = 0;
+                while ((cnt = conn->Read(buf, 1024)) > 0) {
+                    buf[cnt] = 0;
+                    std::cout << buf;
+                    bool stop = false;
+                    for (decltype(cnt) idx = 0; idx < cnt; idx++) {
+                        if (buf[idx] == '\n') {
+                            stop = true;
+                            break;
                         }
-                        delete []buf;
-                        break;
                     }
+                    if (stop) break;
                 }
+                delete []buf;
             }
+
             // release connection object
             delete conn;
         } while (false);

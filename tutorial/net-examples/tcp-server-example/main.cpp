@@ -34,10 +34,10 @@ int main() {
                         break;
                     }
 
+                    cnt += tmp;
                     for (int idx = 0; idx < tmp; idx++) {
-                        std::cout << buf[idx + cnt];
-                        if (buf[idx + cnt] == '\n') {
-                            cnt += tmp;
+                        std::cout << buf[cnt - tmp + idx];
+                        if (buf[cnt - tmp + idx] == '\n') {
                             conn->Write("server echo:", 12);
                             conn->Write(buf, cnt);
                             cnt = 0;
@@ -45,7 +45,6 @@ int main() {
                             break;
                         }
                     }
-                    cnt += tmp;
                 }
                 delete []buf;
                 delete conn;

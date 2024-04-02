@@ -613,7 +613,7 @@ int PASCAL FAR hook_connect (
         auto state = cgo::hook::check_fd_state((int)s, cgo::hook::fd_state::connect);
         M_SET_STATE(state, fd_state::connect);
 
-        auto ret = lpfnConn(s, ov->name, ov->namelen, NULL, 0, NULL, (LPOVERLAPPED)ov);
+        auto ret = lpfnConn(s, ov->name, ov->namelen, nullptr, 0, nullptr, (LPOVERLAPPED)ov);
         int err = ERROR_SUCCESS;
 
         do {
@@ -624,7 +624,7 @@ int PASCAL FAR hook_connect (
                 }
             }
 
-            void* data;
+            void* data = nullptr;
             cgo::scheduler::schedule_wait_signal(data);
         } while (false);
 

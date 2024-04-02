@@ -64,6 +64,11 @@ namespace conet {
             fd = socket(AF_INET6, SOCK_STREAM, 0);
         }
 
+        TCPAddr selfAddr("tcp", "0.0.0.0", 0);
+        if (bind(fd, selfAddr.SockAddr(), selfAddr.SockAddrLen()) == -1) {
+            return nullptr;
+        }
+
         cgo_hook_fd(fd);
         int ret = connect(fd, addr.SockAddr(), addr.SockAddrLen());
         if (ret != 0) {
