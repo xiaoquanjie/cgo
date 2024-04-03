@@ -11,7 +11,7 @@
 #include <functional>
 #include "server_builder.h"
 
-namespace co_grpc {
+namespace cogrpc {
 
 template<class T>
 class BaseServer : public IServer {
@@ -20,12 +20,12 @@ public:
 
 protected:
     AsyncServiceType service_;
-    ::grpc::ServerCompletionQueue* cq_;
+    ::grpc::ServerCompletionQueue* cq_ = nullptr;
 
+public:
     BaseServer(const BaseServer&)  = delete;
     BaseServer& operator= (const BaseServer&) = delete;
 
-public:
     BaseServer() {
         this->cq_ = DefSrvBuilder()->GetQueue();
     }
@@ -34,8 +34,8 @@ public:
         return &service_;
     }
 
-    template<class Request, class Response, class GRPC_FUNC, class ON_CALL>
-    void RegMethod(GRPC_FUNC func, ON_CALL oncall) {
+    template<class Request, class Response, class GRPC_FUNC, class ObjMethod, class Obj>
+    void RegMethod(GRPC_FUNC func, ObjMethod oncall, Obj* obj) {
         if (!cq_) {
             assert(false);
             return;
@@ -53,12 +53,13 @@ public:
         typedef decltype(method) Method;
         typedef ::grpc::ServerAsyncResponseWriter<Response> Responder;
 
-        auto data = new ServerUnaryData<Request, Response, Responder, Method, ON_CALL>(this->cq_, method, oncall);
+        auto data = new ServerUnaryData<Request, Response, Responder, Method, ObjMethod, Obj>
+                (this->cq_, method, oncall, obj);
         data->doRequest();
     }
 
-    template<class Request, class Response, class GRPC_FUNC, class ON_CALL>
-    void RegCSMethod(GRPC_FUNC func, ON_CALL oncall) {
+    template<class Request, class Response, class GRPC_FUNC, class ObjMethod, class Obj>
+    void RegCSMethod(GRPC_FUNC func, ObjMethod oncall, Obj* obj) {
         if (!cq_) {
             assert(false);
             return;
@@ -75,12 +76,13 @@ public:
         typedef decltype(method) Method;
         typedef ::grpc::ServerAsyncReader<Response, Request> Responder;
 
-        auto data = new ServerCSData<Request, Response, Responder, Method, ON_CALL>(this->cq_, method, oncall);
+        auto data = new ServerCSData<Request, Response, Responder, Method, ObjMethod, Obj>
+                (this->cq_, method, oncall, obj);
         data->doRequest();
     }
 
-    template<class Request, class Response, class GRPC_FUNC, class ON_CALL>
-    void RegSSMethod(GRPC_FUNC func, ON_CALL oncall) {
+    template<class Request, class Response, class GRPC_FUNC, class ObjMethod, class Obj>
+    void RegSSMethod(GRPC_FUNC func, ObjMethod oncall, Obj* obj) {
         if (!cq_) {
             assert(false);
             return;
@@ -98,13 +100,13 @@ public:
         typedef decltype(method) Method;
         typedef ::grpc::ServerAsyncWriter<Response> Responder;
 
-        auto data = new ServerSSData<Request, Response, Responder, Method, ON_CALL>(this->cq_, method, oncall);
+        auto data = new ServerSSData<Request, Response, Responder, Method, ObjMethod, Obj>
+                (this->cq_, method, oncall, obj);
         data->doRequest();
     }
 
-    // 双向流
-    template<class Request, class Response, class GRPC_FUNC, class ON_CALL>
-    void RegBSMethod(GRPC_FUNC func, ON_CALL oncall) {
+    template<class Request, class Response, class GRPC_FUNC, class ObjMethod, class Obj>
+    void RegBSMethod(GRPC_FUNC func, ObjMethod oncall, Obj* obj) {
         if (!cq_) {
             assert(false);
             return;
@@ -121,7 +123,8 @@ public:
         typedef decltype(method) Method;
         typedef ::grpc::ServerAsyncReaderWriter<Response, Request> Responder;
 
-        auto data = new ServerDSData<Request, Response, Responder, Method, ON_CALL>(this->cq_, method, oncall);
+        auto data = new ServerDSData<Request, Response, Responder, Method, ObjMethod, Obj>
+                (this->cq_, method, oncall, obj);
         data->doRequest();
     }
 };
@@ -129,8 +132,7 @@ public:
 template<typename T>
 class CoServer : public BaseServer<T> {
 public:
-    CoServer() {
-    }
+    CoServer() = default;
 };
 
 // alias

@@ -11,11 +11,12 @@
 
 #include "slist.h"
 #include "concurrentqueue.h"
+#include "macro.h"
 #include <functional>
 #include <chrono>
 #include <list>
 
-template<typename Payload>
+template<typename Payload, int MaxInterval>
 struct TimePoolInfo {
     struct tnode {
         uint64_t id = 0;
@@ -26,7 +27,7 @@ struct TimePoolInfo {
     using time_point = std::chrono::time_point<std::chrono::steady_clock>;
     using node_list = std::list<tnode*>;
 
-    node_list** _bucket = 0;
+    node_list** _bucket[MaxInterval];
     time_point _begtime;
 
     // seconds
@@ -46,10 +47,12 @@ struct TimePoolInfo {
 
 // thread-unsafety
 class time_pool {
+    static const int MaxInterval = M_MAX_CO_WAIT_TIME;
     typedef std::function<void()> Payload;
-    TimePoolInfo<Payload> _info;
+    TimePoolInfo<Payload, MaxInterval> _info;
+    typedef typename TimePoolInfo<Payload, MaxInterval>::tnode Node;
 
-    static void notify_node(TimePoolInfo<Payload>::tnode*);
+    static void notify_node(Node*);
 public:
     // one hour
     explicit time_pool(uint32_t max_interval = 1800);
@@ -67,12 +70,14 @@ public:
 
 // thread-safety
 class async_time_pool {
+    static const int MaxInterval = M_MAX_CO_WAIT_TIME;
     typedef std::function<void()> Payload;
-    TimePoolInfo<Payload> _info;
+    TimePoolInfo<Payload, MaxInterval> _info;
+    typedef typename TimePoolInfo<Payload, MaxInterval>::tnode Node;
 
-    static void notify_node(TimePoolInfo<Payload>::tnode*);
+    static void notify_node(Node*);
 protected:
-    moodycamel::ConcurrentQueue<typename TimePoolInfo<Payload>::tnode*> _waits;
+    moodycamel::ConcurrentQueue<typename TimePoolInfo<Payload, MaxInterval>::tnode*> _waits;
 
 public:
     explicit async_time_pool(uint32_t max_interval = 1800);
@@ -88,14 +93,15 @@ public:
 
 class integer_async_time_pool {
 public:
+    static const int MaxInterval = M_MAX_CO_WAIT_TIME;
     typedef uint64_t Payload;
-    typedef TimePoolInfo<Payload>::tnode Node;
+    typedef typename TimePoolInfo<Payload, MaxInterval>::tnode Node;
 protected:
-    TimePoolInfo<Payload> _info;
-    moodycamel::ConcurrentQueue<typename TimePoolInfo<Payload>::tnode*> _waits;
+    TimePoolInfo<Payload, MaxInterval> _info;
+    moodycamel::ConcurrentQueue<Node*> _waits;
 
 public:
-    integer_async_time_pool(void(*notify)(typename TimePoolInfo<Payload>::tnode*), uint32_t max_interval);
+    integer_async_time_pool(void(*notify)(Node*), uint32_t max_interval);
 
     ~integer_async_time_pool();
 

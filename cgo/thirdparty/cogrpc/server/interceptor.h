@@ -8,7 +8,7 @@
 #include <grpcpp/server_builder.h>
 #include <vector>
 
-namespace co_grpc {
+namespace cogrpc {
     typedef std::function<void(grpc::experimental::ServerRpcInfo *, grpc::experimental::InterceptorBatchMethods *)> InterceptorMethod;
 
     class ServerInterceptor : public grpc::experimental::Interceptor {

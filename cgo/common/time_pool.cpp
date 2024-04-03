@@ -13,49 +13,38 @@
 #include <cstring>
 #include <cassert>
 
-template<typename Payload>
-bool init_tpool(TimePoolInfo<Payload> * info, uint32_t max_interval) {
-    if (info->_bucket) {
-        return false;
-    }
-
-    info->_bigbucket = max_interval;
+template<typename Payload, int MaxInterval>
+bool init_tpool(TimePoolInfo<Payload, MaxInterval> * info, uint32_t max_interval) {
+    info->_bigbucket = MaxInterval;
     info->_begtime = std::chrono::steady_clock::now();
 
-    typedef typename TimePoolInfo<Payload>::node_list node_list;
-    const int size = sizeof(node_list*)*info->_bigbucket;
-    info->_bucket = (node_list**)malloc(size);
-    memset(info->_bucket, 0, size);
-
+    for (int idx = 0; idx < MaxInterval; idx++) {
+        info->_bucket[idx] = nullptr;
+    }
     return true;
 }
 
-template<typename Payload>
-void release_tpool(TimePoolInfo<Payload> * info) {
-    if (!info->_bucket) {
-        return;
-    }
-
-    typedef typename TimePoolInfo<Payload>::node_list node_list;
+template<typename Payload, int MaxInterval>
+void release_tpool(TimePoolInfo<Payload, MaxInterval> * info) {
+    typedef typename TimePoolInfo<Payload, MaxInterval>::node_list node_list;
     for (uint32_t idx = 0; idx < info->_bigbucket; idx++) {
-        node_list** small = (node_list**)info->_bucket[idx];
-        if (!small) continue;
+        auto big = info->_bucket[idx];
+        if (!big) continue;
 
         for (uint32_t idx2 = 0; idx2 < info->_smallbucket; idx2++) {
-            node_list* nl = small[idx2];
+            node_list* nl = big[idx2];
             if (nl) {
                 assert(nl->size() == 0);
                 delete nl;
             }
         }
-        free(small);
+        delete []big;
     }
-    free(info->_bucket);
 }
 
-template<typename Payload>
-bool calc_bucket(TimePoolInfo<Payload> * info,
-                 const typename TimePoolInfo<Payload>::time_point& tp,
+template<typename Payload, int MaxInterval>
+bool calc_bucket(TimePoolInfo<Payload, MaxInterval> * info,
+                 const typename TimePoolInfo<Payload, MaxInterval>::time_point& tp,
                  uint32_t interval,
                  uint32_t& bigbucket,
                  uint32_t& smallbucket) {
@@ -73,11 +62,13 @@ bool calc_bucket(TimePoolInfo<Payload> * info,
     return true;
 }
 
-void** alloc_small_bucket(uint32_t smallbucket) {
-    const size_t size = sizeof(void*)*smallbucket;
-    void** small = (void**) malloc(size);
-    memset(small, 0, size);
+template<typename Payload, int MaxInterval>
+typename TimePoolInfo<Payload, MaxInterval>::node_list** alloc_small_bucket(uint32_t smallbucket) {
+    auto small = new typename TimePoolInfo<Payload, MaxInterval>::node_list*[smallbucket];
     assert(small);
+    for (uint32_t idx = 0; idx < smallbucket; idx++) {
+        small[idx] = nullptr;
+    }
     return small;
 }
 
@@ -86,8 +77,8 @@ inline uint32_t calc_iterator(uint32_t smallbucket, uint32_t cur_big, uint32_t c
     return iter;
 }
 
-template<typename Payload>
-bool update_tpool(TimePoolInfo<Payload> * info, typename TimePoolInfo<Payload>::time_point& now) {
+template<typename Payload, int MaxInterval>
+bool update_tpool(TimePoolInfo<Payload, MaxInterval> * info, typename TimePoolInfo<Payload, MaxInterval>::time_point& now) {
     uint64_t expire = (std::chrono::duration_cast<std::chrono::milliseconds>(now - info->_begtime)).count();
 
     uint32_t new_bigiter = 0;
@@ -96,7 +87,7 @@ bool update_tpool(TimePoolInfo<Payload> * info, typename TimePoolInfo<Payload>::
         return false;
     }
 
-    typedef typename TimePoolInfo<Payload>::node_list node_list;
+    typedef typename TimePoolInfo<Payload, MaxInterval>::node_list node_list;
     uint32_t new_iterator = calc_iterator(info->_smallbucket, new_bigiter, new_smalliter);
     uint32_t old_iterator = calc_iterator(info->_smallbucket, info->_bigiter, info->_smalliter);
 
@@ -108,7 +99,7 @@ bool update_tpool(TimePoolInfo<Payload> * info, typename TimePoolInfo<Payload>::
         uint32_t big = old_iterator / info->_smallbucket;
         uint32_t small = old_iterator % info->_smallbucket;
 
-        node_list** bucket = (node_list**)info->_bucket[big];
+        auto bucket = info->_bucket[big];
         if (!bucket) {
             continue;
         }
@@ -139,8 +130,8 @@ bool update_tpool(TimePoolInfo<Payload> * info, typename TimePoolInfo<Payload>::
     return true;
 }
 
-template<typename Payload>
-inline uint64_t alloc_timeid(TimePoolInfo<Payload> * info, uint32_t bigbucket, uint32_t smallbucket) {
+template<typename Payload, int MaxInterval>
+inline uint64_t alloc_timeid(TimePoolInfo<Payload, MaxInterval> * info, uint32_t bigbucket, uint32_t smallbucket) {
     uint64_t timer_id = (bigbucket * info->_smallbucket + smallbucket);
     timer_id = timer_id << 32;
     timer_id += info->_allocid++;
@@ -150,15 +141,15 @@ inline uint64_t alloc_timeid(TimePoolInfo<Payload> * info, uint32_t bigbucket, u
     return timer_id;
 }
 
-template<typename Payload>
-inline void decode_timeid(TimePoolInfo<Payload> * info, uint64_t tid, uint32_t& bigbucket, uint32_t& smallbucket) {
+template<typename Payload, int MaxInterval>
+inline void decode_timeid(TimePoolInfo<Payload, MaxInterval> * info, uint64_t tid, uint32_t& bigbucket, uint32_t& smallbucket) {
     uint32_t high32Bit = (tid >> 32);
     bigbucket = high32Bit / info->_smallbucket;
     smallbucket = high32Bit % info->_smallbucket;
 }
 
-template<typename Payload>
-typename TimePoolInfo<Payload>::tnode* alloc_node(TimePoolInfo<Payload> * info, uint32_t interval) {
+template<typename Payload, int MaxInterval>
+typename TimePoolInfo<Payload, MaxInterval>::tnode* alloc_node(TimePoolInfo<Payload, MaxInterval> * info, uint32_t interval) {
     if (interval <= 0 || interval > info->_bigbucket * 1000) {
         return nullptr;
     }
@@ -170,26 +161,25 @@ typename TimePoolInfo<Payload>::tnode* alloc_node(TimePoolInfo<Payload> * info, 
         return nullptr;
     }
 
-    auto node = new typename TimePoolInfo<Payload>::tnode;
+    auto node = new typename TimePoolInfo<Payload, MaxInterval>::tnode;
     node->id = alloc_timeid(info, bigbucket, smallbucket);
     node->expire = (std::chrono::duration_cast<std::chrono::milliseconds>(now - info->_begtime)).count() + interval;
     return node;
 }
 
-template<typename Payload>
-void add_tpool_node(TimePoolInfo<Payload> * info, typename TimePoolInfo<Payload>::tnode* node) {
+template<typename Payload, int MaxInterval>
+void add_tpool_node(TimePoolInfo<Payload, MaxInterval> * info, typename TimePoolInfo<Payload, MaxInterval>::tnode* node) {
     uint32_t bigbucket = 0;
     uint32_t smallbucket = 0;
     decode_timeid(info, node->id, bigbucket, smallbucket);
 
-    typedef typename TimePoolInfo<Payload>::node_list node_list;
-    node_list** bucket = (node_list**)info->_bucket[bigbucket];
+    typedef typename TimePoolInfo<Payload, MaxInterval>::node_list node_list;
+    auto bucket = info->_bucket[bigbucket];
     if (!bucket) {
-        info->_bucket[bigbucket] = (node_list*)alloc_small_bucket(info->_smallbucket);
-        bucket = (node_list**)info->_bucket[bigbucket];
+        bucket = info->_bucket[bigbucket] = alloc_small_bucket<Payload, MaxInterval>(info->_smallbucket);
     }
 
-    auto nl = (node_list*)bucket[smallbucket];
+    auto nl = bucket[smallbucket];
     if (!nl) {
         nl = new node_list;
         bucket[smallbucket] = nl;
@@ -199,7 +189,7 @@ void add_tpool_node(TimePoolInfo<Payload> * info, typename TimePoolInfo<Payload>
     nl->push_back(node);
 }
 
-void time_pool::notify_node(TimePoolInfo<Payload>::tnode* node) {
+void time_pool::notify_node(Node* node) {
     node->payload();
 }
 
@@ -223,7 +213,7 @@ uint32_t time_pool::timer_count() const {
 
 // @interval: ms
 uint64_t time_pool::add_timer(uint32_t interval, const Payload& func) {
-    TimePoolInfo<Payload>::tnode* node = alloc_node(&this->_info, interval);
+    Node* node = alloc_node(&this->_info, interval);
     if (!node) {
         assert(false);
         return 0;
@@ -236,7 +226,7 @@ uint64_t time_pool::add_timer(uint32_t interval, const Payload& func) {
 
 ///////////////////////////////////////////////////////////
 
-void async_time_pool::notify_node(TimePoolInfo<Payload>::tnode* node) {
+void async_time_pool::notify_node(Node* node) {
     node->payload();
 }
 
@@ -252,7 +242,7 @@ async_time_pool::~async_time_pool() {
 bool async_time_pool::update() {
     auto now = std::chrono::steady_clock::now();
     uint64_t expire = (std::chrono::duration_cast<std::chrono::milliseconds>(now - _info._begtime)).count();
-    TimePoolInfo<Payload>::tnode* node;
+    Node * node;
     while (this->_waits.try_dequeue(node)) {
         if (node->expire <= expire) {
             node->payload();
@@ -281,7 +271,7 @@ uint64_t async_time_pool::add_timer(uint32_t interval, const Payload& func) {
     return node->id;
 }
 
-integer_async_time_pool::integer_async_time_pool(void(*notify)(typename TimePoolInfo<Payload>::tnode*), uint32_t max_interval) {
+integer_async_time_pool::integer_async_time_pool(void(*notify)(Node*), uint32_t max_interval) {
     init_tpool(&_info, max_interval);
     _info._notify_node = notify;
 }
@@ -293,7 +283,7 @@ integer_async_time_pool::~integer_async_time_pool() {
 bool integer_async_time_pool::update() {
     auto now = std::chrono::steady_clock::now();
     uint64_t expire = (std::chrono::duration_cast<std::chrono::milliseconds>(now - _info._begtime)).count();
-    TimePoolInfo<Payload>::tnode* node;
+    Node* node;
     for (int i = 0; i < 10000; i++) {
         if (!_waits.try_dequeue(node)) {
             break;

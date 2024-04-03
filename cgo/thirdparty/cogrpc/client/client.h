@@ -1,4 +1,4 @@
-//
+﻿//
 // Created by xiaoqj on 2023/5/16.
 //
 
@@ -15,7 +15,7 @@
 #include "clientdata.h"
 #include "client_builder.h"
 
-namespace co_grpc {
+namespace cogrpc {
     inline std::shared_ptr<::grpc::ClientContext> MakeContext(int timeout = 3000) {
         auto ctx = std::make_shared<grpc::ClientContext>();
         if (timeout > 0) {
@@ -33,19 +33,19 @@ namespace co_grpc {
     protected:
         std::unique_ptr<Stub> stub_;
 
-        // 限制客户端之间拷贝
+    public:
+        // 限制客户端之间拷贝.
         BaseClient(const BaseClient&) = delete;
         BaseClient& operator=(const BaseClient&) = delete;
 
-    public:
-        BaseClient() {}
+        BaseClient() = default;
 
-        // 判断客户端是否有效
+        // 判断客户端是否有效.
         bool Valid() {
             return stub_ != 0;
         }
 
-        // 绑定通道
+        // 绑定通道.
         void Bind(std::shared_ptr<::grpc::Channel> channel) {
             if (stub_) {
                 return;
@@ -59,7 +59,7 @@ namespace co_grpc {
         }
     };
 
-    // 协程客户端
+    // 协程客户端.
     template<typename T>
     class CoClient : public BaseClient<T> {
     public:
@@ -101,7 +101,7 @@ namespace co_grpc {
             return ps->status_;
         }
 
-        // 协程客户端流发送接口
+        // 协程客户端流发送接口.
         template<class Request, class Response, class GRPC_FUNC>
         GRPC_CLIENT_WRITER(Request, Response)
         CSend(GRPC_FUNC func, std::shared_ptr<::grpc::ClientContext> context, Response* rsp) {
@@ -137,7 +137,7 @@ namespace co_grpc {
             return writer;
         }
 
-        // 协程服务端流发送接口
+        // 协程服务端流发送接口.
         template<class Request, class Response, class GRPC_FUNC>
         GRPC_CLIENT_READER(Request, Response)
         SSend(GRPC_FUNC func, std::shared_ptr<::grpc::ClientContext> context, const Request& request) {
@@ -168,7 +168,7 @@ namespace co_grpc {
             return reader;
         }
 
-        // 协程双流接口
+        // 协程双流接口.
         template<class Request, class Response, class GRPC_FUNC>
         GRPC_CLIENT_RW(Request, Response)
         BSend(GRPC_FUNC func, std::shared_ptr<::grpc::ClientContext> context) {

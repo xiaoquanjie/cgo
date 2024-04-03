@@ -1,4 +1,4 @@
-//
+﻿//
 // Created by xiaoqj on 2023/5/17.
 //
 
@@ -14,9 +14,9 @@
 #include "clientdata.h"
 #include "channel.h"
 
-namespace co_grpc {
+namespace cogrpc {
 
-// 管理着客户端
+// 管理着客户端.
 class ClientBuilder {
 public:
     ~ClientBuilder() {
@@ -36,18 +36,18 @@ public:
     }
 
 protected:
-    bool Loop(uint32_t) {
+    void Loop(uint32_t) {
         // uniquely identifies a request.
-        void* tag = 0;
+        void* tag = nullptr;
         bool ok = false;
         bool shutdown = false;
 
         for (;;) {
-            tag = 0;
+            tag = nullptr;
             ok = false;
             shutdown = false;
 
-            shutdown = this->cq_.Next(&tag, &ok) == false;
+            shutdown = !this->cq_.Next(&tag, &ok);
             if (!tag) {
                 assert(false);
             }
@@ -55,8 +55,6 @@ protected:
             // ok为true表示事件成功，false表示事件失败
             static_cast<ICallData*>(tag)->doResponse(shutdown, ok);
         }
-
-        return true;
     }
 
 private:

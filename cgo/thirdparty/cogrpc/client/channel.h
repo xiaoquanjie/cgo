@@ -1,4 +1,4 @@
-//
+﻿//
 // Created by xiaoqj on 2023/5/16.
 //
 
@@ -11,7 +11,7 @@
 #include <regex>
 #include <shared_mutex>
 
-namespace co_grpc {
+namespace cogrpc {
 
 // 协程安全的管理器
 template<class T>
@@ -115,15 +115,15 @@ protected:
         std::unique_lock<std::shared_mutex> lock(mu_);
 
         ::grpc::ChannelArguments args;
-        // 最大的重连间隔
+        // 最大的重连间隔.
         args.SetInt(GRPC_ARG_MAX_RECONNECT_BACKOFF_MS, 100);
-        // 最小的重连间隔
+        // 最小的重连间隔.
         args.SetInt(GRPC_ARG_MIN_RECONNECT_BACKOFF_MS, 100);
-        // 重连间隔
+        // 重连间隔.
         args.SetInt(GRPC_ARG_INITIAL_RECONNECT_BACKOFF_MS, 100);
-        // 重试
+        // 重试.
         args.SetInt(GRPC_ARG_ENABLE_RETRIES, 1);
-        // 设置包体大小
+        // 设置包体大小.
         args.SetMaxReceiveMessageSize(1024*1024*10);
         args.SetMaxSendMessageSize(1024*1024*10);
 

@@ -1,6 +1,5 @@
-//
+﻿//
 // Created by xiaoqj on 2023/6/1.
-// 提供xds_builder与普通builder
 //
 
 #pragma once
@@ -17,7 +16,7 @@
 #include "serverdata.h"
 #include "interceptor.h"
 
-namespace co_grpc {
+namespace cogrpc {
 
     template<class T>
     struct GrpcInitOnce {
@@ -36,7 +35,7 @@ namespace co_grpc {
 
     class IServer {
     public:
-        // 子类需要实现
+        // 子类需要实现.
         virtual void InitMethod() = 0;
 
         virtual ::grpc::Service* GetService() = 0;
@@ -57,13 +56,13 @@ namespace co_grpc {
             return cq_.get();
         }
 
-        // 设置消息的最大大小, 单位字节
+        // 设置消息的最大大小,单位字节.
         virtual void SetMaxMsgSize(int max_message_size) {
             builder_.SetMaxMessageSize(max_message_size);
         }
 
         virtual void AddListeningPort(const std::string& addr_uri) {
-            if (addr_uri.size()) {
+            if (!addr_uri.empty()) {
                 builder_.AddListeningPort(addr_uri,
                                           ::grpc::InsecureServerCredentials(),
                                           nullptr);
@@ -86,9 +85,9 @@ namespace co_grpc {
             return true;
         }
 
-        // 添加拦截器方法
+        // 添加拦截器方法.
         void AddInterceptorMethod(InterceptorMethod m) {
-            interceptor_methods_vec_.push_back(m);
+            interceptor_methods_vec_.push_back(std::move(m));
         }
 
         void Run() {
@@ -106,7 +105,7 @@ namespace co_grpc {
 
     protected:
         void OnStart() {
-            // 添加拦截器
+            // 添加拦截器.
             auto creators = InterceptorCreators(interceptor_methods_vec_);
             builder_.experimental().SetInterceptorCreators(std::move(creators));
 
@@ -126,25 +125,29 @@ namespace co_grpc {
             if (cq_) {
                 StopQueue(cq_.get());
             }
+            this->stop_ = true;
         }
 
         bool Loop(uint32_t) {
             // uniquely identifies a request.
-            void* tag = 0;
+            void* tag = nullptr;
             bool ok = false;
             bool shutdown = false;
 
             for (;;) {
-                tag = 0;
+                if (this->stop_) {
+                    break;
+                }
+                tag = nullptr;
                 ok = false;
                 shutdown = false;
 
-                shutdown = this->cq_->Next(&tag, &ok) == false;
+                shutdown = !this->cq_->Next(&tag, &ok);
                 if (!tag) {
                     assert(false);
                 }
 
-                // ok为true表示事件成功，false表示事件失败
+                // ok为true表示事件成功,false表示事件失败.
                 static_cast<ICallData*>(tag)->doResponse(shutdown, ok);
             }
 
@@ -158,9 +161,9 @@ namespace co_grpc {
 
             cq->Shutdown();
 
-            // 排干事件
+            // 排干事件.
             while (true) {
-                void* tag = 0;  // uniquely identifies a request.
+                void* tag = nullptr;  // uniquely identifies a request.
                 bool ok = false;
                 cq->Next(&tag, &ok);
                 if (!tag) {
@@ -172,12 +175,12 @@ namespace co_grpc {
         }
 
     protected:
-        bool start_ = false;
+        bool stop_ = false;
         ::grpc::ServerBuilder builder_;
         std::unique_ptr<::grpc::Server> server_;
         std::unique_ptr<::grpc::ServerCompletionQueue> cq_;
         std::unordered_map<std::string, std::shared_ptr<IServer>> service_map_;
-        // 拦截器方法集合
+        // 拦截器方法集合.
         std::vector<InterceptorMethod> interceptor_methods_vec_;
         std::once_flag once_;
     };
@@ -185,7 +188,7 @@ namespace co_grpc {
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 
 inline ServerBuilder* DefSrvBuilder() {
-    static ServerBuilder *builder = new ServerBuilder;
+    static auto builder = new ServerBuilder;
     return builder;
 }
 

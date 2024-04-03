@@ -4,263 +4,217 @@
 #include "helloworld.pb.h"
 
 #include <algorithm>
-#include "google/protobuf/io/coded_stream.h"
-#include "google/protobuf/extension_set.h"
-#include "google/protobuf/wire_format_lite.h"
-#include "google/protobuf/descriptor.h"
-#include "google/protobuf/generated_message_reflection.h"
-#include "google/protobuf/reflection_ops.h"
-#include "google/protobuf/wire_format.h"
-// @@protoc_insertion_point(includes)
 
-// Must be included last.
-#include "google/protobuf/port_def.inc"
+#include <google/protobuf/io/coded_stream.h>
+#include <google/protobuf/extension_set.h>
+#include <google/protobuf/wire_format_lite.h>
+#include <google/protobuf/descriptor.h>
+#include <google/protobuf/generated_message_reflection.h>
+#include <google/protobuf/reflection_ops.h>
+#include <google/protobuf/wire_format.h>
+// @@protoc_insertion_point(includes)
+#include <google/protobuf/port_def.inc>
+
 PROTOBUF_PRAGMA_INIT_SEG
+
 namespace _pb = ::PROTOBUF_NAMESPACE_ID;
-namespace _pbi = ::PROTOBUF_NAMESPACE_ID::internal;
+namespace _pbi = _pb::internal;
+
 namespace helloworld {
 PROTOBUF_CONSTEXPR HelloRequest::HelloRequest(
     ::_pbi::ConstantInitialized): _impl_{
-    /*decltype(_impl_.name_)*/ {
-    &::_pbi::fixed_address_empty_string, ::_pbi::ConstantInitialized {}
-  }
-
-  , /*decltype(_impl_.count_)*/ 0
-
+    /*decltype(_impl_.name_)*/{&::_pbi::fixed_address_empty_string, ::_pbi::ConstantInitialized{}}
+  , /*decltype(_impl_.count_)*/0
   , /*decltype(_impl_._cached_size_)*/{}} {}
 struct HelloRequestDefaultTypeInternal {
-  PROTOBUF_CONSTEXPR HelloRequestDefaultTypeInternal() : _instance(::_pbi::ConstantInitialized{}) {}
+  PROTOBUF_CONSTEXPR HelloRequestDefaultTypeInternal()
+      : _instance(::_pbi::ConstantInitialized{}) {}
   ~HelloRequestDefaultTypeInternal() {}
   union {
     HelloRequest _instance;
   };
 };
-
-PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT
-    PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 HelloRequestDefaultTypeInternal _HelloRequest_default_instance_;
+PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 HelloRequestDefaultTypeInternal _HelloRequest_default_instance_;
 PROTOBUF_CONSTEXPR HelloReply::HelloReply(
     ::_pbi::ConstantInitialized): _impl_{
-    /*decltype(_impl_.message_)*/ {
-    &::_pbi::fixed_address_empty_string, ::_pbi::ConstantInitialized {}
-  }
-
+    /*decltype(_impl_.message_)*/{&::_pbi::fixed_address_empty_string, ::_pbi::ConstantInitialized{}}
   , /*decltype(_impl_._cached_size_)*/{}} {}
 struct HelloReplyDefaultTypeInternal {
-  PROTOBUF_CONSTEXPR HelloReplyDefaultTypeInternal() : _instance(::_pbi::ConstantInitialized{}) {}
+  PROTOBUF_CONSTEXPR HelloReplyDefaultTypeInternal()
+      : _instance(::_pbi::ConstantInitialized{}) {}
   ~HelloReplyDefaultTypeInternal() {}
   union {
     HelloReply _instance;
   };
 };
-
-PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT
-    PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 HelloReplyDefaultTypeInternal _HelloReply_default_instance_;
+PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 HelloReplyDefaultTypeInternal _HelloReply_default_instance_;
 PROTOBUF_CONSTEXPR FamilyRequest::FamilyRequest(
     ::_pbi::ConstantInitialized): _impl_{
-    /*decltype(_impl_.family_)*/ {
-    &::_pbi::fixed_address_empty_string, ::_pbi::ConstantInitialized {}
-  }
-
+    /*decltype(_impl_.family_)*/{&::_pbi::fixed_address_empty_string, ::_pbi::ConstantInitialized{}}
   , /*decltype(_impl_._cached_size_)*/{}} {}
 struct FamilyRequestDefaultTypeInternal {
-  PROTOBUF_CONSTEXPR FamilyRequestDefaultTypeInternal() : _instance(::_pbi::ConstantInitialized{}) {}
+  PROTOBUF_CONSTEXPR FamilyRequestDefaultTypeInternal()
+      : _instance(::_pbi::ConstantInitialized{}) {}
   ~FamilyRequestDefaultTypeInternal() {}
   union {
     FamilyRequest _instance;
   };
 };
-
-PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT
-    PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 FamilyRequestDefaultTypeInternal _FamilyRequest_default_instance_;
+PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 FamilyRequestDefaultTypeInternal _FamilyRequest_default_instance_;
 PROTOBUF_CONSTEXPR FamilyResponse::FamilyResponse(
     ::_pbi::ConstantInitialized): _impl_{
-    /*decltype(_impl_.name_)*/ {
-    &::_pbi::fixed_address_empty_string, ::_pbi::ConstantInitialized {}
-  }
-
+    /*decltype(_impl_.name_)*/{&::_pbi::fixed_address_empty_string, ::_pbi::ConstantInitialized{}}
   , /*decltype(_impl_._cached_size_)*/{}} {}
 struct FamilyResponseDefaultTypeInternal {
-  PROTOBUF_CONSTEXPR FamilyResponseDefaultTypeInternal() : _instance(::_pbi::ConstantInitialized{}) {}
+  PROTOBUF_CONSTEXPR FamilyResponseDefaultTypeInternal()
+      : _instance(::_pbi::ConstantInitialized{}) {}
   ~FamilyResponseDefaultTypeInternal() {}
   union {
     FamilyResponse _instance;
   };
 };
-
-PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT
-    PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 FamilyResponseDefaultTypeInternal _FamilyResponse_default_instance_;
+PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 FamilyResponseDefaultTypeInternal _FamilyResponse_default_instance_;
 }  // namespace helloworld
 static ::_pb::Metadata file_level_metadata_helloworld_2eproto[4];
-static constexpr const ::_pb::EnumDescriptor**
-    file_level_enum_descriptors_helloworld_2eproto = nullptr;
-static constexpr const ::_pb::ServiceDescriptor**
-    file_level_service_descriptors_helloworld_2eproto = nullptr;
-const ::uint32_t TableStruct_helloworld_2eproto::offsets[] PROTOBUF_SECTION_VARIABLE(
-    protodesc_cold) = {
-    ~0u,  // no _has_bits_
-    PROTOBUF_FIELD_OFFSET(::helloworld::HelloRequest, _internal_metadata_),
-    ~0u,  // no _extensions_
-    ~0u,  // no _oneof_case_
-    ~0u,  // no _weak_field_map_
-    ~0u,  // no _inlined_string_donated_
-    ~0u,  // no _split_
-    ~0u,  // no sizeof(Split)
-    PROTOBUF_FIELD_OFFSET(::helloworld::HelloRequest, _impl_.name_),
-    PROTOBUF_FIELD_OFFSET(::helloworld::HelloRequest, _impl_.count_),
-    ~0u,  // no _has_bits_
-    PROTOBUF_FIELD_OFFSET(::helloworld::HelloReply, _internal_metadata_),
-    ~0u,  // no _extensions_
-    ~0u,  // no _oneof_case_
-    ~0u,  // no _weak_field_map_
-    ~0u,  // no _inlined_string_donated_
-    ~0u,  // no _split_
-    ~0u,  // no sizeof(Split)
-    PROTOBUF_FIELD_OFFSET(::helloworld::HelloReply, _impl_.message_),
-    ~0u,  // no _has_bits_
-    PROTOBUF_FIELD_OFFSET(::helloworld::FamilyRequest, _internal_metadata_),
-    ~0u,  // no _extensions_
-    ~0u,  // no _oneof_case_
-    ~0u,  // no _weak_field_map_
-    ~0u,  // no _inlined_string_donated_
-    ~0u,  // no _split_
-    ~0u,  // no sizeof(Split)
-    PROTOBUF_FIELD_OFFSET(::helloworld::FamilyRequest, _impl_.family_),
-    ~0u,  // no _has_bits_
-    PROTOBUF_FIELD_OFFSET(::helloworld::FamilyResponse, _internal_metadata_),
-    ~0u,  // no _extensions_
-    ~0u,  // no _oneof_case_
-    ~0u,  // no _weak_field_map_
-    ~0u,  // no _inlined_string_donated_
-    ~0u,  // no _split_
-    ~0u,  // no sizeof(Split)
-    PROTOBUF_FIELD_OFFSET(::helloworld::FamilyResponse, _impl_.name_),
-};
+static constexpr ::_pb::EnumDescriptor const** file_level_enum_descriptors_helloworld_2eproto = nullptr;
+static constexpr ::_pb::ServiceDescriptor const** file_level_service_descriptors_helloworld_2eproto = nullptr;
 
-static const ::_pbi::MigrationSchema
-    schemas[] PROTOBUF_SECTION_VARIABLE(protodesc_cold) = {
-        { 0, -1, -1, sizeof(::helloworld::HelloRequest)},
-        { 10, -1, -1, sizeof(::helloworld::HelloReply)},
-        { 19, -1, -1, sizeof(::helloworld::FamilyRequest)},
-        { 28, -1, -1, sizeof(::helloworld::FamilyResponse)},
+const uint32_t TableStruct_helloworld_2eproto::offsets[] PROTOBUF_SECTION_VARIABLE(protodesc_cold) = {
+  ~0u,  // no _has_bits_
+  PROTOBUF_FIELD_OFFSET(::helloworld::HelloRequest, _internal_metadata_),
+  ~0u,  // no _extensions_
+  ~0u,  // no _oneof_case_
+  ~0u,  // no _weak_field_map_
+  ~0u,  // no _inlined_string_donated_
+  PROTOBUF_FIELD_OFFSET(::helloworld::HelloRequest, _impl_.name_),
+  PROTOBUF_FIELD_OFFSET(::helloworld::HelloRequest, _impl_.count_),
+  ~0u,  // no _has_bits_
+  PROTOBUF_FIELD_OFFSET(::helloworld::HelloReply, _internal_metadata_),
+  ~0u,  // no _extensions_
+  ~0u,  // no _oneof_case_
+  ~0u,  // no _weak_field_map_
+  ~0u,  // no _inlined_string_donated_
+  PROTOBUF_FIELD_OFFSET(::helloworld::HelloReply, _impl_.message_),
+  ~0u,  // no _has_bits_
+  PROTOBUF_FIELD_OFFSET(::helloworld::FamilyRequest, _internal_metadata_),
+  ~0u,  // no _extensions_
+  ~0u,  // no _oneof_case_
+  ~0u,  // no _weak_field_map_
+  ~0u,  // no _inlined_string_donated_
+  PROTOBUF_FIELD_OFFSET(::helloworld::FamilyRequest, _impl_.family_),
+  ~0u,  // no _has_bits_
+  PROTOBUF_FIELD_OFFSET(::helloworld::FamilyResponse, _internal_metadata_),
+  ~0u,  // no _extensions_
+  ~0u,  // no _oneof_case_
+  ~0u,  // no _weak_field_map_
+  ~0u,  // no _inlined_string_donated_
+  PROTOBUF_FIELD_OFFSET(::helloworld::FamilyResponse, _impl_.name_),
+};
+static const ::_pbi::MigrationSchema schemas[] PROTOBUF_SECTION_VARIABLE(protodesc_cold) = {
+  { 0, -1, -1, sizeof(::helloworld::HelloRequest)},
+  { 8, -1, -1, sizeof(::helloworld::HelloReply)},
+  { 15, -1, -1, sizeof(::helloworld::FamilyRequest)},
+  { 22, -1, -1, sizeof(::helloworld::FamilyResponse)},
 };
 
 static const ::_pb::Message* const file_default_instances[] = {
-    &::helloworld::_HelloRequest_default_instance_._instance,
-    &::helloworld::_HelloReply_default_instance_._instance,
-    &::helloworld::_FamilyRequest_default_instance_._instance,
-    &::helloworld::_FamilyResponse_default_instance_._instance,
-};
-const char descriptor_table_protodef_helloworld_2eproto[] PROTOBUF_SECTION_VARIABLE(protodesc_cold) = {
-    "\n\020helloworld.proto\022\nhelloworld\"+\n\014HelloR"
-    "equest\022\014\n\004name\030\001 \001(\t\022\r\n\005count\030\002 \001(\005\"\035\n\nH"
-    "elloReply\022\017\n\007message\030\001 \001(\t\"\037\n\rFamilyRequ"
-    "est\022\016\n\006family\030\001 \001(\t\"\036\n\016FamilyResponse\022\014\n"
-    "\004name\030\001 \001(\t2\362\002\n\007Greeter\022>\n\010SayHello\022\030.he"
-    "lloworld.HelloRequest\032\026.helloworld.Hello"
-    "Reply\"\000\022B\n\007GetName\022\031.helloworld.FamilyRe"
-    "quest\032\032.helloworld.FamilyResponse\"\000\022G\n\010L"
-    "istName\022\031.helloworld.FamilyRequest\032\032.hel"
-    "loworld.FamilyResponse\"\000(\0010\001\022L\n\024ClientSt"
-    "reamSayHello\022\030.helloworld.HelloRequest\032\026"
-    ".helloworld.HelloReply\"\000(\001\022L\n\024ServerStre"
-    "amSayHello\022\030.helloworld.HelloRequest\032\026.h"
-    "elloworld.HelloReply\"\0000\0012\367\002\n\014GreeterAgai"
-    "n\022>\n\010SayHello\022\030.helloworld.HelloRequest\032"
-    "\026.helloworld.HelloReply\"\000\022B\n\007GetName\022\031.h"
-    "elloworld.FamilyRequest\032\032.helloworld.Fam"
-    "ilyResponse\"\000\022G\n\010ListName\022\031.helloworld.F"
-    "amilyRequest\032\032.helloworld.FamilyResponse"
-    "\"\000(\0010\001\022L\n\024ClientStreamSayHello\022\030.hellowo"
-    "rld.HelloRequest\032\026.helloworld.HelloReply"
-    "\"\000(\001\022L\n\024ServerStreamSayHello\022\030.helloworl"
-    "d.HelloRequest\032\026.helloworld.HelloReply\"\000"
-    "0\0012U\n\nNameServer\022G\n\010ListName\022\031.helloworl"
-    "d.FamilyRequest\032\032.helloworld.FamilyRespo"
-    "nse\"\000(\0010\001b\006proto3"
-};
-static ::absl::once_flag descriptor_table_helloworld_2eproto_once;
-const ::_pbi::DescriptorTable descriptor_table_helloworld_2eproto = {
-    false,
-    false,
-    1017,
-    descriptor_table_protodef_helloworld_2eproto,
-    "helloworld.proto",
-    &descriptor_table_helloworld_2eproto_once,
-    nullptr,
-    0,
-    4,
-    schemas,
-    file_default_instances,
-    TableStruct_helloworld_2eproto::offsets,
-    file_level_metadata_helloworld_2eproto,
-    file_level_enum_descriptors_helloworld_2eproto,
-    file_level_service_descriptors_helloworld_2eproto,
+  &::helloworld::_HelloRequest_default_instance_._instance,
+  &::helloworld::_HelloReply_default_instance_._instance,
+  &::helloworld::_FamilyRequest_default_instance_._instance,
+  &::helloworld::_FamilyResponse_default_instance_._instance,
 };
 
-// This function exists to be marked as weak.
-// It can significantly speed up compilation by breaking up LLVM's SCC
-// in the .pb.cc translation units. Large translation units see a
-// reduction of more than 35% of walltime for optimized builds. Without
-// the weak attribute all the messages in the file, including all the
-// vtables and everything they use become part of the same SCC through
-// a cycle like:
-// GetMetadata -> descriptor table -> default instances ->
-//   vtables -> GetMetadata
-// By adding a weak function here we break the connection from the
-// individual vtables back into the descriptor table.
+const char descriptor_table_protodef_helloworld_2eproto[] PROTOBUF_SECTION_VARIABLE(protodesc_cold) =
+  "\n\020helloworld.proto\022\nhelloworld\"+\n\014HelloR"
+  "equest\022\014\n\004name\030\001 \001(\t\022\r\n\005count\030\002 \001(\005\"\035\n\nH"
+  "elloReply\022\017\n\007message\030\001 \001(\t\"\037\n\rFamilyRequ"
+  "est\022\016\n\006family\030\001 \001(\t\"\036\n\016FamilyResponse\022\014\n"
+  "\004name\030\001 \001(\t2\362\002\n\007Greeter\022>\n\010SayHello\022\030.he"
+  "lloworld.HelloRequest\032\026.helloworld.Hello"
+  "Reply\"\000\022B\n\007GetName\022\031.helloworld.FamilyRe"
+  "quest\032\032.helloworld.FamilyResponse\"\000\022G\n\010L"
+  "istName\022\031.helloworld.FamilyRequest\032\032.hel"
+  "loworld.FamilyResponse\"\000(\0010\001\022L\n\024ClientSt"
+  "reamSayHello\022\030.helloworld.HelloRequest\032\026"
+  ".helloworld.HelloReply\"\000(\001\022L\n\024ServerStre"
+  "amSayHello\022\030.helloworld.HelloRequest\032\026.h"
+  "elloworld.HelloReply\"\0000\0012\367\002\n\014GreeterAgai"
+  "n\022>\n\010SayHello\022\030.helloworld.HelloRequest\032"
+  "\026.helloworld.HelloReply\"\000\022B\n\007GetName\022\031.h"
+  "elloworld.FamilyRequest\032\032.helloworld.Fam"
+  "ilyResponse\"\000\022G\n\010ListName\022\031.helloworld.F"
+  "amilyRequest\032\032.helloworld.FamilyResponse"
+  "\"\000(\0010\001\022L\n\024ClientStreamSayHello\022\030.hellowo"
+  "rld.HelloRequest\032\026.helloworld.HelloReply"
+  "\"\000(\001\022L\n\024ServerStreamSayHello\022\030.helloworl"
+  "d.HelloRequest\032\026.helloworld.HelloReply\"\000"
+  "0\0012U\n\nNameServer\022G\n\010ListName\022\031.helloworl"
+  "d.FamilyRequest\032\032.helloworld.FamilyRespo"
+  "nse\"\000(\0010\001b\006proto3"
+  ;
+static ::_pbi::once_flag descriptor_table_helloworld_2eproto_once;
+const ::_pbi::DescriptorTable descriptor_table_helloworld_2eproto = {
+    false, false, 1017, descriptor_table_protodef_helloworld_2eproto,
+    "helloworld.proto",
+    &descriptor_table_helloworld_2eproto_once, nullptr, 0, 4,
+    schemas, file_default_instances, TableStruct_helloworld_2eproto::offsets,
+    file_level_metadata_helloworld_2eproto, file_level_enum_descriptors_helloworld_2eproto,
+    file_level_service_descriptors_helloworld_2eproto,
+};
 PROTOBUF_ATTRIBUTE_WEAK const ::_pbi::DescriptorTable* descriptor_table_helloworld_2eproto_getter() {
   return &descriptor_table_helloworld_2eproto;
 }
+
 // Force running AddDescriptors() at dynamic initialization time.
-PROTOBUF_ATTRIBUTE_INIT_PRIORITY2
-static ::_pbi::AddDescriptorsRunner dynamic_init_dummy_helloworld_2eproto(&descriptor_table_helloworld_2eproto);
+PROTOBUF_ATTRIBUTE_INIT_PRIORITY2 static ::_pbi::AddDescriptorsRunner dynamic_init_dummy_helloworld_2eproto(&descriptor_table_helloworld_2eproto);
 namespace helloworld {
+
 // ===================================================================
 
 class HelloRequest::_Internal {
  public:
 };
 
-HelloRequest::HelloRequest(::PROTOBUF_NAMESPACE_ID::Arena* arena)
-  : ::PROTOBUF_NAMESPACE_ID::Message(arena) {
-  SharedCtor(arena);
+HelloRequest::HelloRequest(::PROTOBUF_NAMESPACE_ID::Arena* arena,
+                         bool is_message_owned)
+  : ::PROTOBUF_NAMESPACE_ID::Message(arena, is_message_owned) {
+  SharedCtor(arena, is_message_owned);
   // @@protoc_insertion_point(arena_constructor:helloworld.HelloRequest)
 }
 HelloRequest::HelloRequest(const HelloRequest& from)
   : ::PROTOBUF_NAMESPACE_ID::Message() {
   HelloRequest* const _this = this; (void)_this;
   new (&_impl_) Impl_{
-      decltype(_impl_.name_) {}
-
-    , decltype(_impl_.count_) {}
-
+      decltype(_impl_.name_){}
+    , decltype(_impl_.count_){}
     , /*decltype(_impl_._cached_size_)*/{}};
 
   _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
   _impl_.name_.InitDefault();
   #ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
-        _impl_.name_.Set("", GetArenaForAllocation());
-  #endif  // PROTOBUF_FORCE_COPY_DEFAULT_STRING
+    _impl_.name_.Set("", GetArenaForAllocation());
+  #endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
   if (!from._internal_name().empty()) {
-    _this->_impl_.name_.Set(from._internal_name(), _this->GetArenaForAllocation());
+    _this->_impl_.name_.Set(from._internal_name(), 
+      _this->GetArenaForAllocation());
   }
   _this->_impl_.count_ = from._impl_.count_;
   // @@protoc_insertion_point(copy_constructor:helloworld.HelloRequest)
 }
 
-inline void HelloRequest::SharedCtor(::_pb::Arena* arena) {
+inline void HelloRequest::SharedCtor(
+    ::_pb::Arena* arena, bool is_message_owned) {
   (void)arena;
+  (void)is_message_owned;
   new (&_impl_) Impl_{
-      decltype(_impl_.name_) {}
-
-    , decltype(_impl_.count_) { 0 }
-
+      decltype(_impl_.name_){}
+    , decltype(_impl_.count_){0}
     , /*decltype(_impl_._cached_size_)*/{}
   };
   _impl_.name_.InitDefault();
   #ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
-        _impl_.name_.Set("", GetArenaForAllocation());
-  #endif  // PROTOBUF_FORCE_COPY_DEFAULT_STRING
+    _impl_.name_.Set("", GetArenaForAllocation());
+  #endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
 }
 
 HelloRequest::~HelloRequest() {
@@ -273,7 +227,7 @@ HelloRequest::~HelloRequest() {
 }
 
 inline void HelloRequest::SharedDtor() {
-  ABSL_DCHECK(GetArenaForAllocation() == nullptr);
+  GOOGLE_DCHECK(GetArenaForAllocation() == nullptr);
   _impl_.name_.Destroy();
 }
 
@@ -283,7 +237,7 @@ void HelloRequest::SetCachedSize(int size) const {
 
 void HelloRequest::Clear() {
 // @@protoc_insertion_point(message_clear_start:helloworld.HelloRequest)
-  ::uint32_t cached_has_bits = 0;
+  uint32_t cached_has_bits = 0;
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
@@ -295,28 +249,26 @@ void HelloRequest::Clear() {
 const char* HelloRequest::_InternalParse(const char* ptr, ::_pbi::ParseContext* ctx) {
 #define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
   while (!ctx->Done(&ptr)) {
-    ::uint32_t tag;
+    uint32_t tag;
     ptr = ::_pbi::ReadTag(ptr, &tag);
     switch (tag >> 3) {
       // string name = 1;
       case 1:
-        if (PROTOBUF_PREDICT_TRUE(static_cast<::uint8_t>(tag) == 10)) {
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 10)) {
           auto str = _internal_mutable_name();
           ptr = ::_pbi::InlineGreedyStringParser(str, ptr, ctx);
           CHK_(ptr);
           CHK_(::_pbi::VerifyUTF8(str, "helloworld.HelloRequest.name"));
-        } else {
+        } else
           goto handle_unusual;
-        }
         continue;
       // int32 count = 2;
       case 2:
-        if (PROTOBUF_PREDICT_TRUE(static_cast<::uint8_t>(tag) == 16)) {
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 16)) {
           _impl_.count_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint32(&ptr);
           CHK_(ptr);
-        } else {
+        } else
           goto handle_unusual;
-        }
         continue;
       default:
         goto handle_unusual;
@@ -341,25 +293,26 @@ failure:
 #undef CHK_
 }
 
-::uint8_t* HelloRequest::_InternalSerialize(
-    ::uint8_t* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
+uint8_t* HelloRequest::_InternalSerialize(
+    uint8_t* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
   // @@protoc_insertion_point(serialize_to_array_start:helloworld.HelloRequest)
-  ::uint32_t cached_has_bits = 0;
+  uint32_t cached_has_bits = 0;
   (void) cached_has_bits;
 
   // string name = 1;
   if (!this->_internal_name().empty()) {
-    const std::string& _s = this->_internal_name();
     ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::VerifyUtf8String(
-        _s.data(), static_cast<int>(_s.length()), ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SERIALIZE, "helloworld.HelloRequest.name");
-    target = stream->WriteStringMaybeAliased(1, _s, target);
+      this->_internal_name().data(), static_cast<int>(this->_internal_name().length()),
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SERIALIZE,
+      "helloworld.HelloRequest.name");
+    target = stream->WriteStringMaybeAliased(
+        1, this->_internal_name(), target);
   }
 
   // int32 count = 2;
   if (this->_internal_count() != 0) {
     target = stream->EnsureSpace(target);
-    target = ::_pbi::WireFormatLite::WriteInt32ToArray(
-        2, this->_internal_count(), target);
+    target = ::_pbi::WireFormatLite::WriteInt32ToArray(2, this->_internal_count(), target);
   }
 
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
@@ -370,24 +323,24 @@ failure:
   return target;
 }
 
-::size_t HelloRequest::ByteSizeLong() const {
+size_t HelloRequest::ByteSizeLong() const {
 // @@protoc_insertion_point(message_byte_size_start:helloworld.HelloRequest)
-  ::size_t total_size = 0;
+  size_t total_size = 0;
 
-  ::uint32_t cached_has_bits = 0;
+  uint32_t cached_has_bits = 0;
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
   // string name = 1;
   if (!this->_internal_name().empty()) {
-    total_size += 1 + ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
-                                    this->_internal_name());
+    total_size += 1 +
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
+        this->_internal_name());
   }
 
   // int32 count = 2;
   if (this->_internal_count() != 0) {
-    total_size += ::_pbi::WireFormatLite::Int32SizePlusOne(
-        this->_internal_count());
+    total_size += ::_pbi::WireFormatLite::Int32SizePlusOne(this->_internal_count());
   }
 
   return MaybeComputeUnknownFieldsSize(total_size, &_impl_._cached_size_);
@@ -404,8 +357,8 @@ void HelloRequest::MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::P
   auto* const _this = static_cast<HelloRequest*>(&to_msg);
   auto& from = static_cast<const HelloRequest&>(from_msg);
   // @@protoc_insertion_point(class_specific_merge_from_start:helloworld.HelloRequest)
-  ABSL_DCHECK_NE(&from, _this);
-  ::uint32_t cached_has_bits = 0;
+  GOOGLE_DCHECK_NE(&from, _this);
+  uint32_t cached_has_bits = 0;
   (void) cached_has_bits;
 
   if (!from._internal_name().empty()) {
@@ -433,9 +386,10 @@ void HelloRequest::InternalSwap(HelloRequest* other) {
   auto* lhs_arena = GetArenaForAllocation();
   auto* rhs_arena = other->GetArenaForAllocation();
   _internal_metadata_.InternalSwap(&other->_internal_metadata_);
-  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.name_, lhs_arena,
-                                       &other->_impl_.name_, rhs_arena);
-
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr::InternalSwap(
+      &_impl_.name_, lhs_arena,
+      &other->_impl_.name_, rhs_arena
+  );
   swap(_impl_.count_, other->_impl_.count_);
 }
 
@@ -444,47 +398,50 @@ void HelloRequest::InternalSwap(HelloRequest* other) {
       &descriptor_table_helloworld_2eproto_getter, &descriptor_table_helloworld_2eproto_once,
       file_level_metadata_helloworld_2eproto[0]);
 }
+
 // ===================================================================
 
 class HelloReply::_Internal {
  public:
 };
 
-HelloReply::HelloReply(::PROTOBUF_NAMESPACE_ID::Arena* arena)
-  : ::PROTOBUF_NAMESPACE_ID::Message(arena) {
-  SharedCtor(arena);
+HelloReply::HelloReply(::PROTOBUF_NAMESPACE_ID::Arena* arena,
+                         bool is_message_owned)
+  : ::PROTOBUF_NAMESPACE_ID::Message(arena, is_message_owned) {
+  SharedCtor(arena, is_message_owned);
   // @@protoc_insertion_point(arena_constructor:helloworld.HelloReply)
 }
 HelloReply::HelloReply(const HelloReply& from)
   : ::PROTOBUF_NAMESPACE_ID::Message() {
   HelloReply* const _this = this; (void)_this;
   new (&_impl_) Impl_{
-      decltype(_impl_.message_) {}
-
+      decltype(_impl_.message_){}
     , /*decltype(_impl_._cached_size_)*/{}};
 
   _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
   _impl_.message_.InitDefault();
   #ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
-        _impl_.message_.Set("", GetArenaForAllocation());
-  #endif  // PROTOBUF_FORCE_COPY_DEFAULT_STRING
+    _impl_.message_.Set("", GetArenaForAllocation());
+  #endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
   if (!from._internal_message().empty()) {
-    _this->_impl_.message_.Set(from._internal_message(), _this->GetArenaForAllocation());
+    _this->_impl_.message_.Set(from._internal_message(), 
+      _this->GetArenaForAllocation());
   }
   // @@protoc_insertion_point(copy_constructor:helloworld.HelloReply)
 }
 
-inline void HelloReply::SharedCtor(::_pb::Arena* arena) {
+inline void HelloReply::SharedCtor(
+    ::_pb::Arena* arena, bool is_message_owned) {
   (void)arena;
+  (void)is_message_owned;
   new (&_impl_) Impl_{
-      decltype(_impl_.message_) {}
-
+      decltype(_impl_.message_){}
     , /*decltype(_impl_._cached_size_)*/{}
   };
   _impl_.message_.InitDefault();
   #ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
-        _impl_.message_.Set("", GetArenaForAllocation());
-  #endif  // PROTOBUF_FORCE_COPY_DEFAULT_STRING
+    _impl_.message_.Set("", GetArenaForAllocation());
+  #endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
 }
 
 HelloReply::~HelloReply() {
@@ -497,7 +454,7 @@ HelloReply::~HelloReply() {
 }
 
 inline void HelloReply::SharedDtor() {
-  ABSL_DCHECK(GetArenaForAllocation() == nullptr);
+  GOOGLE_DCHECK(GetArenaForAllocation() == nullptr);
   _impl_.message_.Destroy();
 }
 
@@ -507,7 +464,7 @@ void HelloReply::SetCachedSize(int size) const {
 
 void HelloReply::Clear() {
 // @@protoc_insertion_point(message_clear_start:helloworld.HelloReply)
-  ::uint32_t cached_has_bits = 0;
+  uint32_t cached_has_bits = 0;
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
@@ -518,19 +475,18 @@ void HelloReply::Clear() {
 const char* HelloReply::_InternalParse(const char* ptr, ::_pbi::ParseContext* ctx) {
 #define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
   while (!ctx->Done(&ptr)) {
-    ::uint32_t tag;
+    uint32_t tag;
     ptr = ::_pbi::ReadTag(ptr, &tag);
     switch (tag >> 3) {
       // string message = 1;
       case 1:
-        if (PROTOBUF_PREDICT_TRUE(static_cast<::uint8_t>(tag) == 10)) {
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 10)) {
           auto str = _internal_mutable_message();
           ptr = ::_pbi::InlineGreedyStringParser(str, ptr, ctx);
           CHK_(ptr);
           CHK_(::_pbi::VerifyUTF8(str, "helloworld.HelloReply.message"));
-        } else {
+        } else
           goto handle_unusual;
-        }
         continue;
       default:
         goto handle_unusual;
@@ -555,18 +511,20 @@ failure:
 #undef CHK_
 }
 
-::uint8_t* HelloReply::_InternalSerialize(
-    ::uint8_t* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
+uint8_t* HelloReply::_InternalSerialize(
+    uint8_t* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
   // @@protoc_insertion_point(serialize_to_array_start:helloworld.HelloReply)
-  ::uint32_t cached_has_bits = 0;
+  uint32_t cached_has_bits = 0;
   (void) cached_has_bits;
 
   // string message = 1;
   if (!this->_internal_message().empty()) {
-    const std::string& _s = this->_internal_message();
     ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::VerifyUtf8String(
-        _s.data(), static_cast<int>(_s.length()), ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SERIALIZE, "helloworld.HelloReply.message");
-    target = stream->WriteStringMaybeAliased(1, _s, target);
+      this->_internal_message().data(), static_cast<int>(this->_internal_message().length()),
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SERIALIZE,
+      "helloworld.HelloReply.message");
+    target = stream->WriteStringMaybeAliased(
+        1, this->_internal_message(), target);
   }
 
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
@@ -577,18 +535,19 @@ failure:
   return target;
 }
 
-::size_t HelloReply::ByteSizeLong() const {
+size_t HelloReply::ByteSizeLong() const {
 // @@protoc_insertion_point(message_byte_size_start:helloworld.HelloReply)
-  ::size_t total_size = 0;
+  size_t total_size = 0;
 
-  ::uint32_t cached_has_bits = 0;
+  uint32_t cached_has_bits = 0;
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
   // string message = 1;
   if (!this->_internal_message().empty()) {
-    total_size += 1 + ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
-                                    this->_internal_message());
+    total_size += 1 +
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
+        this->_internal_message());
   }
 
   return MaybeComputeUnknownFieldsSize(total_size, &_impl_._cached_size_);
@@ -605,8 +564,8 @@ void HelloReply::MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::PRO
   auto* const _this = static_cast<HelloReply*>(&to_msg);
   auto& from = static_cast<const HelloReply&>(from_msg);
   // @@protoc_insertion_point(class_specific_merge_from_start:helloworld.HelloReply)
-  ABSL_DCHECK_NE(&from, _this);
-  ::uint32_t cached_has_bits = 0;
+  GOOGLE_DCHECK_NE(&from, _this);
+  uint32_t cached_has_bits = 0;
   (void) cached_has_bits;
 
   if (!from._internal_message().empty()) {
@@ -631,8 +590,10 @@ void HelloReply::InternalSwap(HelloReply* other) {
   auto* lhs_arena = GetArenaForAllocation();
   auto* rhs_arena = other->GetArenaForAllocation();
   _internal_metadata_.InternalSwap(&other->_internal_metadata_);
-  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.message_, lhs_arena,
-                                       &other->_impl_.message_, rhs_arena);
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr::InternalSwap(
+      &_impl_.message_, lhs_arena,
+      &other->_impl_.message_, rhs_arena
+  );
 }
 
 ::PROTOBUF_NAMESPACE_ID::Metadata HelloReply::GetMetadata() const {
@@ -640,47 +601,50 @@ void HelloReply::InternalSwap(HelloReply* other) {
       &descriptor_table_helloworld_2eproto_getter, &descriptor_table_helloworld_2eproto_once,
       file_level_metadata_helloworld_2eproto[1]);
 }
+
 // ===================================================================
 
 class FamilyRequest::_Internal {
  public:
 };
 
-FamilyRequest::FamilyRequest(::PROTOBUF_NAMESPACE_ID::Arena* arena)
-  : ::PROTOBUF_NAMESPACE_ID::Message(arena) {
-  SharedCtor(arena);
+FamilyRequest::FamilyRequest(::PROTOBUF_NAMESPACE_ID::Arena* arena,
+                         bool is_message_owned)
+  : ::PROTOBUF_NAMESPACE_ID::Message(arena, is_message_owned) {
+  SharedCtor(arena, is_message_owned);
   // @@protoc_insertion_point(arena_constructor:helloworld.FamilyRequest)
 }
 FamilyRequest::FamilyRequest(const FamilyRequest& from)
   : ::PROTOBUF_NAMESPACE_ID::Message() {
   FamilyRequest* const _this = this; (void)_this;
   new (&_impl_) Impl_{
-      decltype(_impl_.family_) {}
-
+      decltype(_impl_.family_){}
     , /*decltype(_impl_._cached_size_)*/{}};
 
   _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
   _impl_.family_.InitDefault();
   #ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
-        _impl_.family_.Set("", GetArenaForAllocation());
-  #endif  // PROTOBUF_FORCE_COPY_DEFAULT_STRING
+    _impl_.family_.Set("", GetArenaForAllocation());
+  #endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
   if (!from._internal_family().empty()) {
-    _this->_impl_.family_.Set(from._internal_family(), _this->GetArenaForAllocation());
+    _this->_impl_.family_.Set(from._internal_family(), 
+      _this->GetArenaForAllocation());
   }
   // @@protoc_insertion_point(copy_constructor:helloworld.FamilyRequest)
 }
 
-inline void FamilyRequest::SharedCtor(::_pb::Arena* arena) {
+inline void FamilyRequest::SharedCtor(
+    ::_pb::Arena* arena, bool is_message_owned) {
   (void)arena;
+  (void)is_message_owned;
   new (&_impl_) Impl_{
-      decltype(_impl_.family_) {}
-
+      decltype(_impl_.family_){}
     , /*decltype(_impl_._cached_size_)*/{}
   };
   _impl_.family_.InitDefault();
   #ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
-        _impl_.family_.Set("", GetArenaForAllocation());
-  #endif  // PROTOBUF_FORCE_COPY_DEFAULT_STRING
+    _impl_.family_.Set("", GetArenaForAllocation());
+  #endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
 }
 
 FamilyRequest::~FamilyRequest() {
@@ -693,7 +657,7 @@ FamilyRequest::~FamilyRequest() {
 }
 
 inline void FamilyRequest::SharedDtor() {
-  ABSL_DCHECK(GetArenaForAllocation() == nullptr);
+  GOOGLE_DCHECK(GetArenaForAllocation() == nullptr);
   _impl_.family_.Destroy();
 }
 
@@ -703,7 +667,7 @@ void FamilyRequest::SetCachedSize(int size) const {
 
 void FamilyRequest::Clear() {
 // @@protoc_insertion_point(message_clear_start:helloworld.FamilyRequest)
-  ::uint32_t cached_has_bits = 0;
+  uint32_t cached_has_bits = 0;
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
@@ -714,19 +678,18 @@ void FamilyRequest::Clear() {
 const char* FamilyRequest::_InternalParse(const char* ptr, ::_pbi::ParseContext* ctx) {
 #define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
   while (!ctx->Done(&ptr)) {
-    ::uint32_t tag;
+    uint32_t tag;
     ptr = ::_pbi::ReadTag(ptr, &tag);
     switch (tag >> 3) {
       // string family = 1;
       case 1:
-        if (PROTOBUF_PREDICT_TRUE(static_cast<::uint8_t>(tag) == 10)) {
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 10)) {
           auto str = _internal_mutable_family();
           ptr = ::_pbi::InlineGreedyStringParser(str, ptr, ctx);
           CHK_(ptr);
           CHK_(::_pbi::VerifyUTF8(str, "helloworld.FamilyRequest.family"));
-        } else {
+        } else
           goto handle_unusual;
-        }
         continue;
       default:
         goto handle_unusual;
@@ -751,18 +714,20 @@ failure:
 #undef CHK_
 }
 
-::uint8_t* FamilyRequest::_InternalSerialize(
-    ::uint8_t* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
+uint8_t* FamilyRequest::_InternalSerialize(
+    uint8_t* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
   // @@protoc_insertion_point(serialize_to_array_start:helloworld.FamilyRequest)
-  ::uint32_t cached_has_bits = 0;
+  uint32_t cached_has_bits = 0;
   (void) cached_has_bits;
 
   // string family = 1;
   if (!this->_internal_family().empty()) {
-    const std::string& _s = this->_internal_family();
     ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::VerifyUtf8String(
-        _s.data(), static_cast<int>(_s.length()), ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SERIALIZE, "helloworld.FamilyRequest.family");
-    target = stream->WriteStringMaybeAliased(1, _s, target);
+      this->_internal_family().data(), static_cast<int>(this->_internal_family().length()),
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SERIALIZE,
+      "helloworld.FamilyRequest.family");
+    target = stream->WriteStringMaybeAliased(
+        1, this->_internal_family(), target);
   }
 
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
@@ -773,18 +738,19 @@ failure:
   return target;
 }
 
-::size_t FamilyRequest::ByteSizeLong() const {
+size_t FamilyRequest::ByteSizeLong() const {
 // @@protoc_insertion_point(message_byte_size_start:helloworld.FamilyRequest)
-  ::size_t total_size = 0;
+  size_t total_size = 0;
 
-  ::uint32_t cached_has_bits = 0;
+  uint32_t cached_has_bits = 0;
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
   // string family = 1;
   if (!this->_internal_family().empty()) {
-    total_size += 1 + ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
-                                    this->_internal_family());
+    total_size += 1 +
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
+        this->_internal_family());
   }
 
   return MaybeComputeUnknownFieldsSize(total_size, &_impl_._cached_size_);
@@ -801,8 +767,8 @@ void FamilyRequest::MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::
   auto* const _this = static_cast<FamilyRequest*>(&to_msg);
   auto& from = static_cast<const FamilyRequest&>(from_msg);
   // @@protoc_insertion_point(class_specific_merge_from_start:helloworld.FamilyRequest)
-  ABSL_DCHECK_NE(&from, _this);
-  ::uint32_t cached_has_bits = 0;
+  GOOGLE_DCHECK_NE(&from, _this);
+  uint32_t cached_has_bits = 0;
   (void) cached_has_bits;
 
   if (!from._internal_family().empty()) {
@@ -827,8 +793,10 @@ void FamilyRequest::InternalSwap(FamilyRequest* other) {
   auto* lhs_arena = GetArenaForAllocation();
   auto* rhs_arena = other->GetArenaForAllocation();
   _internal_metadata_.InternalSwap(&other->_internal_metadata_);
-  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.family_, lhs_arena,
-                                       &other->_impl_.family_, rhs_arena);
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr::InternalSwap(
+      &_impl_.family_, lhs_arena,
+      &other->_impl_.family_, rhs_arena
+  );
 }
 
 ::PROTOBUF_NAMESPACE_ID::Metadata FamilyRequest::GetMetadata() const {
@@ -836,47 +804,50 @@ void FamilyRequest::InternalSwap(FamilyRequest* other) {
       &descriptor_table_helloworld_2eproto_getter, &descriptor_table_helloworld_2eproto_once,
       file_level_metadata_helloworld_2eproto[2]);
 }
+
 // ===================================================================
 
 class FamilyResponse::_Internal {
  public:
 };
 
-FamilyResponse::FamilyResponse(::PROTOBUF_NAMESPACE_ID::Arena* arena)
-  : ::PROTOBUF_NAMESPACE_ID::Message(arena) {
-  SharedCtor(arena);
+FamilyResponse::FamilyResponse(::PROTOBUF_NAMESPACE_ID::Arena* arena,
+                         bool is_message_owned)
+  : ::PROTOBUF_NAMESPACE_ID::Message(arena, is_message_owned) {
+  SharedCtor(arena, is_message_owned);
   // @@protoc_insertion_point(arena_constructor:helloworld.FamilyResponse)
 }
 FamilyResponse::FamilyResponse(const FamilyResponse& from)
   : ::PROTOBUF_NAMESPACE_ID::Message() {
   FamilyResponse* const _this = this; (void)_this;
   new (&_impl_) Impl_{
-      decltype(_impl_.name_) {}
-
+      decltype(_impl_.name_){}
     , /*decltype(_impl_._cached_size_)*/{}};
 
   _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
   _impl_.name_.InitDefault();
   #ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
-        _impl_.name_.Set("", GetArenaForAllocation());
-  #endif  // PROTOBUF_FORCE_COPY_DEFAULT_STRING
+    _impl_.name_.Set("", GetArenaForAllocation());
+  #endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
   if (!from._internal_name().empty()) {
-    _this->_impl_.name_.Set(from._internal_name(), _this->GetArenaForAllocation());
+    _this->_impl_.name_.Set(from._internal_name(), 
+      _this->GetArenaForAllocation());
   }
   // @@protoc_insertion_point(copy_constructor:helloworld.FamilyResponse)
 }
 
-inline void FamilyResponse::SharedCtor(::_pb::Arena* arena) {
+inline void FamilyResponse::SharedCtor(
+    ::_pb::Arena* arena, bool is_message_owned) {
   (void)arena;
+  (void)is_message_owned;
   new (&_impl_) Impl_{
-      decltype(_impl_.name_) {}
-
+      decltype(_impl_.name_){}
     , /*decltype(_impl_._cached_size_)*/{}
   };
   _impl_.name_.InitDefault();
   #ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
-        _impl_.name_.Set("", GetArenaForAllocation());
-  #endif  // PROTOBUF_FORCE_COPY_DEFAULT_STRING
+    _impl_.name_.Set("", GetArenaForAllocation());
+  #endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
 }
 
 FamilyResponse::~FamilyResponse() {
@@ -889,7 +860,7 @@ FamilyResponse::~FamilyResponse() {
 }
 
 inline void FamilyResponse::SharedDtor() {
-  ABSL_DCHECK(GetArenaForAllocation() == nullptr);
+  GOOGLE_DCHECK(GetArenaForAllocation() == nullptr);
   _impl_.name_.Destroy();
 }
 
@@ -899,7 +870,7 @@ void FamilyResponse::SetCachedSize(int size) const {
 
 void FamilyResponse::Clear() {
 // @@protoc_insertion_point(message_clear_start:helloworld.FamilyResponse)
-  ::uint32_t cached_has_bits = 0;
+  uint32_t cached_has_bits = 0;
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
@@ -910,19 +881,18 @@ void FamilyResponse::Clear() {
 const char* FamilyResponse::_InternalParse(const char* ptr, ::_pbi::ParseContext* ctx) {
 #define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
   while (!ctx->Done(&ptr)) {
-    ::uint32_t tag;
+    uint32_t tag;
     ptr = ::_pbi::ReadTag(ptr, &tag);
     switch (tag >> 3) {
       // string name = 1;
       case 1:
-        if (PROTOBUF_PREDICT_TRUE(static_cast<::uint8_t>(tag) == 10)) {
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 10)) {
           auto str = _internal_mutable_name();
           ptr = ::_pbi::InlineGreedyStringParser(str, ptr, ctx);
           CHK_(ptr);
           CHK_(::_pbi::VerifyUTF8(str, "helloworld.FamilyResponse.name"));
-        } else {
+        } else
           goto handle_unusual;
-        }
         continue;
       default:
         goto handle_unusual;
@@ -947,18 +917,20 @@ failure:
 #undef CHK_
 }
 
-::uint8_t* FamilyResponse::_InternalSerialize(
-    ::uint8_t* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
+uint8_t* FamilyResponse::_InternalSerialize(
+    uint8_t* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
   // @@protoc_insertion_point(serialize_to_array_start:helloworld.FamilyResponse)
-  ::uint32_t cached_has_bits = 0;
+  uint32_t cached_has_bits = 0;
   (void) cached_has_bits;
 
   // string name = 1;
   if (!this->_internal_name().empty()) {
-    const std::string& _s = this->_internal_name();
     ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::VerifyUtf8String(
-        _s.data(), static_cast<int>(_s.length()), ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SERIALIZE, "helloworld.FamilyResponse.name");
-    target = stream->WriteStringMaybeAliased(1, _s, target);
+      this->_internal_name().data(), static_cast<int>(this->_internal_name().length()),
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SERIALIZE,
+      "helloworld.FamilyResponse.name");
+    target = stream->WriteStringMaybeAliased(
+        1, this->_internal_name(), target);
   }
 
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
@@ -969,18 +941,19 @@ failure:
   return target;
 }
 
-::size_t FamilyResponse::ByteSizeLong() const {
+size_t FamilyResponse::ByteSizeLong() const {
 // @@protoc_insertion_point(message_byte_size_start:helloworld.FamilyResponse)
-  ::size_t total_size = 0;
+  size_t total_size = 0;
 
-  ::uint32_t cached_has_bits = 0;
+  uint32_t cached_has_bits = 0;
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
   // string name = 1;
   if (!this->_internal_name().empty()) {
-    total_size += 1 + ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
-                                    this->_internal_name());
+    total_size += 1 +
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
+        this->_internal_name());
   }
 
   return MaybeComputeUnknownFieldsSize(total_size, &_impl_._cached_size_);
@@ -997,8 +970,8 @@ void FamilyResponse::MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const :
   auto* const _this = static_cast<FamilyResponse*>(&to_msg);
   auto& from = static_cast<const FamilyResponse&>(from_msg);
   // @@protoc_insertion_point(class_specific_merge_from_start:helloworld.FamilyResponse)
-  ABSL_DCHECK_NE(&from, _this);
-  ::uint32_t cached_has_bits = 0;
+  GOOGLE_DCHECK_NE(&from, _this);
+  uint32_t cached_has_bits = 0;
   (void) cached_has_bits;
 
   if (!from._internal_name().empty()) {
@@ -1023,8 +996,10 @@ void FamilyResponse::InternalSwap(FamilyResponse* other) {
   auto* lhs_arena = GetArenaForAllocation();
   auto* rhs_arena = other->GetArenaForAllocation();
   _internal_metadata_.InternalSwap(&other->_internal_metadata_);
-  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.name_, lhs_arena,
-                                       &other->_impl_.name_, rhs_arena);
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr::InternalSwap(
+      &_impl_.name_, lhs_arena,
+      &other->_impl_.name_, rhs_arena
+  );
 }
 
 ::PROTOBUF_NAMESPACE_ID::Metadata FamilyResponse::GetMetadata() const {
@@ -1032,6 +1007,7 @@ void FamilyResponse::InternalSwap(FamilyResponse* other) {
       &descriptor_table_helloworld_2eproto_getter, &descriptor_table_helloworld_2eproto_once,
       file_level_metadata_helloworld_2eproto[3]);
 }
+
 // @@protoc_insertion_point(namespace_scope)
 }  // namespace helloworld
 PROTOBUF_NAMESPACE_OPEN
@@ -1052,5 +1028,6 @@ Arena::CreateMaybeMessage< ::helloworld::FamilyResponse >(Arena* arena) {
   return Arena::CreateMessageInternal< ::helloworld::FamilyResponse >(arena);
 }
 PROTOBUF_NAMESPACE_CLOSE
+
 // @@protoc_insertion_point(global_scope)
-#include "google/protobuf/port_undef.inc"
+#include <google/protobuf/port_undef.inc>

@@ -8,7 +8,7 @@ include_directories(../)
 include_directories(../../../)
 
 find_package(gRPC REQUIRED)
-add_executable(grpc-server-example main.cpp ../common/helloworld.grpc.pb.cc ../common/helloworld.pb.cc)
+add_executable(grpc-server-example main.cpp ../common/helloworld.pb.cc ../common/helloworld.grpc.pb.cc)
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     target_link_libraries(grpc-server-example grpc::grpc cgo)

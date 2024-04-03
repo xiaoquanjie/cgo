@@ -1,4 +1,4 @@
-//
+﻿//
 // Created by xiaoqj on 2023/5/16.
 //
 
@@ -11,7 +11,7 @@
 #undef GoRun
 #define GoRun go
 
-namespace co_grpc {
+namespace cogrpc {
 
     struct NormalRunner {
         void operator()(std::function<void()> op) {
@@ -45,7 +45,7 @@ namespace co_grpc {
 
     struct CoLooper {
         void operator()(std::function<void()> op) {
-            std::thread(op).detach();
+            std::thread(std::move(op)).detach();
             //cgoloop(op);
         }
     };

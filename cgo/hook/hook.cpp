@@ -1,6 +1,7 @@
 ﻿#include "hook.h"
 #include "epoll_iocp.h"
 #include "scheduler/scheduler.h"
+#include "common/macro.h"
 #include <stdexcept>
 
 #define M_SET_STATE(data, state) data->co_id = cgo::scheduler::cur_coid(); data->flag |= cgo::hook::state;
@@ -316,7 +317,9 @@ struct hostent* gethostbyname(const char *name) {
 typedef unsigned int(*sleep_hook_t)(unsigned int seconds);
 static sleep_hook_t sleep_hook = nullptr;
 unsigned int sleep(unsigned int seconds) {
-    if (cgo::scheduler::cur_coid() == (uint64_t)-1) {
+    if (seconds <= 0
+        || seconds > M_MAX_CO_WAIT_TIME
+        || cgo::scheduler::cur_coid() == (uint64_t)-1) {
         return sleep_hook(seconds);
     }
 
@@ -328,7 +331,9 @@ unsigned int sleep(unsigned int seconds) {
 typedef int (*usleep_hook_t)(useconds_t usec);
 static usleep_hook_t usleep_hook = nullptr;
 int usleep(useconds_t microseconds) {
-    if (cgo::scheduler::cur_coid() == (uint64_t)-1) {
+    if (microseconds <= 0
+        || (microseconds/1000) > (M_MAX_CO_WAIT_TIME*1000)
+        || cgo::scheduler::cur_coid() == (uint64_t)-1) {
         return usleep_hook(microseconds);
     }
 
@@ -971,7 +976,9 @@ struct hostent FAR * PASCAL FAR hook_gethostbyname(_In_z_ const char FAR * name)
 typedef void (WINAPI *sleep_hook_t)(_In_ DWORD dwMilliseconds);
 static sleep_hook_t sleep_hook = nullptr;
 void WINAPI hook_sleep(_In_ DWORD dwMilliseconds) {
-    if (cgo::scheduler::cur_coid() == (uint64_t)-1) {
+    if (dwMilliseconds <= 0
+        || dwMilliseconds > (M_MAX_CO_WAIT_TIME * 1000)
+        || cgo::scheduler::cur_coid() == (uint64_t)-1) {
         sleep_hook(dwMilliseconds);
     }
     else {
