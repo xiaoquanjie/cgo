@@ -169,7 +169,7 @@ namespace cgo {
                     auto item = new co_pool_item;
                     item->_fn.swap(task->_fn);
                     item->_co_id = coro_adapter::create_co([item]{
-                        void* tmp;
+                        void* tmp = nullptr;
                         for (;;) {
                             if (!item->_fn) break;
                             item->_fn();

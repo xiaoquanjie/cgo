@@ -66,8 +66,10 @@ template<typename Payload, int MaxInterval>
 typename TimePoolInfo<Payload, MaxInterval>::node_list** alloc_small_bucket(uint32_t smallbucket) {
     auto small = new typename TimePoolInfo<Payload, MaxInterval>::node_list*[smallbucket];
     assert(small);
-    for (uint32_t idx = 0; idx < smallbucket; idx++) {
-        small[idx] = nullptr;
+    if (small) {
+        for (uint32_t idx = 0; idx < smallbucket; idx++) {
+            small[idx] = nullptr;
+        }
     }
     return small;
 }
