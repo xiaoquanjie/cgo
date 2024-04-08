@@ -544,7 +544,7 @@ namespace cgo {
             this->on_release();
         }
 
-        _scheduler_st_::_scheduler_st_() : _watcher(&_scheduler_st_::watch_func), _time_pool(&notify_wait, M_MAX_CO_WAIT_TIME) {
+        _scheduler_st_::_scheduler_st_() : _watcher(&_scheduler_st_::watch_func), _time_pool(&notify_wait) {
             _max_thr_cnt = (int)(std::thread::hardware_concurrency() * M_MAX_PROCS_FACTOR);
             _core_thr_cnt = (int)(_max_thr_cnt * M_CORE_POOL_FACTOR);
             _global_tqueue = new _schedule_global_queue_st_;

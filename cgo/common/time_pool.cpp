@@ -14,7 +14,7 @@
 #include <cassert>
 
 template<typename Payload, int MaxInterval>
-bool init_tpool(TimePoolInfo<Payload, MaxInterval> * info, uint32_t max_interval) {
+bool init_tpool(TimePoolInfo<Payload, MaxInterval> * info) {
     info->_bigbucket = MaxInterval;
     info->_begtime = std::chrono::steady_clock::now();
 
@@ -112,7 +112,7 @@ bool update_tpool(TimePoolInfo<Payload, MaxInterval> * info, typename TimePoolIn
         }
 
         for (auto iter = nl->begin(); iter != nl->end();) {
-            auto& node = (*iter);
+            auto node = (*iter);
             if (node->expire <= expire) {
                 info->_count--;
                 info->_notify_node(node);
@@ -195,8 +195,8 @@ void time_pool::notify_node(Node* node) {
     node->payload();
 }
 
-time_pool::time_pool(uint32_t max_interval) {
-    init_tpool(&this->_info, max_interval);
+time_pool::time_pool() {
+    init_tpool(&this->_info);
     this->_info._notify_node = &time_pool::notify_node;
 }
 
@@ -232,8 +232,8 @@ void async_time_pool::notify_node(Node* node) {
     node->payload();
 }
 
-async_time_pool::async_time_pool(uint32_t max_interval) {
-    init_tpool(&this->_info, max_interval);
+async_time_pool::async_time_pool() {
+    init_tpool(&this->_info);
     this->_info._notify_node = &async_time_pool::notify_node;
 }
 
@@ -273,8 +273,8 @@ uint64_t async_time_pool::add_timer(uint32_t interval, const Payload& func) {
     return node->id;
 }
 
-integer_async_time_pool::integer_async_time_pool(void(*notify)(Node*), uint32_t max_interval) {
-    init_tpool(&_info, max_interval);
+integer_async_time_pool::integer_async_time_pool(void(*notify)(Node*)) {
+    init_tpool(&_info);
     _info._notify_node = notify;
 }
 

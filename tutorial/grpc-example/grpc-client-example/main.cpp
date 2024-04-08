@@ -19,79 +19,89 @@ public:
 
 };
 
+void unary_test(GreeterClient& client) {
+    helloworld::HelloRequest req;
+    req.set_name("myname");
+    helloworld::HelloReply rsp;
+    auto s = client.SayHello(nullptr, req, &rsp);
+    if (GRPC_OK(s)) {
+        std::cout << "unary SayHello: " << rsp.ShortDebugString() << "\n";
+    } else {
+        std::cout << GRPC_MSG(s) << "\n";
+    }
+}
 
+void double_test(GreeterClient& client) {
+    helloworld::FamilyRequest req;
+    req.set_family("myfamily");
+    helloworld::FamilyResponse rsp;
+    auto rw = client.ListName(nullptr);
+    if (rw) {
+        rw->Write(req);
+        if (rw->Read(&rsp)) {
+            std::cout << "double stream ListName: " << rsp.ShortDebugString() << "\n";
+        } else {
+            std::cout << "ListName stream read error\n";
+        }
+    } else {
+        std::cout << "get ListName stream error\n";
+    }
+}
+
+void client_test(GreeterClient& client) {
+    helloworld::HelloRequest req;
+    helloworld::HelloReply rsp;
+    req.set_name("ClientStreamSayHello");
+    auto w = client.ClientStreamSayHello(nullptr, &rsp);
+    return;
+    if (w) {
+        if (w->Write(req)) {
+            w->Finish();
+            std::cout << "client stream ClientStreamSayHello: " << rsp.ShortDebugString() << "\n";
+        } else {
+            std::cout << "ClientStreamSayHello stream write error\n";
+        }
+    } else {
+        std::cout << "get ClientStreamSayHello stream error\n";
+    }
+
+    std::cout << "use count:" << w.use_count() << "\n";
+}
+
+void serve_test(GreeterClient& client) {
+    helloworld::HelloRequest req;
+    req.set_name("ServerStreamSayHello");
+    helloworld::HelloReply rsp;
+    auto r = client.ServerStreamSayHello(nullptr, req);
+    if (r) {
+        if (r->Read(&rsp)) {
+            std::cout << "server stream ServerStreamSayHello: " << rsp.ShortDebugString() << "\n";
+        } else {
+            std::cout << "ServerStreamSayHello stream read error\n";
+        }
+    } else {
+        std::cout << "get ServerStreamSayHello stream error\n";
+    }
+}
 
 int main() {
-    go [] {
+    cgo::WaitGroup wg;
+    wg.Add(1);
+
+    go [&wg]
+    {
         GreeterClient client;
         client.Bind("127.0.0.1:10052", "");
 
-        {
-            helloworld::HelloRequest req;
-            req.set_name("myname");
-            helloworld::HelloReply rsp;
-            auto s = client.SayHello(nullptr, req, &rsp);
-            if (GRPC_OK(s)) {
-                std::cout << "unary SayHello: " << rsp.ShortDebugString() << "\n";
-            } else {
-                std::cout << GRPC_MSG(s) << "\n";
-            }
-        }
+        //unary_test(client);
+        client_test(client);
+        //serve_test(client);
 
-//        {
-//            helloworld::FamilyRequest req;
-//            req.set_family("myfamily");
-//            helloworld::FamilyResponse rsp;
-//            auto rw = client.ListName(nullptr);
-//            if (rw) {
-//                rw->Write(req);
-//                if (rw->Read(&rsp)) {
-//                    std::cout << "double stream ListName: " << rsp.ShortDebugString() << "\n";
-//                } else {
-//                    std::cout << "ListName stream read error\n";
-//                }
-//            } else {
-//                std::cout << "get ListName stream error\n";
-//            }
-//            rw.reset();
-//        }
 
-        {
-            helloworld::HelloRequest req;
-            helloworld::HelloReply rsp;
-            req.set_name("ClientStreamSayHello");
-            auto w = client.ClientStreamSayHello(nullptr, &rsp);
-            if (w) {
-                if (w->Write(req)) {
-                    w->Finish();
-                    std::cout << "client stream ClientStreamSayHello: " << rsp.ShortDebugString() << "\n";
-                } else {
-                    std::cout << "ClientStreamSayHello stream write error\n";
-                }
-            } else {
-                std::cout << "get ClientStreamSayHello stream error\n";
-            }
-        }
-
-        {
-            helloworld::HelloRequest req;
-            req.set_name("ServerStreamSayHello");
-            helloworld::HelloReply rsp;
-            auto r = client.ServerStreamSayHello(nullptr, req);
-            if (r) {
-                if (r->Read(&rsp)) {
-                    std::cout << "server stream ServerStreamSayHello: " << rsp.ShortDebugString() << "\n";
-                } else {
-                    std::cout << "ServerStreamSayHello stream read error\n";
-                }
-            } else {
-                std::cout << "get ServerStreamSayHello stream error\n";
-            }
-        }
+        std::cout << "over\n";
+        wg.Done();
     };
 
-    while (true) {
-        msleep(1000);
-    }
+    wg.Wait();
     return 0;
 }
