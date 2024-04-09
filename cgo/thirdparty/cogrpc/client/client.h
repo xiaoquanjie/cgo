@@ -69,8 +69,8 @@ namespace cogrpc {
 
     public:
         CoClient() {
-            this->cq_ = DefCliBuilder()->GetQueue();
             DefCliBuilder()->StartLoop();
+            this->cq_ = DefCliBuilder()->GetQueue();
         }
 
     protected:
@@ -132,8 +132,8 @@ namespace cogrpc {
             }
 
             // response的生命令周期由writer来接管
-            auto writer = std::make_shared<ClientStreamWriter<Request, Response, Responder>>
-                (responder, context, rsp, response);
+            GRPC_CLIENT_WRITER(Request, Response) writer(new ClientStreamWriter<Request, Response, Responder>
+                (responder, context, rsp, response));
             return writer;
         }
 

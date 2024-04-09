@@ -65,7 +65,7 @@ namespace cogrpc {
     struct CoScopedLock {
         CoMutex& mu_;
 
-        CoScopedLock(CoMutex& mu) : mu_(mu) {
+        explicit CoScopedLock(CoMutex& mu) : mu_(mu) {
             mu.lock();
         }
 
@@ -77,7 +77,7 @@ namespace cogrpc {
     template<typename T>
     struct PointScoped {
         T* data_;
-        PointScoped(T* p) : data_(p) {}
+        explicit PointScoped(T* p) : data_(p) {}
         ~PointScoped() { delete data_; }
         T* operator->() { return data_;}
     };

@@ -11,61 +11,90 @@
 #include <cassert>
 #include <memory>
 #include <chrono>
+#include <cstdlib>
 #include "clientdata.h"
 #include "channel.h"
 
 namespace cogrpc {
+    class ClientBuilder;
+    ClientBuilder* DefCliBuilder();
 
-// 管理着客户端.
-class ClientBuilder {
-public:
-    ~ClientBuilder() {
-        cq_.Shutdown();
-    }
+    // 管理着客户端.
+    class ClientBuilder {
+    public:
+        ClientBuilder() {
+            wg_.Add(1);
+        }
 
-    ::grpc::CompletionQueue* GetQueue() {
-        return &this->cq_;
-    }
+        ::grpc::CompletionQueue* GetQueue() {
+            return &this->cq_;
+        }
 
-    void StartLoop() {
-        std::call_once(once_, [this](){
-             CoLooper()([this](){
-                 this->Loop(0);
-             });
-        });
-    }
+        void StartLoop() {
+            std::call_once(once_, [this](){
+                CoLooper()([this](){
+                    this->Loop(0);
+                });
+            });
+        }
 
-protected:
-    void Loop(uint32_t) {
-        // uniquely identifies a request.
-        void* tag = nullptr;
-        bool ok = false;
-        bool shutdown = false;
+        void Stop() {
+            this->stop_ = true;
+            StopQueue();
+            wg_.Wait();
+        }
 
-        for (;;) {
-            tag = nullptr;
-            ok = false;
-            shutdown = false;
+    protected:
+        static void SStop() {
+            DefCliBuilder()->Stop();
+        }
 
-            shutdown = !this->cq_.Next(&tag, &ok);
+        void Loop(uint32_t) {
+            std::atexit(&ClientBuilder::SStop);
+            for (;;) {
+                if (this->stop_) {
+                    break;
+                }
+                PickMsg();
+            }
+            wg_.Done();
+        }
+
+        void StopQueue() {
+            this->cq_.Shutdown();
+            // 排干事件.
+            while (true) {
+                if (!PickMsg()) {
+                    break;
+                }
+            }
+        }
+
+        bool PickMsg() {
+            void* tag = nullptr;
+            bool ok = false;
+
+            bool shutdown = !this->cq_.Next(&tag, &ok);
             if (!tag) {
-                assert(false);
+                return false;
             }
 
-            // ok为true表示事件成功，false表示事件失败
+            // ok为true表示事件成功,false表示事件失败.
             static_cast<ICallData*>(tag)->doResponse(shutdown, ok);
+            return true;
         }
+
+    private:
+        bool stop_ = false;
+        cgo::WaitGroup wg_;
+        ::grpc::CompletionQueue cq_;
+        std::once_flag once_;
+    };
+
+    // 默认的客户端builder
+    inline ClientBuilder* DefCliBuilder() {
+        static ClientBuilder builder;
+        return &builder;
     }
-
-private:
-    ::grpc::CompletionQueue cq_;
-    std::once_flag once_;
-};
-
-// 默认的客户端builder
-inline ClientBuilder* DefCliBuilder() {
-    static ClientBuilder builder;
-    return &builder;
-}
 
 }

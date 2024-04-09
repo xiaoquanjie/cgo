@@ -2,8 +2,8 @@
 // Created by xiaoqj on 2024/4/2.
 //
 
-#include <cgo/thirdparty/cogrpc/cogrpc.h>
 #include "common/helloworld.grpc.pb.h"
+#include <cgo/thirdparty/cogrpc/cogrpc.h>
 
 class GreeterClient : public cogrpc::Client<helloworld::Greeter> {
 public:
@@ -53,7 +53,6 @@ void client_test(GreeterClient& client) {
     helloworld::HelloReply rsp;
     req.set_name("ClientStreamSayHello");
     auto w = client.ClientStreamSayHello(nullptr, &rsp);
-    return;
     if (w) {
         if (w->Write(req)) {
             w->Finish();
@@ -64,8 +63,6 @@ void client_test(GreeterClient& client) {
     } else {
         std::cout << "get ClientStreamSayHello stream error\n";
     }
-
-    std::cout << "use count:" << w.use_count() << "\n";
 }
 
 void serve_test(GreeterClient& client) {
@@ -91,12 +88,12 @@ int main() {
     go [&wg]
     {
         GreeterClient client;
-        client.Bind("127.0.0.1:10052", "");
+        client.Bind("127.0.0.1:8080", "");
 
-        //unary_test(client);
+        unary_test(client);
+        double_test(client);
         client_test(client);
-        //serve_test(client);
-
+        serve_test(client);
 
         std::cout << "over\n";
         wg.Done();

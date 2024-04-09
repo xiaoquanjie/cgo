@@ -55,7 +55,7 @@ public:
 };
 
 int main() {
-    cogrpc::DefSrvBuilder()->AddListeningPort("0.0.0.0:50052");
+    cogrpc::DefSrvBuilder()->AddListeningPort("0.0.0.0:8080");
     cogrpc::DefSrvBuilder()->RegisterService<GreeterServer>();
     cogrpc::DefSrvBuilder()->Run();
 

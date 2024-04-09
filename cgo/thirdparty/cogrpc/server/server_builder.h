@@ -17,6 +17,8 @@
 #include "interceptor.h"
 
 namespace cogrpc {
+    class ServerBuilder;
+    ServerBuilder* DefSrvBuilder();
 
     template<class T>
     struct GrpcInitOnce {
@@ -43,10 +45,6 @@ namespace cogrpc {
 
     class ServerBuilder {
     public:
-        ~ServerBuilder() {
-            Stop();
-        }
-
         ServerBuilder() {
             GrpcInitOnce<ServerBuilder>::Init();
             cq_ = builder_.AddCompletionQueue();
@@ -116,66 +114,65 @@ namespace cogrpc {
             for (auto& mp : service_map_) {
                 mp.second->InitMethod();
             }
+
+            wg_.Add(1);
         }
 
         virtual void OnStop() {
-            if (server_) {
-                server_->Shutdown();
+            // not start
+            if (!server_) {
+                return;
             }
-            if (cq_) {
-                StopQueue(cq_.get());
-            }
+
             this->stop_ = true;
+            server_->Shutdown();
+            StopQueue();
+            wg_.Wait();
         }
 
-        bool Loop(uint32_t) {
-            // uniquely identifies a request.
-            void* tag = nullptr;
-            bool ok = false;
-            bool shutdown = false;
+        static void SStop() {
+            DefSrvBuilder()->Stop();
+        }
+
+        void Loop(uint32_t) {
+            std::atexit(&ServerBuilder::SStop);
 
             for (;;) {
                 if (this->stop_) {
                     break;
                 }
-                tag = nullptr;
-                ok = false;
-                shutdown = false;
-
-                shutdown = !this->cq_->Next(&tag, &ok);
-                if (!tag) {
-                    assert(false);
-                }
-
-                // ok为true表示事件成功,false表示事件失败.
-                static_cast<ICallData*>(tag)->doResponse(shutdown, ok);
+                PickMsg();
             }
-
-            return true;
+            wg_.Done();
         }
 
-        void StopQueue(::grpc::ServerCompletionQueue* cq) {
-            if (!cq) {
-                return;
-            }
-
-            cq->Shutdown();
-
+        void StopQueue() {
+            this->cq_->Shutdown();
             // 排干事件.
             while (true) {
-                void* tag = nullptr;  // uniquely identifies a request.
-                bool ok = false;
-                cq->Next(&tag, &ok);
-                if (!tag) {
+                if (!PickMsg()) {
                     break;
-                } else {
-                    static_cast<ICallData*>(tag)->doResponse(true, true);
                 }
             }
+        }
+
+        bool PickMsg() {
+            void* tag = nullptr;
+            bool ok = false;
+
+            bool shutdown = !this->cq_->Next(&tag, &ok);
+            if (!tag) {
+                return false;
+            }
+
+            // ok为true表示事件成功,false表示事件失败.
+            static_cast<ICallData*>(tag)->doResponse(shutdown, ok);
+            return true;
         }
 
     protected:
         bool stop_ = false;
+        cgo::WaitGroup wg_;
         ::grpc::ServerBuilder builder_;
         std::unique_ptr<::grpc::Server> server_;
         std::unique_ptr<::grpc::ServerCompletionQueue> cq_;
@@ -187,11 +184,10 @@ namespace cogrpc {
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-inline ServerBuilder* DefSrvBuilder() {
-    static auto builder = new ServerBuilder;
-    return builder;
-}
-
+    inline ServerBuilder* DefSrvBuilder() {
+        static auto builder = new ServerBuilder;
+        return builder;
+    }
 
 }
 

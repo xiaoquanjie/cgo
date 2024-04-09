@@ -158,9 +158,9 @@ namespace cogrpc {
     class ClientStreamWriter {
         typedef std::shared_ptr<::grpc::ClientContext> Context;
 
-        Responder responder_;
         ResponseType* outresponse_;
         PointScoped<ResponseType> newresponse_;
+        Responder responder_;
         Context ctx_;
         CoMutex mu_;
 
@@ -169,12 +169,16 @@ namespace cogrpc {
                            const Context& ctx,
                            ResponseType* outresponse,
                            ResponseType* newresponse)
-            : responder_(responder), newresponse_(newresponse)  {
+            : newresponse_(newresponse) {
             this->ctx_ = ctx;
             this->outresponse_ = outresponse;
+            responder_ = responder;
         }
 
-        ~ClientStreamWriter() = default;
+        ~ClientStreamWriter() {
+            // 非常重要这一句,否则会崩溃.
+            responder_.reset();
+        }
 
         // 协程安全
         bool Write(const RequestType& req) {
@@ -297,6 +301,8 @@ namespace cogrpc {
             ResponseType rsp;
             while(Read(&rsp));
             Finish();
+            // 非常重要这一句,否则会崩溃.
+            responder_.reset();
         }
 
         // 协程安全.
@@ -463,6 +469,8 @@ namespace cogrpc {
 
         ~ClientStreamReaderWriter() {
             Finish();
+            // 非常重要这一句,否则会崩溃.
+            responder_.reset();
         }
 
         // 协程安全.

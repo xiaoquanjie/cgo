@@ -8,5 +8,5 @@ out
 .vs
 .vscode
 cgo-vsproject
-.CMakeUserPresets.json
-.win-CMakeUserPresets.json
+CMakeUserPresets.json
+win-CMakeUserPresets.json
