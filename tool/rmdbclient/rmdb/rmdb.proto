@@ -1,0 +1,254 @@
+syntax = "proto3";
+package rmdb;
+
+import "meta.proto";
+
+option go_package="./;rmdb";
+
+enum ErrorCode {
+  OK = 0;                     // 成功.
+  FAIL = 1;                   // 失败.
+  DATA_NOT_EXIST = 2;         // 数据不存在.
+  DATA_ALREADY_EXIST = 3;     // 数据已存在.
+  ERR_ARG = 4;                // 参数错误.
+  TABLE_NOT_EXIST = 5;        // 表不存在, 已废弃.
+  ERR_DATA = 6;               // 表数据无法解析.
+  ERR_MOVE = 7;               // 需要重定向.
+  ERR_OFFLINE = 8;            // 系统下线.
+  ERR_INDEX = 9;              // 索引非法.
+  CLIENT_NOT_CONNECTED = 10;  // 客户端本地未连接上服务器.
+  ERR_TABLE_NAME = 11;        // 表名非法.
+  DB_NOT_CREATED = 12;        // 数据库未创建.
+  TABLE_NOT_CREATED = 13;     // 表未创建.
+  ERR_DB_NAME = 14;           // 数据库名非法.
+  ERR_INDEX_MISMATCH = 15;    // 索引不匹配.
+  ERR_DATA_REACH_LIMIT = 16;  // 条数太大,达到限制.
+  ERR_INDEX_DUPLICATED = 17;  // 索引重复.
+}
+
+// for test
+message TestPbData {
+  MetaData meta = 1;
+  string my_name = 2;
+  string youName = 3;
+  bytes binaryData = 4;
+}
+
+message StatusData {
+  ErrorCode code = 1;
+  string msg = 2;
+}
+
+message MetaAndData {
+  MetaData meta = 1;
+  bytes data = 2;
+}
+
+message StatusAndData {
+  StatusData status = 1;
+  bytes data = 2;
+}
+
+// 设置数据.
+message SetDataReq {
+  MetaData meta = 1;
+  bytes data = 2;
+}
+
+message SetDataRsp {
+  StatusData status = 1;
+}
+
+// 不存在时才设置数据.
+message SetNxDataReq {
+  MetaData meta = 1;
+  bytes data = 2;
+}
+
+message SetNxDataRsp {
+  StatusData status = 1;
+}
+
+// 获取数据.
+message GetDataReq {
+  MetaData meta = 1;
+}
+
+message GetDataRsp {
+  StatusData status = 1;
+  bytes data = 2;
+}
+
+// 删除数据.
+message DelDataReq {
+  MetaData meta = 1;
+}
+
+message DelDataRsp {
+  StatusData status = 1;
+}
+
+// 更新数据.
+message UpdateDataReq {
+  MetaData  meta = 1;
+  bytes data = 2;
+}
+
+message UpdateDataRsp {
+  StatusData status = 1;
+}
+
+// 批量设置数据.
+message BatchSetDataReq {
+  repeated MetaAndData meta_and_data = 1;
+}
+
+message BatchSetDataRsp {
+  repeated StatusData status = 1;  // 请求里每个子请求对应的错误.
+}
+
+// 批量不存在时才设置数据.
+message BatchSetNxDataReq {
+  repeated MetaAndData meta_and_data = 1;
+}
+
+message BatchSetNxDataRsp {
+  repeated StatusData status = 1;
+}
+
+// 批量获取数据.
+message BatchGetDataReq {
+  repeated MetaData metas = 1;
+}
+
+message BatchGetDataRsp {
+  repeated StatusAndData status_and_data = 1;
+}
+
+// 批量删除数据.
+message BatchDelDataReq {
+  repeated MetaData metas = 1;
+}
+
+message BatchDelDataRsp {
+  repeated StatusData status = 1;
+}
+
+// 批量更新数据.
+message BatchUpdateDataReq {
+  repeated MetaAndData meta_and_data = 1;
+}
+
+message BatchUpdateDataRsp {
+  repeated StatusData status = 1;
+}
+
+// 请求集群信息.
+message ClusterInfoReq {
+}
+
+message ClusterInfoRsp {
+  uint32 slots = 1;
+  map<uint32, string> targets = 2;
+  bool online = 3;
+  uint32 slot = 4;
+}
+
+// 查询表条数.
+message GetDataCountReq {
+  string table = 1;
+  string db = 2;
+}
+
+message GetDataCountRsp {
+  int64 count = 1;
+  StatusData status = 2;
+}
+
+// 分页查询表的元数据.
+message GetMetaReq {
+  string table = 1;   // 表名.
+  uint32 cursor = 2;  // 游标.
+  uint32 count = 3;   // 期望条数.
+  string db = 4;
+}
+
+message GetMetaRsp {
+  uint32 next_cursor = 1; // 下一个游标.
+  repeated MetaData metas = 2;
+  StatusData status = 3;
+}
+
+// 匹配查找, 允许匹配一个或多个key值，跟get方法的精准匹配不一样.
+message MatchDataReq {
+  MetaData meta = 1;
+  uint32 count = 2;   // 最多条数, 0的话是默认.
+  uint32 cursor = 3;  // 游标.
+}
+
+message MatchDataRsp {
+  repeated MetaData metas = 1;
+  StatusData status = 2;
+  uint32 next_cursor = 3; // 下一个游标.
+}
+
+// 灵活的条件查找，值是符合mongo语法的bson格式filter.
+message FindDataReq {
+  MetaData meta = 1;
+  uint32 count = 2;         // 最多条数, 0的话是默认.
+  bytes key_filter = 3;     // 键值过滤条件.
+  bytes global_filter = 4;  // 全局过滤条件.
+  uint32 cursor = 7;        // 游标.
+}
+
+message FindDataRsp {
+  repeated bytes datas = 1;
+  StatusData status = 2;
+  uint32 next_cursor = 3; // 下一个游标.
+}
+
+message UpdateKeyReq {
+  MetaData meta = 1;
+  map<string, string> keys = 2; // 新的键值.
+}
+
+message UpdateKeyRsp {
+  StatusData status = 1;
+}
+
+service RmDb {
+  // 强制设置数据，不管数据是否存在.
+  rpc Set(SetDataReq) returns (SetDataRsp) {}
+  // 不存在时才设置数据.
+  rpc SetNx(SetNxDataReq) returns (SetNxDataRsp) {}
+  // 获取数据.
+  rpc Get(GetDataReq) returns (GetDataRsp) {}
+  // 删除数据.
+  rpc Del(DelDataReq) returns (DelDataRsp) {}
+  // 更新数据, 数据存在时才更新.
+  rpc Update(UpdateDataReq) returns (UpdateDataRsp) {}
+
+  // 批量操作.
+  rpc BatchSet(BatchSetDataReq) returns (BatchSetDataRsp) {}
+  rpc BatchSetNx(BatchSetNxDataReq) returns (BatchSetNxDataRsp) {}
+  rpc BatchGet(BatchGetDataReq) returns (BatchGetDataRsp) {}
+  rpc BatchDel(BatchDelDataReq) returns (BatchDelDataRsp) {}
+  rpc BatchUpdate(BatchUpdateDataReq) returns (BatchUpdateDataRsp) {}
+
+  // 获取表的条数.
+  rpc GetCount(GetDataCountReq) returns (GetDataCountRsp) {}
+
+  // 分页获取表的元数据.
+  rpc GetMeta(GetMetaReq) returns (GetMetaRsp) {}
+
+  // 集群信息.
+  rpc ClusterInfo(ClusterInfoReq) returns (ClusterInfoRsp) {}
+
+  // 匹配查找, 允许匹配一个或多个key值，跟get方法的精准匹配不一样.
+  rpc Match(MatchDataReq) returns (MatchDataRsp) {}
+  // 灵活查找，允许传递符合bson语法的查找条件。谨慎使用因为它的数据可能存在延迟.
+  rpc Find(FindDataReq) returns (FindDataRsp) {}
+
+  // 更新索引的值.
+  rpc UpdateKey(UpdateKeyReq) returns (UpdateKeyRsp) {}
+}

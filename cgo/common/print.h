@@ -15,7 +15,7 @@
 
 #ifndef M_CO_DEBUG_PRINT
 #include <cstdio>
-#define M_CO_DEBUG_PRINT co_printf //printf //
+#define M_CO_DEBUG_PRINT co_printf
 #endif
 
 template<typename... Args>

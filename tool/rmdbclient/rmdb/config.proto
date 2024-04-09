@@ -1,0 +1,14 @@
+syntax = "proto3";
+package rmdb;
+
+option go_package="./;rmdb";
+
+message RmdbUnit {
+  uint32 id = 1;
+  string addr = 2;
+}
+
+message RmdbConfig {
+  repeated RmdbUnit units = 1;
+}
+

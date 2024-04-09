@@ -854,7 +854,7 @@ namespace cgo {
                     if (work_thrs.empty() || q->secondclass_delay()) {
                         // 新起线程
                         if (!st.start_thread(q) && q->emergency()) {
-                            M_CO_DEBUG_PRINT("[cgo warning!!!] all working threads were occupied for a long time(over ten seconds), maybe dead lock or being blocked\n");
+                            M_CO_DEBUG_PRINT("[cgo warning!!!] all working threads were occupied for a long time(over ten seconds), maybe dead lock or being blocked %s", "\n");
                         }
                     }
                 }
@@ -950,7 +950,7 @@ namespace cgo {
         }
 
         void cgo_stop() {
-            M_CO_DEBUG_PRINT("[cgo debug] cgo stop\n");
+            M_CO_DEBUG_PRINT("[cgo debug] cgo stop %s", "\n");
             scheduler_inst().stop();
         }
 
