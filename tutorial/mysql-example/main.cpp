@@ -9,7 +9,7 @@ int main() {
     cgo::WaitGroup wg;
     for (int i = 0; i < 1; i++) {
         wg.Add(1);
-        go gostack(1024*64) [&wg] {
+        go [&wg] {
             try {
                 auto conn = comysql::MysqlPool::GetConnection("192.168.204.61", "root", "root", "test");
                 conn.Execute("drop table if exists mysql_test");

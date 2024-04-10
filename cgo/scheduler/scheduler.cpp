@@ -469,9 +469,12 @@ namespace cgo {
                     switch (task->_type) {
                         case _schedule_task_st_::RunCo: {
                             auto ntask = (_schedule_newco_task_st_*)task;
-                            if (ntask->_statck <= this->_scheduler->_default_stack) {
+                            if (ntask->_statck == 0 || ntask->_statck <= this->_scheduler->_default_stack) {
                                 this->_local_cpool.run(ntask, this->_scheduler->_default_stack);
                             } else {
+                                if (ntask->_statck < 1024 * 2) {
+                                    ntask->_statck = 1024 * 2;
+                                }
                                 coro_adapter::run_co(ntask->_fn, ntask->_statck, ntask->_f, ntask->_l);
                             }
                             delete ntask;

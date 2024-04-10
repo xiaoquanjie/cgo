@@ -34,7 +34,8 @@ namespace cgo::coroutine {
 #ifdef __GNUC__
         // init stack
         co->_stack = (char*) malloc(co->_ssize);
-        memset(co->_stack, 0, 8);
+        uint64_t* d = (uint64_t*)co->_stack;
+        *d = 0xFEFEFEFEFEFEFEFE;
 #endif
         gmem.add(sizeof(_co_st_));
         gmem.add(co->_ssize);
@@ -75,7 +76,7 @@ namespace cgo::coroutine {
 #ifdef __GNUC__
         assert(co->_stack);
         uint64_t* d = (uint64_t*)co->_stack;
-        assert(*d == 0);
+        assert(*d == 0xFEFEFEFEFEFEFEFE);
         return true;
 #else
         return true;

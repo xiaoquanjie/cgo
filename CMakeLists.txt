@@ -19,6 +19,11 @@ endif ()
 
 option(USE_RMDB "use rmdb" OFF)
 if (USE_RMDB)
-add_subdirectory(tool/rmdbclient)
-add_subdirectory(tutorial/rmdb-example)
+    add_subdirectory(tool/rmdbclient)
+    add_subdirectory(tutorial/rmdb-example)
+endif ()
+
+option(USE_OPENTELEMETRY "use opentelemetry" OFF)
+if (USE_OPENTELEMETRY)
+    add_subdirectory(tutorial/opentelemetry-example)
 endif ()

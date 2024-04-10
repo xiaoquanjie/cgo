@@ -42,7 +42,7 @@ namespace cgo::coroutine {
         win_init();
 
         auto co = new _co_st_;
-        assert(co != nullptr && stack >= M_PRIVATE_STACK_SIZE);
+        assert(co != nullptr);
 
         LPVOID ctx = ::CreateFiberEx(stack, 0, FIBER_FLAG_FLOAT_SWITCH, co_routine, co);
         assert(ctx);

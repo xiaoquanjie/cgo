@@ -21,11 +21,9 @@ enum CoroutineStatus {
 #undef M_INVALID_COROUTINE_ID
 #define M_INVALID_COROUTINE_ID (uint64_t)(-1)
 
+// 默认是32k,但是可以自定义小一点
 #undef M_PRIVATE_STACK_SIZE
-#define M_PRIVATE_STACK_SIZE 1024*16
-
-#undef GROWUP_COROUTINE
-#define GROWUP_COROUTINE (1024*100)
+#define M_PRIVATE_STACK_SIZE 1024*32
 
 #undef M_CO_IDLE_TIME
 #define M_CO_IDLE_TIME (2*60)
