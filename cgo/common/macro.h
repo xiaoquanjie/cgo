@@ -1,4 +1,4 @@
-/*----------------------------------------------------------------
+﻿/*----------------------------------------------------------------
 // Copyright 2021
 // All rights reserved.
 //
@@ -21,9 +21,9 @@ enum CoroutineStatus {
 #undef M_INVALID_COROUTINE_ID
 #define M_INVALID_COROUTINE_ID (uint64_t)(-1)
 
-// 默认是32k,但是可以自定义小一点
+// 默认是16k
 #undef M_PRIVATE_STACK_SIZE
-#define M_PRIVATE_STACK_SIZE 1024*32
+#define M_PRIVATE_STACK_SIZE 1024*16
 
 #undef M_CO_IDLE_TIME
 #define M_CO_IDLE_TIME (2*60)

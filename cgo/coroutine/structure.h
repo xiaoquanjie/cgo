@@ -57,13 +57,5 @@ namespace cgo {
 #else
         extern thread_local ucontext_t* volatile gmainctx;
 #endif
-
-        struct _memory_st_ {
-            std::atomic_int _mem = 0;
-            void add(size_t s);
-            void dec(size_t s);
-        };
-
-        extern _memory_st_ gmem;
     }
 }

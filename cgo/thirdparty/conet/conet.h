@@ -27,9 +27,9 @@ namespace conet {
         UDPAddr addr(network, ip, port);
         int fd = 0;
         if (addr.Ipv4()) {
-            fd = socket(AF_INET, SOCK_DGRAM, 0);
+            fd = (int)socket(AF_INET, SOCK_DGRAM, 0);
         } else {
-            fd = socket(AF_INET6, SOCK_DGRAM, 0);
+            fd = (int)socket(AF_INET6, SOCK_DGRAM, 0);
         }
 
         int optval = 1;
@@ -59,9 +59,9 @@ namespace conet {
         TCPAddr addr(network, ip, port);
         int fd = 0;
         if (addr.Ipv4()) {
-            fd = socket(AF_INET, SOCK_STREAM, 0);
+            fd = (int)socket(AF_INET, SOCK_STREAM, 0);
         } else {
-            fd = socket(AF_INET6, SOCK_STREAM, 0);
+            fd = (int)socket(AF_INET6, SOCK_STREAM, 0);
         }
 
         TCPAddr selfAddr("tcp", "0.0.0.0", 0);
@@ -83,9 +83,9 @@ namespace conet {
     DialUdp(const std::string& network) {
         int fd = 0;
         if (network == "udp" || network == "udp4") {
-            fd = socket(AF_INET, SOCK_DGRAM, 0);
+            fd = (int)socket(AF_INET, SOCK_DGRAM, 0);
         } else {
-            fd = socket(AF_INET6, SOCK_DGRAM, 0);
+            fd = (int)socket(AF_INET6, SOCK_DGRAM, 0);
         }
         return new UdpConn(network, fd);
     }

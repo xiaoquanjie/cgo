@@ -8,11 +8,12 @@
 //----------------------------------------------------------------*/
 
 #include "syntax.h"
-#include <stdint.h>
+#include <cstdint>
 
 namespace cgo {
     namespace scheduler {
         uint64_t cur_coid();
+        void schedule_serial_task(const std::function<void()>& routine, int stack);
         void schedule_task(const std::function<void()>& routine, int stack, const char* file, int line);
         void schedule_wait_signal(void*& data);
         void schedule_post_signal(uint64_t co_id, void* data);
@@ -24,7 +25,7 @@ namespace cgo {
         void cgo_default_stack(int stack);
     }
 
-    void _cgo_syntax_st_::operator >>(const std::function<void()>& routine) {
+    void _cgo_syntax_st_::operator >>(const std::function<void()>& routine) const {
         scheduler::schedule_task(routine, _stack, _file, _line);
     }
 
@@ -33,12 +34,16 @@ namespace cgo {
         return *this;
     }
 
+    void _cgo_stackful_syntax_st_::operator >>(const std::function<void()>& routine) const {
+        scheduler::schedule_serial_task(routine, _stack);
+    }
+
     unsigned long long cgo_cur_coid() {
         return scheduler::cur_coid();
     }
 
     void cgo_resume(unsigned long long co_id) {
-        scheduler::schedule_post_signal(co_id, 0);
+        scheduler::schedule_post_signal(co_id, nullptr);
     }
 
     void cgo_yield() {

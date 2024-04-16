@@ -41,7 +41,7 @@ namespace cgo::coroutine {
     uint64_t create(const std::function<void()> &routine, int stack) {
         win_init();
 
-        auto co = new _co_st_;
+        auto co = _co_st_::alloc(routine, stack);
         assert(co != nullptr);
 
         LPVOID ctx = ::CreateFiberEx(stack, 0, FIBER_FLAG_FLOAT_SWITCH, co_routine, co);
@@ -51,15 +51,12 @@ namespace cgo::coroutine {
             throw std::bad_alloc();
         }
 
-        _co_st_::init(co, routine, stack);
         co->_ctx = ctx;
         return co->get_coid();
     }
 
     // resume a coroutine, return the status of coroutine
     int resume(uint64_t co_id) {
-        win_init();
-
         if (gcurno != M_INVALID_COROUTINE_ID) {
             return COROUTINE_NONE;
         }
@@ -85,7 +82,7 @@ namespace cgo::coroutine {
                 return status;
             }
             default:
-                assert(false);
+                assert(co->_status != COROUTINE_SUSPEND && co->_status != COROUTINE_READY);
                 break;
         }
 

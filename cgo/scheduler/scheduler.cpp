@@ -14,7 +14,6 @@
 #include "common/concurrentqueue.h"
 #include "common/work_steal_queue.hpp"
 #include "common/semaphore.h"
-#include <memory>
 #include <thread>
 #include <shared_mutex>
 #include <vector>
@@ -29,12 +28,11 @@ namespace cgo {
         void resume_co(uint64_t co_id);
         void co_wait_signal(void*& data);
         void co_post_signal(uint64_t co_id, void* data);
-        void yield_co(void*& data);
-        void yield_co();
         void run_co(const std::function<void()>& routine, int stack, const char* file, int line);
         uint64_t cur_coid();
         void co_hook(bool enable);
         bool co_hook();
+        int co_stack(uint64_t co_id);
     }
 
     namespace scheduler {
@@ -469,7 +467,7 @@ namespace cgo {
                     switch (task->_type) {
                         case _schedule_task_st_::RunCo: {
                             auto ntask = (_schedule_newco_task_st_*)task;
-                            if (ntask->_statck == 0 || ntask->_statck <= this->_scheduler->_default_stack) {
+                            if (ntask->_statck == 0 || ntask->_statck == this->_scheduler->_default_stack) {
                                 this->_local_cpool.run(ntask, this->_scheduler->_default_stack);
                             } else {
                                 if (ntask->_statck < 1024 * 2) {
@@ -625,8 +623,9 @@ namespace cgo {
             this->_thrs_mu.unlock();
 
             auto st = _schedule_thread_st_::create(this, generate_work_id++, fromq);
-            std::function<void()> work = std::bind(&_scheduler_st_::work_func, st);
-            st->_thr = new std::thread(work);
+            st->_thr = new std::thread([st] {
+                _scheduler_st_::work_func(st);
+            });
             this->add_work_thread(st);
             return true;
         }
@@ -998,6 +997,25 @@ namespace cgo {
             return coro_adapter::cur_coid();
         }
 
+        void schedule_serial_task(const routine_fn& routine, int stack) {
+            auto cid = cur_coid();
+            if (cid == M_INVALID_COROUTINE_ID) {
+                throw std::runtime_error("not running in coroutine");
+            }
+
+            auto originsize = coro_adapter::co_stack(cid);
+            if (stack <= originsize) {
+                throw std::runtime_error("coroutine stack space is too small");
+            }
+
+            schedule_task([cid, routine] {
+                routine();
+                scheduler::schedule_post_signal(cid, nullptr);
+            }, stack, nullptr, 0);
+
+            schedule_wait_signal();
+        }
+
         // thread-safety
         void schedule_task(const routine_fn& routine, int stack, const char* file, int line) {
             auto task = new _schedule_newco_task_st_;
@@ -1007,10 +1025,6 @@ namespace cgo {
             task->_l = line;
             task->_type = _schedule_task_st_::RunCo;
             add_global_task(task);
-        }
-
-        void schedule_yield() {
-            coro_adapter::yield_co();
         }
 
         void schedule_wait_signal() {
@@ -1028,16 +1042,6 @@ namespace cgo {
             task->_co_id = co_id;
             task->_data = data;
             task->_type = _schedule_task_st_::PostSignal;
-            add_global_task(task);
-        }
-
-        // thread-safety
-        void schedule_co(uint64_t co_id) {
-            assert(co_id != M_INVALID_COROUTINE_ID);
-            auto task = new _schedule_comm_task_st_;
-            task->_co_id = co_id;
-            task->_data = nullptr;
-            task->_type = _schedule_task_st_::ResumeCo;
             add_global_task(task);
         }
 

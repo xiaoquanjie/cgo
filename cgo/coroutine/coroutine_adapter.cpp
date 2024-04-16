@@ -21,6 +21,7 @@
 #define M_CUR_COID() coroutine::curid()
 #define M_RESUME_CO(co_id) coroutine::resume(co_id)
 #define M_DELETE_CO(co_id, info) delete info;
+#define M_CO_STACK(co_id) coroutine::stack_size(co_id)
 #elif defined(USE_MINI_CORO)
 #define M_YIELD_CO(co_id) {mco_coro* co = (mco_coro*)uintptr_t(co_id); mco_yield(co);}
 #define M_GET_MULTI_INFO(co_id) (co_multiplexing_info*)mco_get_user_data((mco_coro*)uintptr_t(co_id))
@@ -29,6 +30,7 @@
 #define COROUTINE_SUSPEND MCO_SUSPENDED
 #define COROUTINE_DEAD MCO_DEAD
 #define M_DELETE_CO(co_id, info) delete info; mco_destroy((mco_coro*)uintptr_t(co_id));
+#define M_CO_STACK(co_id) ((mco_coro*)uintptr_t(co_id))->coro_size
 #endif
 
 #define M_LOCK_CO(info) info->spinlock.lock()
@@ -68,7 +70,6 @@ namespace cgo::coro_adapter {
         }
 #endif
 
-    // 曾考虑过这里是否要使用协程池，但经过测试发现协程池也只能提升10%左右的性能(只测试了linux下的性能)，因此暂时没有动机添加协程池
     uint64_t create_co(const std::function<void()>& routine, int stack, const char* file, int line) {
         uint64_t co_id = 0;
         auto info = new co_multiplexing_info;
@@ -81,13 +82,13 @@ namespace cgo::coro_adapter {
         coroutine::set_udata(co_id, info);
 #elif defined(USE_MINI_CORO)
         mco_desc desc = mco_desc_init(minicoro_routine, stack);
-            info->routine = routine;
-            desc.user_data = (void*)info;
+        info->routine = routine;
+        desc.user_data = (void*)info;
 
-            mco_coro* co;
-            mco_result res = mco_create(&co, &desc);
-            assert(res == MCO_SUCCESS);
-            co_id = (uintptr_t)(co);
+        mco_coro* co;
+        mco_result res = mco_create(&co, &desc);
+        assert(res == MCO_SUCCESS);
+        co_id = (uintptr_t)(co);
 #else
 #pragma message("no coroutine implement")
 #endif
@@ -150,11 +151,6 @@ namespace cgo::coro_adapter {
         }
     }
 
-    void yield_co() {
-        auto co_id = M_CUR_COID();
-        M_YIELD_CO(co_id);
-    }
-
     void run_co(const std::function<void()>& routine, int stack, const char* file, int line) {
         auto co_id = create_co(routine, stack, file, line);
         resume_co(co_id);
@@ -178,5 +174,9 @@ namespace cgo::coro_adapter {
         auto co_id = M_CUR_COID();
         auto info = M_GET_MULTI_INFO(co_id);
         return info->hook;
+    }
+
+    int co_stack(uint64_t co_id) {
+        return M_CO_STACK(co_id);
     }
 }

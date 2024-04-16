@@ -12,8 +12,6 @@
 #include <functional>
 
 namespace cgo::coroutine {
-    extern thread_local volatile uint64_t gcurno;
-
     // create one new coroutine
     uint64_t create(const std::function<void()> &routine, int stack = 0);
 
@@ -29,10 +27,7 @@ namespace cgo::coroutine {
     // yield
     void yield();
 
-    inline uint64_t curid() {
-        uint64_t id = gcurno;
-        return id;
-    }
+    uint64_t curid();
 
     void run(const std::function<void()> &routine, int stack);
 
@@ -40,6 +35,5 @@ namespace cgo::coroutine {
     // when routine return, the coroutine will be destroyed
     void run(const std::function<void()> &routine);
 
-    // memory in used
-    int memory();
+    int stack_size(uint64_t co_id);
 }

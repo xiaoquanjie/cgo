@@ -16,7 +16,7 @@ TEST(cgo_mutex_test, 1) {
     for (int i = 0 ; i < loop_count; i++) {
         wg.Add(1);
         // 这里性能表现不好.需要排查一下原因,可能是因为内存分配的原因.
-        go gostack(1024) [&mu, &count, &wg] {
+        go [&mu, &count, &wg] {
             mu.lock();
             count++;
             mu.unlock();

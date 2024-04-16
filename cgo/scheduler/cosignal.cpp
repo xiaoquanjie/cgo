@@ -57,13 +57,13 @@ namespace cgo {
     }
 
     void co_signal::post() {
-        post(0);
+        post(nullptr);
     }
 
     void co_signal::close() {
         if (_sig) {
             delete (co_sig*)_sig;
-            _sig = 0;
+            _sig = nullptr;
         }
     }
 }

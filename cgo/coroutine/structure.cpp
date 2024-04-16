@@ -16,13 +16,18 @@
 #endif
 
 namespace cgo::coroutine {
+    uint64_t curid() {
+        uint64_t id = gcurno;
+        return id;
+    }
+
     uint64_t _co_st_::get_coid() {
         return get_coid(this);
     }
 
     _co_st_* _co_st_::alloc(const std::function<void()>& routine, int stack) {
         auto co = new _co_st_;
-        assert(co != nullptr && stack >= M_PRIVATE_STACK_SIZE);
+        assert(co != nullptr && stack >= 1024*2);
         return init(co, routine, stack);
     }
 
@@ -37,23 +42,20 @@ namespace cgo::coroutine {
         uint64_t* d = (uint64_t*)co->_stack;
         *d = 0xFEFEFEFEFEFEFEFE;
 #endif
-        gmem.add(sizeof(_co_st_));
-        gmem.add(co->_ssize);
         return co;
     }
 
     void _co_st_::free(_co_st_ *co) {
-        assert(co != nullptr);
+        if (co) {
 #ifdef __GNUC__
-        if (co->_stack) {
-            // call global free
-            ::free(co->_stack);
-        }
+        // call global free
+        ::free(co->_stack);
 #else
         DeleteFiber(co->_ctx);
 #endif
-        gmem.dec(sizeof(_co_st_));
-        gmem.dec(co->_ssize);
+        } else {
+            assert(false);
+        }
         delete co;
     }
 
@@ -63,12 +65,12 @@ namespace cgo::coroutine {
     }
 
     _co_st_* _co_st_::get_co(uint64_t co_id) {
-        _co_st_* co = (_co_st_*)uintptr_t(co_id);
+        auto co = (_co_st_*)uintptr_t(co_id);
         return co;
     }
 
     uint64_t _co_st_::get_coid(_co_st_* co) {
-        uintptr_t co_id = (uintptr_t)co;
+        auto co_id = (uintptr_t)co;
         return (uint64_t)co_id;
     }
 
@@ -83,14 +85,6 @@ namespace cgo::coroutine {
 #endif
     }
 
-    void _memory_st_::add(size_t s) {
-        this->_mem += (int)s;
-    }
-
-    void _memory_st_::dec(size_t s) {
-        this->_mem -= (int)s;
-    }
-
     thread_local volatile uint64_t gcurno = M_INVALID_COROUTINE_ID;
 #ifdef _MSC_VER
     thread_local LPVOID volatile gmainctx = nullptr;
@@ -98,6 +92,4 @@ namespace cgo::coroutine {
     static thread_local ucontext_t glocal_mainctx;
     thread_local ucontext_t* volatile gmainctx = &glocal_mainctx;
 #endif
-
-    _memory_st_ gmem;
 }

@@ -27,8 +27,6 @@ namespace cgo::coro_adapter {
     // 协程投递信号量
     void co_post_signal(uint64_t co_id, void* data);
 
-    void yield_co();
-
     void run_co(const std::function<void()>& routine, int stack = 0, const char* file = nullptr, int line = 0);
 
     uint64_t cur_coid();
@@ -36,4 +34,6 @@ namespace cgo::coro_adapter {
     void co_hook(bool enable);
 
     bool co_hook();
+
+    int co_stack(uint64_t co_id);
 }

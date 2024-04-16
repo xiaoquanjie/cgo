@@ -46,9 +46,12 @@ namespace cgo::coroutine {
         run(routine, 0);
     }
 
-    int memory() {
-        return gmem._mem;
+    int stack_size(uint64_t co_id) {
+        auto co = _co_st_::get_co(co_id);
+        if (co) {
+            return co->_ssize;
+        }
+        return 0;
     }
-
 }
 

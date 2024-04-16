@@ -22,11 +22,18 @@ namespace cgo {
         int _stack = 0;
 
         inline _cgo_syntax_st_(const char* f, int l) : _file(f), _line(l) {}
-        void operator >>(const std::function<void()>& routine);
+        void operator >>(const std::function<void()>& routine) const;
         _cgo_syntax_st_& operator >>(const _cgo_stack_st_& stack);
 
         _cgo_syntax_st_(const _cgo_syntax_st_&) = delete;
         _cgo_syntax_st_& operator=(const _cgo_syntax_st_&) = delete;
+    };
+
+    struct _cgo_stackful_syntax_st_ : public _cgo_syntax_st_ {
+        explicit _cgo_stackful_syntax_st_(int stack, const char* f, int l) : _cgo_syntax_st_(f, l) {
+            _stack = stack;
+        }
+        void operator >>(const std::function<void()>& routine) const;
     };
 
     unsigned long long cgo_cur_coid();
@@ -43,8 +50,10 @@ namespace cgo {
 
     void cgo_add_loop(const std::function<void()>& f);
 
+    // set coroutine default stack space
     void cgo_default_stack(int stack);
 
+    // for debug info
     void cgo_print_debug_info(bool enable = true);
 }
 
@@ -78,3 +87,6 @@ namespace cgo {
 
 #undef cgoresume
 #define cgoresume cgo::cgo_resume
+
+#undef cgostackful
+#define cgostackful(size) cgo::_cgo_stackful_syntax_st_(size, __FILE__, __LINE__) >> [=]

@@ -10,7 +10,7 @@ int main() {
     cgo::WaitGroup wg;
     for (int i = 0; i < 1; i++) {
         wg.Add(1);
-        go [&wg] {
+        go gostack(1024*32) [&wg] {
             try {
                 std::cout << "begin\n";
 

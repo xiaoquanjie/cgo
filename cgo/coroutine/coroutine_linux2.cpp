@@ -47,9 +47,9 @@ namespace cgo::coroutine {
         switch (co->_status) {
             case COROUTINE_SUSPEND:
             case COROUTINE_READY: {
-                co->_mctx = gmainctx;
                 co->_status = COROUTINE_RUNNING;
                 gcurno = co_id;
+                co->_mctx = gmainctx;
                 swapcontext(co->_mctx, &co->_ctx);
                 auto status = co->_status;
                 if (co->_status == COROUTINE_DEAD) {
