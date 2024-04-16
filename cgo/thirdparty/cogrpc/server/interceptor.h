@@ -13,9 +13,9 @@ namespace cogrpc {
 
     class ServerInterceptor : public grpc::experimental::Interceptor {
     public:
-        ServerInterceptor(grpc::experimental::ServerRpcInfo *info, const std::vector<InterceptorMethod>& methods) {
+        ServerInterceptor(grpc::experimental::ServerRpcInfo *info, const InterceptorMethod& method) {
             this->info_ = info;
-            method_arr_ = methods;
+            this->m_ = method;
         }
 
         void Intercept(grpc::experimental::InterceptorBatchMethods *methods) override {
@@ -24,46 +24,39 @@ namespace cogrpc {
                 return;
             }
 
-            for (auto f : method_arr_) {
-                f(info_, methods);
-            }
-            methods->Proceed();
+            m_(info_, methods);
+            //methods->Proceed();
+            //methods->Hijack();
         }
 
     protected:
-        std::vector<InterceptorMethod> method_arr_;
+        InterceptorMethod m_;
         grpc::experimental::ServerRpcInfo *info_;
     };
 
     class ServerInterceptorFactory : public grpc::experimental::ServerInterceptorFactoryInterface {
     public:
-        ServerInterceptorFactory(const std::initializer_list<InterceptorMethod>& methods) {
-            for (auto& m : methods) {
-                method_arr_.push_back(m);
-            }
-        }
-
-        ServerInterceptorFactory(const std::vector<InterceptorMethod>& methods) {
-            for (auto m : methods) {
-                method_arr_.push_back(m);
-            }
+        explicit ServerInterceptorFactory(const InterceptorMethod& method) {
+            m_ = method;
         }
 
         grpc::experimental::Interceptor *CreateServerInterceptor(
                 grpc::experimental::ServerRpcInfo *info) override
         {
-            return new ServerInterceptor(info, method_arr_);
+            return new ServerInterceptor(info, m_);
         }
 
     private:
-        std::vector<InterceptorMethod> method_arr_;
+        InterceptorMethod m_;
     };
 
     std::vector<std::unique_ptr<grpc::experimental::ServerInterceptorFactoryInterface>>
     inline InterceptorCreators(const std::vector<InterceptorMethod>& methods) {
         std::vector<std::unique_ptr<grpc::experimental::ServerInterceptorFactoryInterface>> creators;
-        creators.push_back(std::unique_ptr<grpc::experimental::ServerInterceptorFactoryInterface>(
-                new ServerInterceptorFactory(methods)));
+        for (auto& m : methods) {
+            creators.push_back(std::unique_ptr<grpc::experimental::ServerInterceptorFactoryInterface>(
+                    new ServerInterceptorFactory(m)));
+        }
         return creators;
     }
 }

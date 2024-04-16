@@ -103,7 +103,7 @@ namespace cogrpc {
 
     protected:
         void OnStart() {
-            // 添加拦截器.
+            // only support one interceptor
             auto creators = InterceptorCreators(interceptor_methods_vec_);
             builder_.experimental().SetInterceptorCreators(std::move(creators));
 

@@ -23,7 +23,7 @@ if (USE_RMDB)
     add_subdirectory(tutorial/rmdb-example)
 endif ()
 
-option(USE_OPENTELEMETRY "use opentelemetry" OFF)
+option(USE_OPENTELEMETRY "use opentelemetry" ON)
 if (USE_OPENTELEMETRY)
     add_subdirectory(tutorial/opentelemetry-example)
 endif ()
