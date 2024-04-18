@@ -8,12 +8,13 @@ include_directories(../)
 include_directories(../../../)
 
 find_package(gRPC REQUIRED)
+find_package(opentelemetry-cpp REQUIRED)
 add_executable(grpc-client-example main.cpp ../common/helloworld.pb.cc ../common/helloworld.grpc.pb.cc)
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-    target_link_libraries(grpc-client-example grpc::grpc cgo)
+    target_link_libraries(grpc-client-example grpc::grpc cgo opentelemetry-cpp::opentelemetry-cpp)
 else ()
-    target_link_libraries(grpc-client-example dl pthread grpc::grpc cgo)
+    target_link_libraries(grpc-client-example dl pthread grpc::grpc cgo opentelemetry-cpp::opentelemetry-cpp)
 endif ()
 
 add_dependencies(grpc-client-example cgo)

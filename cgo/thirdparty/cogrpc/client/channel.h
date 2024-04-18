@@ -10,6 +10,7 @@
 #include <unordered_map>
 #include <regex>
 #include <shared_mutex>
+#include "interceptor.h"
 
 namespace cogrpc {
 
@@ -29,15 +30,24 @@ public:
 
     // @lb_policy负载策略：round_robin, pick_first, queue_once
     std::shared_ptr<T> Get(const std::string& target, const std::string& lb_policy) {
-        {
-            std::shared_lock<std::shared_mutex> lock(mu_);
-            auto iter = channel_map_.find(target);
-            if (iter != channel_map_.end()) {
-                return iter->second;
-            }
+        std::shared_lock<std::shared_mutex> lock(mu_);
+        auto iter = channel_map_.find(target);
+        if (iter != channel_map_.end()) {
+            return iter->second;
         }
-
         return create(target, lb_policy);
+    }
+
+    std::shared_ptr<T> GetWithInterceptor(std::vector<std::unique_ptr<grpc::experimental::ClientInterceptorFactoryInterface>> factories,
+                                          const std::string& target,
+                                          const std::string& lb_policy) {
+        // 这就意味着在拦截器个数相同的情况下无法通过拦截器类型正确区分.
+        auto id = target + "-interceptor-" + std::to_string(factories.size());
+        auto iter = channel_map_.find(id);
+        if (iter != channel_map_.end()) {
+            return iter->second;
+        }
+        return createWithInterceptor(std::move(factories), id, target, lb_policy);
     }
 
     void Del(const std::string& target) {
@@ -81,7 +91,7 @@ protected:
         }
     }
 
-    void split(const std::string source,
+    void split(const std::string &source,
                const std::string &separator,
                std::vector<std::string> &array) {
         array.clear();
@@ -111,9 +121,7 @@ protected:
         return std::regex_match(arr[0].c_str(), pattern);
     }
 
-    std::shared_ptr<T> create(const std::string& target, const std::string& lb_policy) {
-        std::unique_lock<std::shared_mutex> lock(mu_);
-
+    ::grpc::ChannelArguments makeChannelArguments(const std::string& lb_policy) {
         ::grpc::ChannelArguments args;
         // 最大的重连间隔.
         args.SetInt(GRPC_ARG_MAX_RECONNECT_BACKOFF_MS, 100);
@@ -127,13 +135,30 @@ protected:
         args.SetMaxReceiveMessageSize(1024*1024*10);
         args.SetMaxSendMessageSize(1024*1024*10);
 
-        if (lb_policy.size()) {
+        if (!lb_policy.empty()) {
             args.SetLoadBalancingPolicyName(lb_policy);
         }
+        return args;
+    }
 
+    std::shared_ptr<T> create(const std::string& target, const std::string& lb_policy) {
+        std::unique_lock<std::shared_mutex> lock(mu_);
+
+        ::grpc::ChannelArguments args = makeChannelArguments(lb_policy);
         auto newTarget = calcTarget(target);
         auto c = ::grpc::CreateCustomChannel(newTarget, ::grpc::InsecureChannelCredentials(), args);
         channel_map_[target] = c;
+        return c;
+    }
+
+    std::shared_ptr<T> createWithInterceptor(std::vector<std::unique_ptr<grpc::experimental::ClientInterceptorFactoryInterface>> factories,
+                                             const std::string& id,
+                                             const std::string& target,
+                                             const std::string& lb_policy) {
+        ::grpc::ChannelArguments args = makeChannelArguments(lb_policy);
+        auto newTarget = calcTarget(target);
+        auto c = grpc::experimental::CreateCustomChannelWithInterceptors(newTarget, ::grpc::InsecureChannelCredentials(), args, std::move(factories));
+        channel_map_[id] = c;
         return c;
     }
 
@@ -150,6 +175,12 @@ inline auto GetChannel(const std::string& target) {
 
 inline auto GetChannel(const std::string& target, const std::string& lb_policy) {
     return Channels::Instance()->Get(target, lb_policy);
+}
+
+inline auto GetChannelWithInterceptor(std::vector<std::unique_ptr<grpc::experimental::ClientInterceptorFactoryInterface>> factories,
+                                      const std::string& target,
+                                      const std::string& lb_policy) {
+    return Channels::Instance()->GetWithInterceptor(std::move(factories), target, lb_policy);
 }
 
 inline void DelChannel(const std::string& target) {

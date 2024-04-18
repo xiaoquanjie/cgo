@@ -67,7 +67,6 @@ namespace cogrpc {
             }
 
             GoRun [this, ok] {
-                ServerMiddles::DoBefore(&this->ctx_, "", "");
                 PointScoped This(this);
                 if (ok) {
                     auto status = (This->obj_->*This->cb_)(&This->ctx_, &This->request_, &This->response_);
@@ -76,7 +75,6 @@ namespace cogrpc {
                     PointScoped finish(new ServerUnaryFinishData<RequestType, ResponseType, Responder>(This->responder_, This->response_, status));
                     finish->doRequest();
                 }
-                ServerMiddles::DoAfter(&this->ctx_, "", "");
             };
         }
     };
@@ -182,7 +180,6 @@ namespace cogrpc {
             }
 
             GoRun [this, ok] {
-                ServerMiddles::DoBefore(&this->ctx_, "", "");
                 PointScoped This(this);
                 if (ok) {
                     ResponseType response;
@@ -193,7 +190,6 @@ namespace cogrpc {
                     PointScoped finish(new ServerCSFinishData<RequestType, ResponseType, Responder>(This->responder_, response, status));
                     finish->doRequest();
                 }
-                ServerMiddles::DoAfter(&This->ctx_, "", "");
             };
         }
     };
@@ -297,7 +293,6 @@ namespace cogrpc {
             }
 
             GoRun [this, ok] {
-                ServerMiddles::DoBefore(&this->ctx_, "", "");
                 PointScoped This(this);
                 if (ok) {
                     // 起一个writer.
@@ -307,7 +302,6 @@ namespace cogrpc {
                     PointScoped finish(new ServerSSFinishData<RequestType, ResponseType, Responder>(this->responder_, status));
                     finish->doRequest();
                 }
-                ServerMiddles::DoAfter(&this->ctx_, "", "");
             };
         }
     };
@@ -440,7 +434,6 @@ namespace cogrpc {
             }
 
             GoRun [this, ok] {
-                ServerMiddles::DoBefore(&this->ctx_, "", "");
                 PointScoped This(this);
                 if (ok) {
                     // 起一个readwrite.
@@ -450,7 +443,6 @@ namespace cogrpc {
                     PointScoped finish(new ServerDSFinishData<RequestType, ResponseType, Responder>(this->responder_, status));
                     finish->doRequest();
                 }
-                ServerMiddles::DoAfter(&this->ctx_, "", "");
             };
         }
     };

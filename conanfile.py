@@ -8,6 +8,7 @@ class ConanApplication(ConanFile):
     def layout(self):
         cmake_layout(self)
 
+    # 安装命令会调用此方法
     def generate(self):
         deps = CMakeDeps(self)
         deps.generate()

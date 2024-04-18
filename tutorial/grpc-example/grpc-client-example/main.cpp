@@ -4,6 +4,7 @@
 
 #include "common/helloworld.grpc.pb.h"
 #include <cgo/thirdparty/cogrpc/cogrpc.h>
+#include <cgo/thirdparty/otl/otl.h>
 
 class GreeterClient : public cogrpc::Client<helloworld::Greeter> {
 public:
@@ -81,19 +82,25 @@ void serve_test(GreeterClient& client) {
     }
 }
 
-int main() {
+int main(int argc, char **argv) {
+    otl::ExporterContainer container;
+    container.push_back(std::move(otl::CreateConsoleExporter()));
+    //container.push_back(otl::CreateHttpExporter("http://192.168.102.41:4318/v1/traces"));
+    otl::Init(argc, argv, container);
+
     cgo::WaitGroup wg;
     wg.Add(1);
 
     go [&wg]
     {
         GreeterClient client;
+        client.AddInterceptor<otl::DefaultGrpcClientInterceptor>();
         client.Bind("127.0.0.1:8080", "");
 
         unary_test(client);
-        double_test(client);
-        client_test(client);
-        serve_test(client);
+        //double_test(client);
+        //client_test(client);
+        //serve_test(client);
 
         std::cout << "over\n";
         wg.Done();

@@ -25,20 +25,28 @@ namespace cogrpc {
         return ctx;
     }
 
+    // 协程客户端.
     template<typename T>
-    class BaseClient {
+    class CoClient {
     public:
         typedef typename T::Stub Stub;
-
     protected:
-        std::unique_ptr<Stub> stub_;
+        ::grpc::CompletionQueue* cq_ = nullptr;
+        std::shared_ptr<Stub> stub_;
+        std::vector<std::unique_ptr<grpc::experimental::ClientInterceptorFactoryInterface>> interceptor_factories_;
 
     public:
-        // 限制客户端之间拷贝.
-        BaseClient(const BaseClient&) = delete;
-        BaseClient& operator=(const BaseClient&) = delete;
+        CoClient() {
+            DefCliBuilder()->StartLoop();
+            this->cq_ = DefCliBuilder()->GetQueue();
+        }
 
-        BaseClient() = default;
+        CoClient(const CoClient& b) {
+            stub_ = b.stub_;
+            cq_ = b.cq_;
+        }
+
+        CoClient& operator=(const CoClient& b) = delete;
 
         // 判断客户端是否有效.
         bool Valid() {
@@ -50,27 +58,25 @@ namespace cogrpc {
             if (stub_) {
                 return;
             }
-            stub_ = T::NewStub(channel);
+            stub_ = std::move(T::NewStub(channel));
         }
 
         void Bind(const std::string& target, const std::string& lb_policy) {
-            std::shared_ptr<::grpc::Channel> c = GetChannel(target, lb_policy);
-            Bind(c);
+            if (stub_) {
+                return;
+            }
+            if (interceptor_factories_.empty()) {
+                auto c = GetChannel(target, lb_policy);
+                stub_ = std::move(T::NewStub(c));
+            } else {
+                auto c = GetChannelWithInterceptor(std::move(interceptor_factories_), target, lb_policy);
+                stub_ = std::move(T::NewStub(c));
+            }
         }
-    };
 
-    // 协程客户端.
-    template<typename T>
-    class CoClient : public BaseClient<T> {
-    public:
-        typedef typename BaseClient<T>::Stub Stub;
-    protected:
-        ::grpc::CompletionQueue* cq_ = nullptr;
-
-    public:
-        CoClient() {
-            DefCliBuilder()->StartLoop();
-            this->cq_ = DefCliBuilder()->GetQueue();
+        template<class ClientInterceptorType>
+        void AddInterceptor() {
+            interceptor_factories_.push_back(std::move(CreateClientInterceptorFactory<ClientInterceptorType>()));
         }
 
     protected:

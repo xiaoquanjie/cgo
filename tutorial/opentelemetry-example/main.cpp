@@ -1,106 +1,57 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-// Make sure to include GRPC headers first because otherwise Abseil may create
-// ambiguity with `nostd::variant` if compiled with Visual Studio 2015. Other
-// modern compilers are unaffected.
-#include <grpcpp/grpcpp.h>
-
-#include <iostream>
-#include <memory>
-#include <string>
-#include "opentelemetry/exporters/otlp/otlp_grpc_exporter_factory.h"
-#include "opentelemetry/exporters/otlp/otlp_grpc_exporter_options.h"
-#include "opentelemetry/trace/semantic_conventions.h"
-#include "trace_common.h"
+#include <cgo/thirdparty/otl/otl.h>
 #include "common/helloworld.grpc.pb.h"
-#include <cgo/thirdparty/cogrpc/cogrpc.h>
 
-using grpc::Channel;
-using grpc::ClientContext;
-using grpc::ClientReader;
-using grpc::Status;
-
-
-namespace
-{
-    namespace context = opentelemetry::context;
-    using namespace opentelemetry::trace;
-
-    class GreeterClient : public cogrpc::Client<helloworld::Greeter>
-    {
-    public:
-        ::grpc::Status SayHello(std::shared_ptr<::grpc::ClientContext> ctx, helloworld::HelloRequest req, helloworld::HelloReply* res)
-        {
-            StartSpanOptions options;
-            options.kind = SpanKind::kClient;
-
-            std::string span_name = "GreeterClient/Greet";
-            auto span             = get_tracer("grpc")->StartSpan(
-                    span_name,
-                    {{SemanticConventions::kRpcSystem, "grpc"},
-                     {SemanticConventions::kRpcService, "grpc-example.GreetService"},
-                     {SemanticConventions::kRpcMethod, "Greet"},
-                     {SemanticConventions::kNetworkPeerAddress, "ip"},
-                     {SemanticConventions::kNetworkPeerPort, ""}},
-                    options);
-
-            auto scope = get_tracer("grpc-client")->WithActiveSpan(span);
-
-            // inject current context to grpc metadata
-            auto current_ctx = context::RuntimeContext::GetCurrent();
-            GrpcClientCarrier carrier(ctx.get());
-            auto prop = context::propagation::GlobalTextMapPropagator::GetGlobalPropagator();
-            prop->Inject(carrier, current_ctx);
-
-            // Send request to server
-            Status status = this->Send<helloworld::HelloRequest, helloworld::HelloReply>(&Stub::PrepareAsyncSayHello, std::move(ctx), req, res);
-            if (status.ok())
-            {
-                span->SetStatus(StatusCode::kOk);
-                span->SetAttribute(SemanticConventions::kRpcGrpcStatusCode, status.error_code());
-                // Make sure to end your spans!
-                span->End();
-            }
-            else
-            {
-                std::cout << status.error_code() << ": " << status.error_message() << std::endl;
-                span->SetStatus(StatusCode::kError);
-                span->SetAttribute(SemanticConventions::kRpcGrpcStatusCode, status.error_code());
-                // Make sure to end your spans!
-                span->End();
-            }
-            return status;
-        }
-
-    private:
-
-    };  // GreeterClient class
-
-    void RunClient(uint16_t port)
-    {
-        GreeterClient greeter;
+class GreeterServer : public cogrpc::Server<helloworld::Greeter> {
+public:
+    void InitMethod() override {
+        GRPC_SRV_UNARY_METHOD(SayHello, helloworld::HelloRequest, helloworld::HelloReply);
+        GRPC_SRV_UNARY_METHOD(GetName, helloworld::FamilyRequest, helloworld::FamilyResponse);
+        GRPC_SRV_BS_METHOD(ListName, helloworld::FamilyRequest, helloworld::FamilyResponse);
+        GRPC_SRV_CS_METHOD(ClientStreamSayHello, helloworld::HelloRequest, helloworld::HelloReply);
+        GRPC_SRV_SS_METHOD(ServerStreamSayHello, helloworld::HelloRequest, helloworld::HelloReply);
     }
-}  // namespace
 
-int main(int argc, char **argv)
-{
-    InitTracer();
-    // set global propagator
-    context::propagation::GlobalTextMapPropagator::SetGlobalPropagator(
-            opentelemetry::nostd::shared_ptr<context::propagation::TextMapPropagator>(
-                    new propagation::HttpTraceContext()));
-    constexpr uint16_t default_port = 8800;
-    uint16_t port;
-    if (argc > 1)
-    {
-        port = atoi(argv[1]);
+    ::grpc::Status SayHello(::grpc::ServerContext *ctx, const helloworld::HelloRequest *req, helloworld::HelloReply *rsp) {
+        std::cout << req->ShortDebugString() << "\n";
+        return ::grpc::Status::OK;
     }
-    else
-    {
-        port = default_port;
+
+    ::grpc::Status GetName(::grpc::ServerContext *ctx, const helloworld::FamilyRequest *req, helloworld::FamilyResponse *rsp) {
+        return ::grpc::Status::OK;
     }
-    RunClient(port);
-    CleanupTracer();
+
+    ::grpc::Status ListName(::grpc::ServerContext *ctx, GRPC_SRV_RW(helloworld::FamilyRequest, helloworld::FamilyResponse) *rw) {
+        return ::grpc::Status::OK;
+    }
+
+    ::grpc::Status ClientStreamSayHello(::grpc::ServerContext *ctx, GRPC_SRV_READER(helloworld::HelloRequest, helloworld::HelloReply) *reader, helloworld::HelloReply *rsp) {
+        return ::grpc::Status::OK;
+    }
+
+    ::grpc::Status ServerStreamSayHello(::grpc::ServerContext *ctx, const helloworld::HelloRequest *req, GRPC_SRV_WRITER(helloworld::HelloRequest, helloworld::HelloReply) *writer) {
+        return ::grpc::Status::OK;
+    }
+
+};
+
+int main(int argc, char **argv) {
+    auto exporter = otl::CreateConsoleExporter();
+    otl::ExporterContainer container;
+    container.push_back(std::move(exporter));
+    //container.push_back(otl::CreateHttpExporter("http://192.168.102.41:4318/v1/traces"));
+    otl::Init(argc, argv, container);
+
+    cogrpc::DefSrvBuilder()->AddListeningPort("0.0.0.0:8080");
+    cogrpc::DefSrvBuilder()->RegisterService<GreeterServer>();
+    cogrpc::DefSrvBuilder()->AddInterceptor<otl::DefaultGrpcServerInterceptor>();
+    cogrpc::DefSrvBuilder()->Run();
+
+    while (true) {
+        msleep(100);
+    }
+
     return 0;
 }

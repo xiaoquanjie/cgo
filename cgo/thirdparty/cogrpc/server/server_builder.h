@@ -84,8 +84,9 @@ namespace cogrpc {
         }
 
         // 添加拦截器方法.
-        void AddInterceptorMethod(InterceptorMethod m) {
-            interceptor_methods_vec_.push_back(std::move(m));
+        template<class ServerInterceptorType>
+        void AddInterceptor() {
+            interceptor_factories_.push_back(std::move(CreateServerInterceptorFactory<ServerInterceptorType>()));
         }
 
         void Run() {
@@ -103,10 +104,7 @@ namespace cogrpc {
 
     protected:
         void OnStart() {
-            // only support one interceptor
-            auto creators = InterceptorCreators(interceptor_methods_vec_);
-            builder_.experimental().SetInterceptorCreators(std::move(creators));
-
+            builder_.experimental().SetInterceptorCreators(std::move(interceptor_factories_));
             server_ = builder_.BuildAndStart();
             if (!server_) {
                 return;
@@ -177,8 +175,7 @@ namespace cogrpc {
         std::unique_ptr<::grpc::Server> server_;
         std::unique_ptr<::grpc::ServerCompletionQueue> cq_;
         std::unordered_map<std::string, std::shared_ptr<IServer>> service_map_;
-        // 拦截器方法集合.
-        std::vector<InterceptorMethod> interceptor_methods_vec_;
+        std::vector<std::unique_ptr<grpc::experimental::ServerInterceptorFactoryInterface>> interceptor_factories_;
         std::once_flag once_;
     };
 

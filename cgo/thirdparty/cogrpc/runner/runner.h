@@ -9,7 +9,7 @@
 #include <cgo/cgo.h>
 
 #undef GoRun
-#define GoRun go
+#define GoRun go gostack(1024*16)
 
 namespace cogrpc {
 
