@@ -25,6 +25,12 @@ namespace cogrpc {
         return ctx;
     }
 
+    // new a client context from server context
+    inline std::shared_ptr<::grpc::ClientContext> FromServerContext(::grpc::ServerContext *ctx, ::grpc::PropagationOptions options = ::grpc::PropagationOptions()) {
+        std::shared_ptr<grpc::ClientContext> newctx = std::move(::grpc::ClientContext::FromServerContext(*ctx, options));
+        return newctx;
+    }
+
     // 协程客户端.
     template<typename T>
     class CoClient {

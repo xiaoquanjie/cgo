@@ -5,20 +5,7 @@
 
 #pragma once
 
-#include <grpcpp/server_builder.h>
-#include <cgo/thirdparty/cogrpc/cogrpc.h>
-#include <opentelemetry/sdk/trace/processor.h>
-#include <opentelemetry/exporters/otlp/otlp_http_exporter_factory.h>
-#include <opentelemetry/exporters/ostream/span_exporter_factory.h>
-#include <opentelemetry/sdk/trace/simple_processor_factory.h>
-#include <opentelemetry/sdk/trace/tracer_context.h>
-#include <opentelemetry/sdk/trace/tracer_context_factory.h>
-#include <opentelemetry/trace/provider.h>
-#include <opentelemetry/sdk/trace/tracer_provider_factory.h>
-#include <opentelemetry/trace/propagation/http_trace_context.h>
-#include <opentelemetry/context/propagation/global_propagator.h>
-#include <opentelemetry/sdk/resource/semantic_conventions.h>
-#include <opentelemetry/trace/semantic_conventions.h>
+#include "context.h"
 #include <filesystem>
 
 namespace otl {
@@ -26,43 +13,6 @@ namespace otl {
     typedef std::unique_ptr<opentelemetry::sdk::trace::SpanExporter> SpanExporterPtr;
     // exporter列表.
     typedef std::vector<SpanExporterPtr> ExporterContainer;
-
-    class GrpcServerCarrier : public opentelemetry::context::propagation::TextMapCarrier {
-        grpc::ServerContext *context_;
-
-    public:
-        explicit GrpcServerCarrier(grpc::ServerContext *context) : context_(context) {}
-
-        [[nodiscard]]
-        opentelemetry::nostd::string_view Get(opentelemetry::nostd::string_view key) const noexcept override {
-            auto it = context_->client_metadata().find({key.data(), key.size()});
-            if (it != context_->client_metadata().end())
-            {
-                return it->second.data();
-            }
-            return "";
-        }
-
-        void Set(opentelemetry::nostd::string_view /* key */, opentelemetry::nostd::string_view /* value */) noexcept override {
-            // Not required for server
-        }
-    };
-
-    class GrpcClientCarrier : public opentelemetry::context::propagation::TextMapCarrier {
-        grpc::ClientContext *context_;
-
-    public:
-        explicit GrpcClientCarrier(grpc::ClientContext *context) : context_(context) {}
-
-        [[nodiscard]]
-        opentelemetry::nostd::string_view Get(opentelemetry::nostd::string_view /* key */) const noexcept override {
-            return "";
-        }
-
-        void Set(opentelemetry::nostd::string_view key, opentelemetry::nostd::string_view value) noexcept override{
-            context_->AddMetadata(std::string(key), std::string(value));
-        }
-    };
 
     class Otl {
     public:
@@ -198,43 +148,44 @@ namespace otl {
         return provider->GetTracer(tracer_name);
     }
 
+    // 从context中创建一个span start options.
+    inline opentelemetry::nostd::shared_ptr<opentelemetry::trace::Span>
+    SpanFromContext(opentelemetry::nostd::string_view name, opentelemetry::trace::SpanKind kind, Context &ctx) {
+        opentelemetry::trace::StartSpanOptions options;
+        options.parent = opentelemetry::trace::GetSpan(ctx)->GetContext();
+        options.kind = kind;
+        auto span = GetGlobalTracer()->StartSpan(name, {}, options);
+        return span;
+    }
+
     // 默认的grpc服务拦截器.
     class DefaultGrpcServerInterceptor : public cogrpc::ServerInterceptor {
         opentelemetry::nostd::shared_ptr<opentelemetry::trace::Span> span_;
-        opentelemetry::trace::Scope *scope_;
-
     public:
-        ~DefaultGrpcServerInterceptor() override {
-            delete scope_;
-        }
-
-        explicit DefaultGrpcServerInterceptor(grpc::experimental::ServerRpcInfo *info) : cogrpc::ServerInterceptor(info), scope_(nullptr) {}
+        explicit DefaultGrpcServerInterceptor(grpc::experimental::ServerRpcInfo *info) : cogrpc::ServerInterceptor(info) {}
 
         void begin() {
-            // 创建一个span.
-            auto prop = opentelemetry::context::propagation::GlobalTextMapPropagator::GetGlobalPropagator();
-            auto currentCtx = opentelemetry::context::RuntimeContext::GetCurrent();
-            auto serverCtx = dynamic_cast<grpc::ServerContext*>(rpcInfo_->server_context());
-            auto newContext = prop->Extract(GrpcServerCarrier(serverCtx), currentCtx);
-
-            opentelemetry::trace::StartSpanOptions options;
-            options.kind = opentelemetry::trace::SpanKind::kServer;
-            options.parent = opentelemetry::trace::GetSpan(newContext)->GetContext();
-
             // 分割方法.
             std::string fullMethod = rpcInfo_->method();
             std::string rpcService;
             std::string rpcMethod;
             Otl::ParseFullMethod(fullMethod, rpcService, rpcMethod);
-
             std::string spanName = rpcService + "/" + rpcMethod;
-            span_ = GetGlobalTracer()->StartSpan(spanName,
-                                                     {{opentelemetry::trace::SemanticConventions::kRpcSystem, "grpc"},
-                                                      {opentelemetry::trace::SemanticConventions::kRpcService, rpcService},
-                                                      {opentelemetry::trace::SemanticConventions::kRpcMethod, rpcMethod}},
-                                                     options);
 
-            scope_ = new opentelemetry::trace::Scope(GetGlobalTracer()->WithActiveSpan(span_));
+            auto serverCtx = dynamic_cast<grpc::ServerContext*>(rpcInfo_->server_context());
+            // 创建一个新的context.
+            Context parentContext;
+
+            // extract data from carrier to context.
+            auto prop = opentelemetry::context::propagation::GlobalTextMapPropagator::GetGlobalPropagator();
+            parentContext = prop->Extract(GrpcServerCarrier(serverCtx), parentContext);
+
+            // 创建一个新的span.
+            span_ = SpanFromContext(spanName, opentelemetry::trace::SpanKind::kServer, parentContext);
+            // set attribute
+            span_->SetAttribute(opentelemetry::trace::SemanticConventions::kRpcSystem, "grpc");
+            span_->SetAttribute(opentelemetry::trace::SemanticConventions::kRpcService, rpcService);
+            span_->SetAttribute(opentelemetry::trace::SemanticConventions::kRpcMethod, rpcMethod);
         }
 
         void end(const grpc::Status& status) {
@@ -268,41 +219,33 @@ namespace otl {
     // 默认的grpc客户端拦截器.
     class DefaultGrpcClientInterceptor : public cogrpc::ClientInterceptor {
         opentelemetry::nostd::shared_ptr<opentelemetry::trace::Span> span_;
-        opentelemetry::trace::Scope *scope_;
 
     public:
-        ~DefaultGrpcClientInterceptor() override {
-            delete scope_;
-        }
+        explicit DefaultGrpcClientInterceptor(grpc::experimental::ClientRpcInfo *info) : cogrpc::ClientInterceptor(info) {}
 
-        explicit DefaultGrpcClientInterceptor(grpc::experimental::ClientRpcInfo *info) : cogrpc::ClientInterceptor(info), scope_(nullptr) {}
-
-        void begin() {
-            // 创建一个span.
-            opentelemetry::trace::StartSpanOptions options;
-            options.kind = opentelemetry::trace::SpanKind::kClient;
-
+        void begin(std::multimap<std::string, std::string> *metaData) {
+            // 分割方法.
             std::string fullMethod = rpcInfo_->method();
             std::string rpcService;
             std::string rpcMethod;
             Otl::ParseFullMethod(fullMethod, rpcService, rpcMethod);
-
             std::string spanName = rpcService + "/" + rpcMethod;
-            span_ = GetGlobalTracer()->StartSpan(spanName,
-                                                 {{opentelemetry::trace::SemanticConventions::kRpcSystem, "grpc"},
-                                                  {opentelemetry::trace::SemanticConventions::kRpcService, rpcService},
-                                                  {opentelemetry::trace::SemanticConventions::kRpcMethod, rpcMethod}},
-                                                 options);
 
-            // 它会在本线程上维护一个traceid,直到scope生命周期结束
-            scope_ = new opentelemetry::trace::Scope(GetGlobalTracer()->WithActiveSpan(span_));
-
-            // inject在WithActiveSpan之后.
+            Context parentContext;
             auto prop = opentelemetry::context::propagation::GlobalTextMapPropagator::GetGlobalPropagator();
-            auto currentCtx = opentelemetry::context::RuntimeContext::GetCurrent();
+            parentContext = prop->Extract(MapGetterCarrier(*metaData), parentContext);
+
+            span_ = SpanFromContext(spanName, opentelemetry::trace::SpanKind::kClient, parentContext);
+            span_->SetAttribute(opentelemetry::trace::SemanticConventions::kRpcSystem, "grpc");
+            span_->SetAttribute(opentelemetry::trace::SemanticConventions::kRpcService, rpcService);
+            span_->SetAttribute(opentelemetry::trace::SemanticConventions::kRpcMethod, rpcMethod);
+
+            Context currentContext = NewContextFromSpan(span_);
+
+            // inject data to carrier
             auto clientCtx = rpcInfo_->client_context();
             GrpcClientCarrier carrier(clientCtx);
-            prop->Inject(carrier, currentCtx);
+            prop->Inject(carrier, currentContext);
         }
 
         void end(const grpc::Status& status) {
@@ -320,10 +263,11 @@ namespace otl {
                 methods->Proceed();
                 return;
             }
-
+            if (methods->QueryInterceptionHookPoint(grpc::experimental::InterceptionHookPoints::PRE_SEND_INITIAL_METADATA)) {
+            }
             if (methods->QueryInterceptionHookPoint(grpc::experimental::InterceptionHookPoints::PRE_SEND_MESSAGE)) {
-                // 发消息前.
-                begin();
+                auto mp = methods->GetSendInitialMetadata();
+                begin(mp);
             }
             if (methods->QueryInterceptionHookPoint(grpc::experimental::InterceptionHookPoints::POST_RECV_STATUS)) {
                 end(*methods->GetRecvStatus());

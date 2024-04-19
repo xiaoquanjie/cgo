@@ -24,6 +24,8 @@ void unary_test(GreeterClient& client) {
     helloworld::HelloRequest req;
     req.set_name("myname");
     helloworld::HelloReply rsp;
+    auto ctx = cogrpc::MakeContext(1000*100);
+    ctx->AddMetadata("user_id", "12323213");
     auto s = client.SayHello(nullptr, req, &rsp);
     if (GRPC_OK(s)) {
         std::cout << "unary SayHello: " << rsp.ShortDebugString() << "\n";

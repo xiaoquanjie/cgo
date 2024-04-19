@@ -4,6 +4,20 @@
 #include <cgo/thirdparty/otl/otl.h>
 #include "common/helloworld.grpc.pb.h"
 
+class GreeterClient : public cogrpc::Client<helloworld::Greeter> {
+public:
+    GRPC_CLIENT_UNARY_METHOD(SayHello, helloworld::HelloRequest, helloworld::HelloReply);
+
+    GRPC_CLIENT_UNARY_METHOD(GetName, helloworld::FamilyRequest, helloworld::FamilyResponse);
+
+    GRPC_CLIENT_BS_METHOD(ListName, helloworld::FamilyRequest, helloworld::FamilyResponse);
+
+    GRPC_CLIENT_CS_METHOD(ClientStreamSayHello, helloworld::HelloRequest, helloworld::HelloReply);
+
+    GRPC_CLIENT_SS_METHOD(ServerStreamSayHello, helloworld::HelloRequest, helloworld::HelloReply);
+
+};
+
 class GreeterServer : public cogrpc::Server<helloworld::Greeter> {
 public:
     void InitMethod() override {
@@ -15,11 +29,28 @@ public:
     }
 
     ::grpc::Status SayHello(::grpc::ServerContext *ctx, const helloworld::HelloRequest *req, helloworld::HelloReply *rsp) {
-        std::cout << req->ShortDebugString() << "\n";
+        std::cout << "SayHello:" << req->ShortDebugString() << "\n";
+        for (auto& kv : ctx->client_metadata()) {
+            std::cout << "key:" << std::string(kv.first.data(), kv.first.size()) << " value:" << std::string(kv.second.data(), kv.second.size()) << "\n";
+        }
+
+        GreeterClient client;
+        client.AddInterceptor<otl::DefaultGrpcClientInterceptor>();
+        client.Bind("127.0.0.1:8080", "");
+
+        auto clientCtx = cogrpc::FromServerContext(ctx);
+        helloworld::FamilyRequest freq;
+        helloworld::FamilyResponse frsp;
+        client.GetName(clientCtx, freq, &frsp);
+
         return ::grpc::Status::OK;
     }
 
     ::grpc::Status GetName(::grpc::ServerContext *ctx, const helloworld::FamilyRequest *req, helloworld::FamilyResponse *rsp) {
+        std::cout << "getname" << "\n";
+        for (auto& kv : ctx->client_metadata()) {
+            std::cout << "key:" << std::string(kv.first.data(), kv.first.size()) << " value:" << std::string(kv.second.data(), kv.second.size()) << "\n";
+        }
         return ::grpc::Status::OK;
     }
 
