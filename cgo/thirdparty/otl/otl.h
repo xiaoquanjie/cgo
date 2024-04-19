@@ -108,7 +108,7 @@ namespace otl {
             init_ = false;
         }
 
-        static void parseFullMethod(const std::string &fullMethod, std::string &rpcService, std::string &rpcMethod) {
+        static void ParseFullMethod(const std::string &fullMethod, std::string &rpcService, std::string &rpcMethod) {
             auto pos1 = fullMethod.find_first_of('/', 0);
             if (pos1 == 0) {
                 auto pos2 = fullMethod.find_first_of('/', 1);
@@ -120,6 +120,25 @@ namespace otl {
             }
         }
 
+        static std::string GetTraceId(opentelemetry::nostd::shared_ptr<opentelemetry::trace::Span>& span) {
+            const int ksize = opentelemetry::trace::TraceId::kSize*2;
+            std::string buf;
+            buf.resize(ksize);
+            opentelemetry::nostd::span<char, ksize> traceBuf(buf.data(), ksize);
+            span->GetContext().trace_id().ToLowerBase16(traceBuf);
+            return std::move(buf);
+        }
+
+        static std::string GetSpanId(opentelemetry::nostd::shared_ptr<opentelemetry::trace::Span>& span) {
+            const int ksize = opentelemetry::trace::SpanId::kSize*2;
+            std::string buf;
+            buf.resize(ksize);
+            opentelemetry::nostd::span<char, ksize> traceBuf(buf.data(), ksize);
+            span->GetContext().span_id().ToLowerBase16(traceBuf);
+            return std::move(buf);
+        }
+
+    protected:
         void parseArguments(int argc, char **argv) {
             executable_path_ = argv[0];
             std::filesystem::path path(executable_path_);
@@ -175,7 +194,7 @@ namespace otl {
     GetGlobalTracer() {
         auto provider = opentelemetry::trace::Provider::GetTracerProvider();
         // @tracer_name是instr-lib的值
-        std::string tracer_name = "global-tracer";
+        std::string tracer_name = "cpp-global-tracer";
         return provider->GetTracer(tracer_name);
     }
 
@@ -206,7 +225,7 @@ namespace otl {
             std::string fullMethod = rpcInfo_->method();
             std::string rpcService;
             std::string rpcMethod;
-            Otl::parseFullMethod(fullMethod, rpcService, rpcMethod);
+            Otl::ParseFullMethod(fullMethod, rpcService, rpcMethod);
 
             std::string spanName = rpcService + "/" + rpcMethod;
             span_ = GetGlobalTracer()->StartSpan(spanName,
@@ -260,19 +279,13 @@ namespace otl {
 
         void begin() {
             // 创建一个span.
-            auto prop = opentelemetry::context::propagation::GlobalTextMapPropagator::GetGlobalPropagator();
-            auto currentCtx = opentelemetry::context::RuntimeContext::GetCurrent();
-            auto clientCtx = rpcInfo_->client_context();
-            GrpcClientCarrier carrier(clientCtx);
-            prop->Inject(carrier, currentCtx);
-
             opentelemetry::trace::StartSpanOptions options;
             options.kind = opentelemetry::trace::SpanKind::kClient;
 
             std::string fullMethod = rpcInfo_->method();
             std::string rpcService;
             std::string rpcMethod;
-            Otl::parseFullMethod(fullMethod, rpcService, rpcMethod);
+            Otl::ParseFullMethod(fullMethod, rpcService, rpcMethod);
 
             std::string spanName = rpcService + "/" + rpcMethod;
             span_ = GetGlobalTracer()->StartSpan(spanName,
@@ -281,7 +294,15 @@ namespace otl {
                                                   {opentelemetry::trace::SemanticConventions::kRpcMethod, rpcMethod}},
                                                  options);
 
+            // 它会在本线程上维护一个traceid,直到scope生命周期结束
             scope_ = new opentelemetry::trace::Scope(GetGlobalTracer()->WithActiveSpan(span_));
+
+            // inject在WithActiveSpan之后.
+            auto prop = opentelemetry::context::propagation::GlobalTextMapPropagator::GetGlobalPropagator();
+            auto currentCtx = opentelemetry::context::RuntimeContext::GetCurrent();
+            auto clientCtx = rpcInfo_->client_context();
+            GrpcClientCarrier carrier(clientCtx);
+            prop->Inject(carrier, currentCtx);
         }
 
         void end(const grpc::Status& status) {
