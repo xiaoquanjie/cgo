@@ -125,11 +125,10 @@ namespace otl {
         }
     };
 
-    template<typename T>
-    class mapSetterCarrier : public opentelemetry::context::propagation::TextMapCarrier {
-        T &map_;
+    class grpcClientMapModifyCarrier : public opentelemetry::context::propagation::TextMapCarrier {
+        std::multimap<std::string, std::string> &map_;
     public:
-        explicit mapSetterCarrier(T &m) : map_(m) {}
+        explicit grpcClientMapModifyCarrier(std::multimap<std::string, std::string> &m) : map_(m) {}
 
         [[nodiscard]]
         opentelemetry::nostd::string_view Get(opentelemetry::nostd::string_view key) const noexcept override {
@@ -137,30 +136,42 @@ namespace otl {
         }
 
         void Set(opentelemetry::nostd::string_view key, opentelemetry::nostd::string_view value) noexcept override {
-
-            map_.insert(std::make_pair(std::string(key.data(), key.size()), std::string(value.data(), value.size())));
-        }
-    };
-
-    template<typename T>
-    class mapModifyCarrier : public opentelemetry::context::propagation::TextMapCarrier {
-        T &map_;
-    public:
-        explicit mapModifyCarrier(T &m) : map_(m) {}
-
-        [[nodiscard]]
-        opentelemetry::nostd::string_view Get(opentelemetry::nostd::string_view key) const noexcept override {
-            return "";
-        }
-
-        void Set(opentelemetry::nostd::string_view key, opentelemetry::nostd::string_view value) noexcept override {
-            typename T::key_type k(key.data(), key.size());
-            typename T::key_type v(value.data(), value.size());
+            std::string k(key.data(), key.size());
+            std::string v(value.data(), value.size());
             auto iter = map_.find(k);
             if (iter == map_.end()) {
                 map_.insert(std::make_pair(k, v));
             } else {
                 iter->second = v;
+            }
+        }
+    };
+
+    class grpcServerMapModifyCarrier : public opentelemetry::context::propagation::TextMapCarrier {
+        std::multimap<grpc::string_ref, grpc::string_ref> &map_;
+        std::map<std::string, std::string> smap_;
+    public:
+        explicit grpcServerMapModifyCarrier(std::multimap<grpc::string_ref, grpc::string_ref> &m) : map_(m) {}
+
+        [[nodiscard]]
+        opentelemetry::nostd::string_view Get(opentelemetry::nostd::string_view key) const noexcept override {
+            return "";
+        }
+
+        void Set(opentelemetry::nostd::string_view key, opentelemetry::nostd::string_view value) noexcept override {
+            grpc::string k(key.data(), key.size());
+            grpc::string v(value.data(), value.size());
+            smap_[k] = v;
+
+            auto iter1 = smap_.find(k);
+            grpc::string_ref k2(iter1->first.data(), iter1->first.size());
+            grpc::string_ref v2(iter1->second.data(), iter1->second.size());
+
+            auto iter = map_.find(k2);
+            if (iter == map_.end()) {
+                map_.insert(std::make_pair(k2, v2));
+            } else {
+                iter->second = v2;
             }
         }
     };

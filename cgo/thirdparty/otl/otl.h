@@ -191,8 +191,13 @@ namespace otl {
     // 默认的grpc服务拦截器.
     class DefaultGrpcServerInterceptor : public cogrpc::ServerInterceptor {
         Span span_;
+        grpcServerMapModifyCarrier *mCarrier_ = nullptr;
     public:
         explicit DefaultGrpcServerInterceptor(grpc::experimental::ServerRpcInfo *info) : cogrpc::ServerInterceptor(info) {}
+
+        ~DefaultGrpcServerInterceptor() override {
+            delete mCarrier_;
+        }
 
         void begin(std::multimap<grpc::string_ref, grpc::string_ref> *metaData) {
             // 分割方法.
@@ -215,8 +220,8 @@ namespace otl {
             span_->SetAttribute(opentelemetry::trace::SemanticConventions::kRpcService, rpcService);
             span_->SetAttribute(opentelemetry::trace::SemanticConventions::kRpcMethod, rpcMethod);
 
-            //mapModifyCarrier mCarrier(*metaData);
-            //prop->Inject(mCarrier, newContext);
+            mCarrier_ = new grpcServerMapModifyCarrier(*metaData);
+            prop->Inject(*mCarrier_, newContext);
         }
 
         void end(const grpc::Status& status) {
@@ -278,7 +283,7 @@ namespace otl {
             span_->SetAttribute(opentelemetry::trace::SemanticConventions::kRpcMethod, rpcMethod);
 
             // modify or inject the trace info to clientcontext
-            mapModifyCarrier carrier(*metaData);
+            grpcClientMapModifyCarrier carrier(*metaData);
             prop->Inject(carrier, currentContext);
         }
 
