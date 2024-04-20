@@ -22,20 +22,21 @@
 namespace otl {
     // context in opentelemetry
     using Context = opentelemetry::context::Context;
+    using Span = opentelemetry::nostd::shared_ptr<opentelemetry::trace::Span>;
 
     // grpc server carrier
-    class GrpcServerCarrier : public opentelemetry::context::propagation::TextMapCarrier {
+    class grpcServerCarrier : public opentelemetry::context::propagation::TextMapCarrier {
         grpc::ServerContext *context_;
 
     public:
-        explicit GrpcServerCarrier(grpc::ServerContext *context) : context_(context) {}
+        explicit grpcServerCarrier(grpc::ServerContext *context) : context_(context) {}
 
         [[nodiscard]]
         opentelemetry::nostd::string_view Get(opentelemetry::nostd::string_view key) const noexcept override {
             auto it = context_->client_metadata().find({key.data(), key.size()});
             if (it != context_->client_metadata().end())
             {
-                return it->second.data();
+                return {it->second.data(), it->second.size()};
             }
             return "";
         }
@@ -46,11 +47,11 @@ namespace otl {
     };
 
     // grpc client carrier
-    class GrpcClientCarrier : public opentelemetry::context::propagation::TextMapCarrier {
+    class grpcClientCarrier : public opentelemetry::context::propagation::TextMapCarrier {
         grpc::ClientContext *context_;
 
     public:
-        explicit GrpcClientCarrier(grpc::ClientContext *context) : context_(context) {}
+        explicit grpcClientCarrier(grpc::ClientContext *context) : context_(context) {}
 
         [[nodiscard]]
         opentelemetry::nostd::string_view Get(opentelemetry::nostd::string_view /* key */) const noexcept override {
@@ -64,10 +65,10 @@ namespace otl {
 
     // http carrier
     template<typename T>
-    class HttpCarrier : public opentelemetry::context::propagation::TextMapCarrier {
+    class httpCarrier : public opentelemetry::context::propagation::TextMapCarrier {
         T &headers_;
     public:
-        explicit HttpCarrier(T &headers) : headers_(headers) {}
+        explicit httpCarrier(T &headers) : headers_(headers) {}
 
         [[nodiscard]]
         opentelemetry::nostd::string_view Get(opentelemetry::nostd::string_view key) const noexcept override {
@@ -84,23 +85,22 @@ namespace otl {
             }
 
             if (iter != headers_.end()) {
-                return iter->second;
+                return {iter->second.data(), iter->second.size()};
             }
             return "";
         }
 
-        void Set(opentelemetry::nostd::string_view key,
-                 opentelemetry::nostd::string_view value) noexcept override {
-            headers_[std::string(key)] = std::string(value);
+        void Set(opentelemetry::nostd::string_view key, opentelemetry::nostd::string_view value) noexcept override {
+            headers_[std::string(key.data(), key.size())] = std::string(value.data(), value.size());
         }
     };
 
     // map getter carrier
     template<typename T>
-    class MapGetterCarrier : public opentelemetry::context::propagation::TextMapCarrier {
+    class mapGetterCarrier : public opentelemetry::context::propagation::TextMapCarrier {
         T &map_;
     public:
-        explicit MapGetterCarrier(T &m) : map_(m) {}
+        explicit mapGetterCarrier(T &m) : map_(m) {}
 
         [[nodiscard]]
         opentelemetry::nostd::string_view Get(opentelemetry::nostd::string_view key) const noexcept override {
@@ -115,7 +115,7 @@ namespace otl {
             }
 
             if (iter != map_.end()) {
-                return iter->second;
+                return {iter->second.data(), iter->second.size()};;
             }
             return "";
         }
@@ -125,9 +125,49 @@ namespace otl {
         }
     };
 
+    template<typename T>
+    class mapSetterCarrier : public opentelemetry::context::propagation::TextMapCarrier {
+        T &map_;
+    public:
+        explicit mapSetterCarrier(T &m) : map_(m) {}
+
+        [[nodiscard]]
+        opentelemetry::nostd::string_view Get(opentelemetry::nostd::string_view key) const noexcept override {
+            return "";
+        }
+
+        void Set(opentelemetry::nostd::string_view key, opentelemetry::nostd::string_view value) noexcept override {
+
+            map_.insert(std::make_pair(std::string(key.data(), key.size()), std::string(value.data(), value.size())));
+        }
+    };
+
+    template<typename T>
+    class mapModifyCarrier : public opentelemetry::context::propagation::TextMapCarrier {
+        T &map_;
+    public:
+        explicit mapModifyCarrier(T &m) : map_(m) {}
+
+        [[nodiscard]]
+        opentelemetry::nostd::string_view Get(opentelemetry::nostd::string_view key) const noexcept override {
+            return "";
+        }
+
+        void Set(opentelemetry::nostd::string_view key, opentelemetry::nostd::string_view value) noexcept override {
+            typename T::key_type k(key.data(), key.size());
+            typename T::key_type v(value.data(), value.size());
+            auto iter = map_.find(k);
+            if (iter == map_.end()) {
+                map_.insert(std::make_pair(k, v));
+            } else {
+                iter->second = v;
+            }
+        }
+    };
+
     // 将span的数据写入context.
     inline Context
-    NewContextFromSpan(opentelemetry::nostd::shared_ptr<opentelemetry::trace::Span> &span) {
+    NewContextFromSpan(Span &span) {
         return Context {opentelemetry::trace::kSpanKey, span};
     }
 }

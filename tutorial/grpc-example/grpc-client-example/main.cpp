@@ -21,14 +21,24 @@ public:
 };
 
 void unary_test(GreeterClient& client) {
+    //auto [cctx, span] = otl::NewSpan("unary_test");
+
     helloworld::HelloRequest req;
     req.set_name("myname");
     helloworld::HelloReply rsp;
     auto ctx = cogrpc::MakeContext(1000*100);
     ctx->AddMetadata("user_id", "12323213");
-    auto s = client.SayHello(nullptr, req, &rsp);
+    //ctx = otl::MakeGrpcClientContext(ctx, cctx);
+    auto s = client.SayHello(ctx, req, &rsp);
     if (GRPC_OK(s)) {
         std::cout << "unary SayHello: " << rsp.ShortDebugString() << "\n";
+        for (auto iter = ctx->GetServerInitialMetadata().begin(); iter != ctx->GetServerInitialMetadata().end(); iter++) {
+            std::cout << std::string(iter->first.data(), iter->first.size()) << " " << std::string(iter->second.data(), iter->second.size()) << "\n";
+        }
+        std::cout << "...........\n";
+        for (auto iter = ctx->GetServerTrailingMetadata().begin(); iter != ctx->GetServerTrailingMetadata().end(); iter++) {
+            std::cout << std::string(iter->first.data(), iter->first.size()) << " " << std::string(iter->second.data(), iter->second.size()) << "\n";
+        }
     } else {
         std::cout << GRPC_MSG(s) << "\n";
     }
@@ -84,9 +94,10 @@ void serve_test(GreeterClient& client) {
     }
 }
 
+
 int main(int argc, char **argv) {
     otl::ExporterContainer container;
-    container.push_back(std::move(otl::CreateConsoleExporter()));
+    //container.push_back(std::move(otl::CreateConsoleExporter()));
     //container.push_back(otl::CreateHttpExporter("http://192.168.102.41:4318/v1/traces"));
     otl::Init(argc, argv, container);
 
@@ -96,7 +107,7 @@ int main(int argc, char **argv) {
     go [&wg]
     {
         GreeterClient client;
-        client.AddInterceptor<otl::DefaultGrpcClientInterceptor>();
+        //client.AddInterceptor<otl::DefaultGrpcClientInterceptor>();
         client.Bind("127.0.0.1:8080", "");
 
         unary_test(client);

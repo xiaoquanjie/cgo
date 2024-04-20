@@ -41,6 +41,7 @@ public:
     std::shared_ptr<T> GetWithInterceptor(std::vector<std::unique_ptr<grpc::experimental::ClientInterceptorFactoryInterface>> factories,
                                           const std::string& target,
                                           const std::string& lb_policy) {
+        std::shared_lock<std::shared_mutex> lock(mu_);
         // 这就意味着在拦截器个数相同的情况下无法通过拦截器类型正确区分.
         auto id = target + "-interceptor-" + std::to_string(factories.size());
         auto iter = channel_map_.find(id);
@@ -142,8 +143,6 @@ protected:
     }
 
     std::shared_ptr<T> create(const std::string& target, const std::string& lb_policy) {
-        std::unique_lock<std::shared_mutex> lock(mu_);
-
         ::grpc::ChannelArguments args = makeChannelArguments(lb_policy);
         auto newTarget = calcTarget(target);
         auto c = ::grpc::CreateCustomChannel(newTarget, ::grpc::InsecureChannelCredentials(), args);

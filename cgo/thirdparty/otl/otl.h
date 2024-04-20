@@ -70,7 +70,7 @@ namespace otl {
             }
         }
 
-        static std::string GetTraceId(opentelemetry::nostd::shared_ptr<opentelemetry::trace::Span>& span) {
+        static std::string GetTraceId(Span& span) {
             const int ksize = opentelemetry::trace::TraceId::kSize*2;
             std::string buf;
             buf.resize(ksize);
@@ -79,7 +79,7 @@ namespace otl {
             return std::move(buf);
         }
 
-        static std::string GetSpanId(opentelemetry::nostd::shared_ptr<opentelemetry::trace::Span>& span) {
+        static std::string GetSpanId(Span& span) {
             const int ksize = opentelemetry::trace::SpanId::kSize*2;
             std::string buf;
             buf.resize(ksize);
@@ -148,23 +148,53 @@ namespace otl {
         return provider->GetTracer(tracer_name);
     }
 
-    // 从context中创建一个span start options.
-    inline opentelemetry::nostd::shared_ptr<opentelemetry::trace::Span>
-    SpanFromContext(opentelemetry::nostd::string_view name, opentelemetry::trace::SpanKind kind, Context &ctx) {
+    //inline Span
+    //SpanFrom
+
+    // 创建一个span.
+    inline std::pair<Context, Span>
+    NewSpan(opentelemetry::nostd::string_view name, opentelemetry::trace::SpanKind kind = opentelemetry::trace::SpanKind::kInternal) {
+        opentelemetry::trace::StartSpanOptions options;
+        options.kind = kind;
+        auto span = GetGlobalTracer()->StartSpan(name, {}, options);
+        auto ctx = NewContextFromSpan(span);
+        return {ctx, span};
+    }
+
+    inline std::pair<Context, Span>
+    NewSpan(opentelemetry::nostd::string_view name, opentelemetry::trace::SpanKind kind, const Context& ctx) {
         opentelemetry::trace::StartSpanOptions options;
         options.parent = opentelemetry::trace::GetSpan(ctx)->GetContext();
         options.kind = kind;
         auto span = GetGlobalTracer()->StartSpan(name, {}, options);
-        return span;
+        auto nctx = NewContextFromSpan(span);
+        return {nctx, span};
+    }
+
+    inline std::pair<Context, Span>
+    NewSpan(opentelemetry::nostd::string_view name, const Context& ctx) {
+        return NewSpan(name, opentelemetry::trace::SpanKind::kInternal, ctx);
+    }
+
+    inline std::shared_ptr<::grpc::ClientContext>
+    MakeGrpcClientContext(std::shared_ptr<::grpc::ClientContext> oldc, const Context& ctx) {
+        if (!oldc) {
+            oldc = std::make_shared<::grpc::ClientContext>();
+        }
+
+        auto prop = opentelemetry::context::propagation::GlobalTextMapPropagator::GetGlobalPropagator();
+        grpcClientCarrier carrier(oldc.get());
+        prop->Inject(carrier, ctx);
+        return oldc;
     }
 
     // 默认的grpc服务拦截器.
     class DefaultGrpcServerInterceptor : public cogrpc::ServerInterceptor {
-        opentelemetry::nostd::shared_ptr<opentelemetry::trace::Span> span_;
+        Span span_;
     public:
         explicit DefaultGrpcServerInterceptor(grpc::experimental::ServerRpcInfo *info) : cogrpc::ServerInterceptor(info) {}
 
-        void begin() {
+        void begin(std::multimap<grpc::string_ref, grpc::string_ref> *metaData) {
             // 分割方法.
             std::string fullMethod = rpcInfo_->method();
             std::string rpcService;
@@ -172,30 +202,33 @@ namespace otl {
             Otl::ParseFullMethod(fullMethod, rpcService, rpcMethod);
             std::string spanName = rpcService + "/" + rpcMethod;
 
-            auto serverCtx = dynamic_cast<grpc::ServerContext*>(rpcInfo_->server_context());
-            // 创建一个新的context.
-            Context parentContext;
-
             // extract data from carrier to context.
             auto prop = opentelemetry::context::propagation::GlobalTextMapPropagator::GetGlobalPropagator();
-            parentContext = prop->Extract(GrpcServerCarrier(serverCtx), parentContext);
+            Context parentContext;
+            parentContext = prop->Extract(mapGetterCarrier(*metaData), parentContext);
 
             // 创建一个新的span.
-            span_ = SpanFromContext(spanName, opentelemetry::trace::SpanKind::kServer, parentContext);
+            auto [newContext, span] = NewSpan(spanName, opentelemetry::trace::SpanKind::kServer, parentContext);
+            span_ = span;
             // set attribute
             span_->SetAttribute(opentelemetry::trace::SemanticConventions::kRpcSystem, "grpc");
             span_->SetAttribute(opentelemetry::trace::SemanticConventions::kRpcService, rpcService);
             span_->SetAttribute(opentelemetry::trace::SemanticConventions::kRpcMethod, rpcMethod);
+
+            //mapModifyCarrier mCarrier(*metaData);
+            //prop->Inject(mCarrier, newContext);
         }
 
         void end(const grpc::Status& status) {
-            if (status.ok()) {
-                span_->SetStatus(opentelemetry::trace::StatusCode::kOk);
-            } else {
-                span_->SetStatus(opentelemetry::trace::StatusCode::kError);
+            if (span_) {
+                if (status.ok()) {
+                    span_->SetStatus(opentelemetry::trace::StatusCode::kOk);
+                } else {
+                    span_->SetStatus(opentelemetry::trace::StatusCode::kError);
+                }
+                span_->SetAttribute(opentelemetry::trace::SemanticConventions::kRpcGrpcStatusCode, (int)status.error_code());
+                span_->End();
             }
-            span_->SetAttribute(opentelemetry::trace::SemanticConventions::kRpcGrpcStatusCode, (int)status.error_code());
-            span_->End();
         }
 
         void Intercept(grpc::experimental::InterceptorBatchMethods* methods) override {
@@ -205,8 +238,11 @@ namespace otl {
             }
 
             if (methods->QueryInterceptionHookPoint(grpc::experimental::InterceptionHookPoints::POST_RECV_MESSAGE)) {
-                // 收到消息.
-                begin();
+                auto mp = methods->GetRecvInitialMetadata();
+                if (mp) {
+                    // 收到消息.
+                    begin(mp);
+                }
             }
             if (methods->QueryInterceptionHookPoint(grpc::experimental::InterceptionHookPoints::PRE_SEND_STATUS)) {
                 // 发送结束.
@@ -218,7 +254,7 @@ namespace otl {
 
     // 默认的grpc客户端拦截器.
     class DefaultGrpcClientInterceptor : public cogrpc::ClientInterceptor {
-        opentelemetry::nostd::shared_ptr<opentelemetry::trace::Span> span_;
+        Span span_;
 
     public:
         explicit DefaultGrpcClientInterceptor(grpc::experimental::ClientRpcInfo *info) : cogrpc::ClientInterceptor(info) {}
@@ -231,20 +267,18 @@ namespace otl {
             Otl::ParseFullMethod(fullMethod, rpcService, rpcMethod);
             std::string spanName = rpcService + "/" + rpcMethod;
 
-            Context parentContext;
             auto prop = opentelemetry::context::propagation::GlobalTextMapPropagator::GetGlobalPropagator();
-            parentContext = prop->Extract(MapGetterCarrier(*metaData), parentContext);
+            Context parentContext;
+            parentContext = prop->Extract(mapGetterCarrier(*metaData), parentContext);
 
-            span_ = SpanFromContext(spanName, opentelemetry::trace::SpanKind::kClient, parentContext);
+            auto [currentContext, span] = NewSpan(spanName, opentelemetry::trace::SpanKind::kClient, parentContext);
+            span_ = span;
             span_->SetAttribute(opentelemetry::trace::SemanticConventions::kRpcSystem, "grpc");
             span_->SetAttribute(opentelemetry::trace::SemanticConventions::kRpcService, rpcService);
             span_->SetAttribute(opentelemetry::trace::SemanticConventions::kRpcMethod, rpcMethod);
 
-            Context currentContext = NewContextFromSpan(span_);
-
-            // inject data to carrier
-            auto clientCtx = rpcInfo_->client_context();
-            GrpcClientCarrier carrier(clientCtx);
+            // modify or inject the trace info to clientcontext
+            mapModifyCarrier carrier(*metaData);
             prop->Inject(carrier, currentContext);
         }
 
@@ -267,7 +301,9 @@ namespace otl {
             }
             if (methods->QueryInterceptionHookPoint(grpc::experimental::InterceptionHookPoints::PRE_SEND_MESSAGE)) {
                 auto mp = methods->GetSendInitialMetadata();
-                begin(mp);
+                if (mp) {
+                    begin(mp);
+                }
             }
             if (methods->QueryInterceptionHookPoint(grpc::experimental::InterceptionHookPoints::POST_RECV_STATUS)) {
                 end(*methods->GetRecvStatus());

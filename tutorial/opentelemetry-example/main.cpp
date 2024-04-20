@@ -30,15 +30,19 @@ public:
 
     ::grpc::Status SayHello(::grpc::ServerContext *ctx, const helloworld::HelloRequest *req, helloworld::HelloReply *rsp) {
         std::cout << "SayHello:" << req->ShortDebugString() << "\n";
+
         for (auto& kv : ctx->client_metadata()) {
             std::cout << "key:" << std::string(kv.first.data(), kv.first.size()) << " value:" << std::string(kv.second.data(), kv.second.size()) << "\n";
         }
-
+        ctx->AddInitialMetadata("servermd1", "serverd1");
+        ctx->AddTrailingMetadata("servermd2", "serverd2");
+        return ::grpc::Status::OK;
         GreeterClient client;
         client.AddInterceptor<otl::DefaultGrpcClientInterceptor>();
         client.Bind("127.0.0.1:8080", "");
 
         auto clientCtx = cogrpc::FromServerContext(ctx);
+        clientCtx->AddMetadata("user_id2", "fdskfldsfsd");
         helloworld::FamilyRequest freq;
         helloworld::FamilyResponse frsp;
         client.GetName(clientCtx, freq, &frsp);
@@ -69,6 +73,7 @@ public:
 };
 
 int main(int argc, char **argv) {
+    setbuf(stdout, nullptr);
     auto exporter = otl::CreateConsoleExporter();
     otl::ExporterContainer container;
     container.push_back(std::move(exporter));
@@ -77,7 +82,7 @@ int main(int argc, char **argv) {
 
     cogrpc::DefSrvBuilder()->AddListeningPort("0.0.0.0:8080");
     cogrpc::DefSrvBuilder()->RegisterService<GreeterServer>();
-    cogrpc::DefSrvBuilder()->AddInterceptor<otl::DefaultGrpcServerInterceptor>();
+    //cogrpc::DefSrvBuilder()->AddInterceptor<otl::DefaultGrpcServerInterceptor>();
     cogrpc::DefSrvBuilder()->Run();
 
     while (true) {
