@@ -28,6 +28,7 @@ namespace cogrpc {
     // new a client context from server context
     inline std::shared_ptr<::grpc::ClientContext> FromServerContext(::grpc::ServerContext *ctx, ::grpc::PropagationOptions options = ::grpc::PropagationOptions()) {
         std::shared_ptr<grpc::ClientContext> newctx = std::move(::grpc::ClientContext::FromServerContext(*ctx, options));
+        newctx->set_deadline(ctx->deadline());
         for (auto iter = ctx->client_metadata().begin(); iter != ctx->client_metadata().end(); iter++) {
             newctx->AddMetadata(std::string(iter->first.data(), iter->first.size()), std::string(iter->second.data(), iter->second.size()));
         }

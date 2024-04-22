@@ -157,7 +157,7 @@ namespace otl {
         opentelemetry::trace::StartSpanOptions options;
         options.kind = kind;
         auto span = GetGlobalTracer()->StartSpan(name, {}, options);
-        auto ctx = NewContextFromSpan(span);
+        auto ctx = ContextFromSpan(span);
         return {ctx, span};
     }
 
@@ -167,13 +167,21 @@ namespace otl {
         options.parent = opentelemetry::trace::GetSpan(ctx)->GetContext();
         options.kind = kind;
         auto span = GetGlobalTracer()->StartSpan(name, {}, options);
-        auto nctx = NewContextFromSpan(span);
+        auto nctx = ContextFromSpan(span);
         return {nctx, span};
     }
 
     inline std::pair<Context, Span>
     NewSpan(opentelemetry::nostd::string_view name, const Context& ctx) {
         return NewSpan(name, opentelemetry::trace::SpanKind::kInternal, ctx);
+    }
+
+    inline Context
+    ContextFromGrpcServerContext(::grpc::ServerContext *ctx) {
+        Context context;
+        auto prop = opentelemetry::context::propagation::GlobalTextMapPropagator::GetGlobalPropagator();
+        context = prop->Extract(grpcServerCarrier(ctx), context);
+        return context;
     }
 
     inline std::shared_ptr<::grpc::ClientContext>

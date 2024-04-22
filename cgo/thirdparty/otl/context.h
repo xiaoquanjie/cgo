@@ -178,7 +178,7 @@ namespace otl {
 
     // 将span的数据写入context.
     inline Context
-    NewContextFromSpan(Span &span) {
+    ContextFromSpan(Span &span) {
         return Context {opentelemetry::trace::kSpanKey, span};
     }
 }

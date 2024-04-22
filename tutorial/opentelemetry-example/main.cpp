@@ -18,6 +18,15 @@ public:
 
 };
 
+GreeterClient getClient() {
+    static GreeterClient cli;
+    if (!cli.Valid()) {
+        cli.AddInterceptor<otl::DefaultGrpcClientInterceptor>();
+        cli.Bind("127.0.0.1:8080", "");
+    }
+    return cli;
+}
+
 class GreeterServer : public cogrpc::Server<helloworld::Greeter> {
 public:
     void InitMethod() override {
@@ -31,30 +40,30 @@ public:
     ::grpc::Status SayHello(::grpc::ServerContext *ctx, const helloworld::HelloRequest *req, helloworld::HelloReply *rsp) {
         std::cout << "SayHello:" << req->ShortDebugString() << "\n";
 
-        for (auto& kv : ctx->client_metadata()) {
-            std::cout << "key:" << std::string(kv.first.data(), kv.first.size()) << " value:" << std::string(kv.second.data(), kv.second.size()) << "\n";
-        }
-        ctx->AddInitialMetadata("servermd1", "serverd1");
-        ctx->AddTrailingMetadata("servermd2", "serverd2");
-        return ::grpc::Status::OK;
-        GreeterClient client;
-        client.AddInterceptor<otl::DefaultGrpcClientInterceptor>();
-        client.Bind("127.0.0.1:8080", "");
-
+        auto cli = getClient();
         auto clientCtx = cogrpc::FromServerContext(ctx);
-        clientCtx->AddMetadata("user_id2", "fdskfldsfsd");
         helloworld::FamilyRequest freq;
         helloworld::FamilyResponse frsp;
-        client.GetName(clientCtx, freq, &frsp);
+        cli.GetName(clientCtx, freq, &frsp);
 
         return ::grpc::Status::OK;
     }
 
+    void showTest(const otl::Context &ctx) {
+        auto [newctx, span] = otl::NewSpan("showTest", ctx);
+        std::cout << "this is showtest\n";
+    }
+
+    void showTest2(const otl::Context &ctx) {
+        auto [newctx, span] = otl::NewSpan("showTest2", ctx);
+        std::cout << "this is showtest2\n";
+    }
+
     ::grpc::Status GetName(::grpc::ServerContext *ctx, const helloworld::FamilyRequest *req, helloworld::FamilyResponse *rsp) {
         std::cout << "getname" << "\n";
-        for (auto& kv : ctx->client_metadata()) {
-            std::cout << "key:" << std::string(kv.first.data(), kv.first.size()) << " value:" << std::string(kv.second.data(), kv.second.size()) << "\n";
-        }
+        auto otlCtx = otl::ContextFromGrpcServerContext(ctx);
+        showTest(otlCtx);
+        showTest2(otlCtx);
         return ::grpc::Status::OK;
     }
 
@@ -72,22 +81,47 @@ public:
 
 };
 
-int main(int argc, char **argv) {
-    setbuf(stdout, nullptr);
-    auto exporter = otl::CreateConsoleExporter();
-    otl::ExporterContainer container;
-    container.push_back(std::move(exporter));
-    //container.push_back(otl::CreateHttpExporter("http://192.168.102.41:4318/v1/traces"));
-    otl::Init(argc, argv, container);
+void initOpentelemetry(int argc, char **argv) {
+    otl::ExporterContainer c;
+    c.push_back(otl::CreateConsoleExporter());
+    c.push_back(otl::CreateHttpExporter("http://192.168.102.41:4318/v1/traces"));
+    otl::Init(argc, argv, c);
+}
 
+void initServer() {
     cogrpc::DefSrvBuilder()->AddListeningPort("0.0.0.0:8080");
     cogrpc::DefSrvBuilder()->RegisterService<GreeterServer>();
-    //cogrpc::DefSrvBuilder()->AddInterceptor<otl::DefaultGrpcServerInterceptor>();
+    // 注册otl拦截器
+    cogrpc::DefSrvBuilder()->AddInterceptor<otl::DefaultGrpcServerInterceptor>();
     cogrpc::DefSrvBuilder()->Run();
+}
 
-    while (true) {
-        msleep(100);
-    }
+void initClient() {
+    go [] {
+        auto [ctx, span] = otl::NewSpan("initClient");
+        auto grpcCtx = cogrpc::MakeContext(1000*10);
+        grpcCtx = otl::MakeGrpcClientContext(grpcCtx, ctx);
 
+        helloworld::HelloRequest req;
+        helloworld::HelloReply rsp;
+        req.set_name("this is initClient");
+
+        auto cli = getClient();
+        auto status = cli.SayHello(grpcCtx, req, &rsp);
+
+        if (GRPC_OK(status)) {
+            std::cout << "SayHello ok:" << rsp.ShortDebugString() << "\n";
+        } else {
+            std::cout << "SayHello error:" << GRPC_MSG(status) << "\n";
+        }
+    };
+}
+
+int main(int argc, char **argv) {
+    initOpentelemetry(argc, argv);
+    initServer();
+    initClient();
+
+    msleep(1000*10);
     return 0;
 }
