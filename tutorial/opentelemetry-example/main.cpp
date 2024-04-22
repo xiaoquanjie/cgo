@@ -61,7 +61,7 @@ public:
 
     ::grpc::Status GetName(::grpc::ServerContext *ctx, const helloworld::FamilyRequest *req, helloworld::FamilyResponse *rsp) {
         std::cout << "getname" << "\n";
-        auto otlCtx = otl::ContextFromGrpcServerContext(ctx);
+        auto otlCtx = otl::ContextFromGSContext(ctx);
         showTest(otlCtx);
         showTest2(otlCtx);
         return ::grpc::Status::OK;
@@ -100,7 +100,7 @@ void initClient() {
     go [] {
         auto [ctx, span] = otl::NewSpan("initClient");
         auto grpcCtx = cogrpc::MakeContext(1000*10);
-        grpcCtx = otl::MakeGrpcClientContext(grpcCtx, ctx);
+        grpcCtx = otl::MakeGCContext(grpcCtx, ctx);
 
         helloworld::HelloRequest req;
         helloworld::HelloReply rsp;

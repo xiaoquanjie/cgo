@@ -176,16 +176,18 @@ namespace otl {
         return NewSpan(name, opentelemetry::trace::SpanKind::kInternal, ctx);
     }
 
+    // GSC: grpc server context
     inline Context
-    ContextFromGrpcServerContext(::grpc::ServerContext *ctx) {
+    ContextFromGSContext(::grpc::ServerContext *ctx) {
         Context context;
         auto prop = opentelemetry::context::propagation::GlobalTextMapPropagator::GetGlobalPropagator();
         context = prop->Extract(grpcServerCarrier(ctx), context);
         return context;
     }
 
+    // GCC: grpc client context
     inline std::shared_ptr<::grpc::ClientContext>
-    MakeGrpcClientContext(std::shared_ptr<::grpc::ClientContext> oldc, const Context& ctx) {
+    MakeGCContext(std::shared_ptr<::grpc::ClientContext> oldc, const Context& ctx) {
         if (!oldc) {
             oldc = std::make_shared<::grpc::ClientContext>();
         }
