@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.25)
 project(cgo_project)
 
+if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+    add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/source-charset:utf-8>")
+    add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/execution-charset:utf-8>")
+endif ()
+
 if (ONLY_CGO)
     add_subdirectory(cgo)
 else ()
