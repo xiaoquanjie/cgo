@@ -10,3 +10,4 @@ out
 cgo-vsproject
 CMakeUserPresets.json
 win-CMakeUserPresets.json
+build
