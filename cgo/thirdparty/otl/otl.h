@@ -1,4 +1,4 @@
-﻿//
+//
 // 提供对opentelemetry的简单封装,使用http协议(不使用grpc的原因是编译不过,尚不知道原因).
 // Created by xiaoqj on 2024/4/17.
 //

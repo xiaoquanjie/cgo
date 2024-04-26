@@ -18,13 +18,13 @@
 namespace cgo::coro_adapter {
     uint64_t create_co(const std::function<void()>& routine, int stack = 0, const char* file = nullptr, int line = 0);
 
-    // »½ĞÑĞ­³Ì
+    // å”¤é†’åç¨‹
     void resume_co(uint64_t co_id);
 
-    // Ğ­³ÌµÈ´ıĞÅºÅÁ¿
+    // åç¨‹ç­‰å¾…ä¿¡å·é‡
     void co_wait_signal(void*& data);
 
-    // Ğ­³ÌÍ¶µİĞÅºÅÁ¿
+    // åç¨‹æŠ•é€’ä¿¡å·é‡
     void co_post_signal(uint64_t co_id, void* data);
 
     void run_co(const std::function<void()>& routine, int stack = 0, const char* file = nullptr, int line = 0);

@@ -93,7 +93,7 @@ namespace cgo {
                 return expire;
             }
 
-            // ÔÚ¹æ¶¨Ê±¼äÄÚÃ»ÓÐÇå¿Õ¶ÓÁÐ£¬¾Í»á±»ÅÐ¶¨Îª¶ÓÁÐ¶Ñ»ý
+            // åœ¨è§„å®šæ—¶é—´å†…æ²¡æœ‰æ¸…ç©ºé˜Ÿåˆ—ï¼Œå°±ä¼šè¢«åˆ¤å®šä¸ºé˜Ÿåˆ—å †ç§¯
             inline bool delay() {
                 auto delta = delay_delta();
                 if (delta >= M_QUEUE_DELAY_TIME) {
@@ -239,8 +239,8 @@ namespace cgo {
 
         struct _scheduler_st_ {
             _schedule_global_queue_st_* _global_tqueue;
-            std::list<schedule_thread_st_type> _work_threads; // ÕýÔÚ¹¤×÷µÄÏß³Ì
-            std::list<schedule_thread_st_type> _idle_threads; // ¿ÕÏÐµÄÏß³Ì
+            std::list<schedule_thread_st_type> _work_threads; // æ­£åœ¨å·¥ä½œçš„çº¿ç¨‹
+            std::list<schedule_thread_st_type> _idle_threads; // ç©ºé—²çš„çº¿ç¨‹
             std::vector<_schedule_dead_thread_st_> _dead_threads;
             int generate_work_id = 1;
             std::shared_mutex _thrs_mu;
@@ -367,7 +367,7 @@ namespace cgo {
         }
 
         inline void _schedule_global_queue_st_::enqueue(_schedule_task_st_* task) {
-            // ÕâÒ²ÊÇÒ»¸öÆ¿¾±
+            // è¿™ä¹Ÿæ˜¯ä¸€ä¸ªç“¶é¢ˆ
             assert(_queue->enqueue(task));
             record();
         }
@@ -775,9 +775,9 @@ namespace cgo {
                 st->on_run();
 
                 if (st->_scheduler->_global_tqueue->size() == 0) {
-                    // ½øÈë¿ÕÏÐÏß³Ì¶ÓÁÐ
+                    // è¿›å…¥ç©ºé—²çº¿ç¨‹é˜Ÿåˆ—
                     st->_scheduler->add_idle_thread(st);
-                    // ½«Ïß³Ì¹ÒÆðÀ´
+                    // å°†çº¿ç¨‹æŒ‚èµ·æ¥
                     st->wait();
                 }
             }
@@ -847,14 +847,14 @@ namespace cgo {
 
             auto dispatch = [&st, &idle_thrs, &work_thrs, &idle_thr_idx](_schedule_base_queue_st_* q) {
                 if (idle_thr_idx < idle_thrs.size()) {
-                    // ·ÖÅä¿ÕÏÐÏß³Ì
+                    // åˆ†é…ç©ºé—²çº¿ç¨‹
                     auto thr = idle_thrs[idle_thr_idx];
                     idle_thr_idx++;
                     st.remove_idle_thread(thr);
                     thr->resume(q);
                 } else {
                     if (work_thrs.empty() || q->secondclass_delay()) {
-                        // ÐÂÆðÏß³Ì
+                        // æ–°èµ·çº¿ç¨‹
                         if (!st.start_thread(q) && q->emergency()) {
                             M_CO_DEBUG_PRINT("[cgo warning!!!] all working threads were occupied for a long time(over ten seconds), maybe dead lock or being blocked %s", "\n");
                         }

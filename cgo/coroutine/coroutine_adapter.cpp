@@ -120,14 +120,14 @@ namespace cgo::coro_adapter {
         M_LOCK_CO(info);
         assert((info->state & WaitSignal) == 0);
         if (info->state & ActiveSignal) {
-            // Èç¹û×´Ì¬ÊÇ¼¤»îµÄ, È¡Ïû×´Ì¬
+            // å¦‚æœçŠ¶æ€æ˜¯æ¿€æ´»çš„, å–æ¶ˆçŠ¶æ€
             info->state = 0;
             data = info->data;
             M_UNLOCK_CO(info);
         } else {
-            // Èç¹û×´Ì¬ÊÇÎ´¼¤»î
+            // å¦‚æœçŠ¶æ€æ˜¯æœªæ¿€æ´»
             info->state = WaitSignal;
-            // ¹ÒÆğĞ­³Ì
+            // æŒ‚èµ·åç¨‹
             M_YIELD_CO(co_id);
             data = info->data;
         }
@@ -138,11 +138,11 @@ namespace cgo::coro_adapter {
         M_LOCK_CO(info);
         assert((info->state & ActiveSignal) == 0);
         if (info->state & WaitSignal) {
-            // Èç¹û×´Ì¬ÊÇµÈ´ı, È¡Ïû×´Ì¬
+            // å¦‚æœçŠ¶æ€æ˜¯ç­‰å¾…, å–æ¶ˆçŠ¶æ€
             info->state = 0;
             info->data = data;
             M_UNLOCK_CO(info);
-            // »½ĞÑĞ­³Ì
+            // å”¤é†’åç¨‹
             coro_adapter::resume_co(co_id);
         } else {
             info->data = data;

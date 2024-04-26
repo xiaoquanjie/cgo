@@ -68,54 +68,54 @@ namespace cgo::channel {
                 return false;
             }
 
-            // ¿´·¢ËÍ¶ÓÁĞÖĞÓĞÃ»ÓĞÊı¾İ
+            // çœ‹å‘é€é˜Ÿåˆ—ä¸­æœ‰æ²¡æœ‰æ•°æ®
             void* buf = nullptr;
             for (send_task task; _sendq.pop(task); ) {
-                // ´Ó»º´æÖĞ¶Á³öÊı¾İ
+                // ä»ç¼“å­˜ä¸­è¯»å‡ºæ•°æ®
                 if (_bufq.pop(buf)) {
-                    // ½«·¢ËÍÕßÊı¾İÈë»º´æ
+                    // å°†å‘é€è€…æ•°æ®å…¥ç¼“å­˜
                     assert(_bufq.push(_malloc(task.data)));
                     _mu.unlock();
-                    // ¿½±´»º´æÀïµÄÊı¾İ
+                    // æ‹·è´ç¼“å­˜é‡Œçš„æ•°æ®
                     _copyfree(v, buf);
                 } else {
                     _mu.unlock();
-                    // Ö±½Ó¿½±´·¢ËÍÕß
+                    // ç›´æ¥æ‹·è´å‘é€è€…
                     _copy(v, task.data);
                 }
 
-                // »½ĞÑµÈ´ı¶ÓÁĞµÄĞ­³Ì
+                // å”¤é†’ç­‰å¾…é˜Ÿåˆ—çš„åç¨‹
                 task.sig.post();
                 return true;
             }
 
-            // ¿´»º´æÖĞÓĞÃ»ÓĞÊı¾İ
+            // çœ‹ç¼“å­˜ä¸­æœ‰æ²¡æœ‰æ•°æ®
             if (_bufq.pop(buf)) {
-                // ÓĞÊı¾İ
+                // æœ‰æ•°æ®
                 _mu.unlock();
                 // copy data
                 _copyfree(v, buf);
                 return true;
             }
 
-            // ¶¼Ã»ÓĞÊı¾İ£¬½«×ÔÒÑÈë¶ÓÁĞ
+            // éƒ½æ²¡æœ‰æ•°æ®ï¼Œå°†è‡ªå·²å…¥é˜Ÿåˆ—
             recv_task self;
             self.sig.init();
             _recvq.push(self);
             _mu.unlock();
 
-            // Ôò½«×Ô¼º¹ÒÆğÀ´
+            // åˆ™å°†è‡ªå·±æŒ‚èµ·æ¥
             self.sig.wait(buf);
-            // ¹Ø±ÕĞÅºÅ
+            // å…³é—­ä¿¡å·
             self.sig.close();
 
-            // »Ö¸´ºó
+            // æ¢å¤å
             if (_closed) {
                 assert(buf == nullptr);
                 return false;
             }
 
-            // ¿½±´Êı¾İ
+            // æ‹·è´æ•°æ®
             assert(buf != nullptr);
             _copyfree(v, buf);
             return true;
@@ -128,35 +128,35 @@ namespace cgo::channel {
                 return false;
             }
 
-            // ¿´½ÓÊÕ¶ÓÁĞÓĞÃ»ÓĞÊı¾İ
-            // ´æÔÚ½ÓÊÜ¶ÓÁĞ£¬ÔòËµÃ÷»º´æÊÇ¿ÕµÄ
+            // çœ‹æ¥æ”¶é˜Ÿåˆ—æœ‰æ²¡æœ‰æ•°æ®
+            // å­˜åœ¨æ¥å—é˜Ÿåˆ—ï¼Œåˆ™è¯´æ˜ç¼“å­˜æ˜¯ç©ºçš„
             for (recv_task task; _recvq.pop(task);) {
-                // ÓĞÊı¾İ
+                // æœ‰æ•°æ®
                 _mu.unlock();
-                // ¹¹ÔìÒ»ÌõĞÂÊı¾İ
+                // æ„é€ ä¸€æ¡æ–°æ•°æ®
                 auto newv = _malloc(v);
-                // »½ĞÑµÈ´ıĞ­³Ì
+                // å”¤é†’ç­‰å¾…åç¨‹
                 task.sig.post(newv);
                 return true;
             }
 
-            // ¿´»º´æÊÇ·ñÂúÁË
+            // çœ‹ç¼“å­˜æ˜¯å¦æ»¡äº†
             if (!_bufq.full()) {
-                // ¹¹ÔìÒ»ÌõĞÂÊı¾İ
+                // æ„é€ ä¸€æ¡æ–°æ•°æ®
                 auto newv = _malloc(v);
                 assert(_bufq.push(newv));
                 _mu.unlock();
                 return true;
             }
 
-            // ½«Èë×ÔÒÑÈë¶ÓÁĞ
+            // å°†å…¥è‡ªå·²å…¥é˜Ÿåˆ—
             send_task self;
             self.sig.init();
             self.data = v;
             _sendq.push(self);
             _mu.unlock();
 
-            // ½«×Ô¼º¹ÒÆğÀ´
+            // å°†è‡ªå·±æŒ‚èµ·æ¥
             self.sig.wait();
             self.sig.close();
 

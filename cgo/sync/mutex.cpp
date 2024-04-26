@@ -36,13 +36,13 @@ namespace cgo {
 
         M_WAITERS(_waiters)->push(self);
         if (!try_resume(&self)) {
-            // ¹ÒÆğ
+            // æŒ‚èµ·
             self.wait();
         }
         self.close();
     }
 
-    // ²»ÔÊĞíÖØÈë
+    // ä¸å…è®¸é‡å…¥
     bool co_mutex::try_lock() {
         for (int i = 0; i < 1; i++) {
             if (!_lock.test_and_set()) {
@@ -62,7 +62,7 @@ namespace cgo {
 
         cgo::signal ot;
         if (M_WAITERS(_waiters)->try_pop(ot)) {
-            // ¸ü»»ËùÓĞÕß
+            // æ›´æ¢æ‰€æœ‰è€…
             _owner = ot.id();
             ot.post();
         } else {

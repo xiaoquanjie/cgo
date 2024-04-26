@@ -1,4 +1,4 @@
-﻿#include "hook.h"
+#include "hook.h"
 #include "epoll_iocp.h"
 #include "scheduler/scheduler.h"
 #include "common/macro.h"
