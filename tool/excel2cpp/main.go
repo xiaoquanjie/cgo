@@ -356,7 +356,7 @@ func genData(descs []*sheetDesc) error {
 
 	writeData := func(desc *sheetDesc) (string, error) {
 		content := ""
-		content += fmt.Sprintf("# 文件生成时间: %s\n", time.Now().String())
+		//content += fmt.Sprintf("# 文件生成时间: %s\n", time.Now().String())
 		content += fmt.Sprintf("# %s => [%s].sheet\n", desc.excelName, desc.sheetName)
 		c, err := parseData(desc)
 		if err != nil {
@@ -455,25 +455,54 @@ func genReader(descs []*sheetDesc) error {
 		content += fmt.Sprintf("    struct %s : public %sBaseReader {\n", desc.readerName, desc.sheetName)
 		content += "    protected:\n"
 		content += "        //解析器实现\n"
-		content += fmt.Sprintf("        bool parser(%s& key, %s& newitem, %s& item) {\n",
+		content += fmt.Sprintf("        bool parser(%s& key, %s& newitem, %s& item) override;\n",
 			desc.sheetName+"Key",
 			desc.sheetName,
 			desc.sheetName)
-		content += "            newitem = item;\n"
-		content += "            key.key1 = newitem.id();\n"
-		content += "            return true;\n"
-		content += "        }\n"
 		content += "    };\n"
 		content += "}"
 		return content, nil
 	}
 
+	writeReaderCpp := func(desc *sheetDesc) (string, error) {
+		content := ""
+		content += fmt.Sprintf("// 文件首次生成于时间: %s \n\n", time.Now().String())
+		content += fmt.Sprintf("#include \"%s.h\"\n\n", desc.readerName)
+
+		content += "namespace sheetcfg {\n"
+		content += fmt.Sprintf("    bool %s::parser(%s& key, %s& newitem, %s& item) {\n",
+			desc.readerName,
+			desc.sheetName+"Key",
+			desc.sheetName,
+			desc.sheetName)
+		content += "        newitem = item;\n"
+		content += "        key.key1 = newitem.id();\n"
+		content += "        return true;\n"
+		content += "    }\n"
+		content += "}"
+		return content, nil
+	}
+
 	for _, desc := range descs {
+		_, err := os.Stat(filepath.Join(*cppDir, desc.readerName+".h"))
+		if err == nil || os.IsExist(err) {
+			continue
+		}
+
 		content, err := writeReader(desc)
 		if err != nil {
 			return err
 		}
 		err = writeFile(filepath.Join(*cppDir, desc.readerName+".h"), content)
+		if err != nil {
+			return err
+		}
+
+		content, err = writeReaderCpp(desc)
+		if err != nil {
+			return err
+		}
+		err = writeFile(filepath.Join(*cppDir, desc.readerName+".cpp"), content)
 		if err != nil {
 			return err
 		}
