@@ -440,7 +440,7 @@ func genReader(descs []*sheetDesc) error {
 		content := ""
 		content += fmt.Sprintf("// 文件首次生成于时间: %s \n", time.Now().String())
 		content += "#pragma once\n\n"
-		content += "#include \"sheet_reader.h\"\n"
+		content += "#include \"sheet_reader.hpp\"\n"
 
 		if *oneProto {
 			content += fmt.Sprintf("#include \"%s.pb.h\"\n\n", "sheet")
