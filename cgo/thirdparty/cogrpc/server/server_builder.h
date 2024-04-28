@@ -147,11 +147,11 @@ namespace cogrpc {
         void StopQueue() {
             this->cq_->Shutdown();
             // 排干事件.
-            while (true) {
-                if (!PickMsg()) {
-                    break;
-                }
-            }
+//            while (true) {
+//                if (!PickMsg()) {
+//                    break;
+//                }
+//            }
         }
 
         bool PickMsg() {
