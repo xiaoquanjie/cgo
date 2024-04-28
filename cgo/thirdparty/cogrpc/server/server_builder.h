@@ -13,6 +13,7 @@
 #include <string>
 #include <chrono>
 #include <mutex>
+#include <cstdio>
 #include "serverdata.h"
 #include "interceptor.h"
 
@@ -98,11 +99,11 @@ namespace cogrpc {
             });
         }
 
-        void Stop() {
-            OnStop();
+    protected:
+        static void SStop() {
+            DefSrvBuilder()->Stop();
         }
 
-    protected:
         void OnStart() {
             builder_.experimental().SetInterceptorCreators(std::move(interceptor_factories_));
             server_ = builder_.BuildAndStart();
@@ -116,25 +117,22 @@ namespace cogrpc {
             wg_.Add(1);
         }
 
-        virtual void OnStop() {
+        void Stop() {
             // not start
             if (!server_) {
                 return;
             }
 
+            printf("[cogrpc] try to stop grpc server\n");
             this->stop_ = true;
             server_->Shutdown();
             StopQueue();
             wg_.Wait();
-        }
-
-        static void SStop() {
-            DefSrvBuilder()->Stop();
+            printf("[cogrpc] stop grpc server successfully\n");
         }
 
         void Loop(uint32_t) {
             std::atexit(&ServerBuilder::SStop);
-
             for (;;) {
                 if (this->stop_) {
                     break;
@@ -146,12 +144,6 @@ namespace cogrpc {
 
         void StopQueue() {
             this->cq_->Shutdown();
-            // 排干事件.
-//            while (true) {
-//                if (!PickMsg()) {
-//                    break;
-//                }
-//            }
         }
 
         bool PickMsg() {

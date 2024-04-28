@@ -12,6 +12,7 @@
 #include <memory>
 #include <chrono>
 #include <cstdlib>
+#include <cstdio>
 #include "clientdata.h"
 #include "channel.h"
 
@@ -38,15 +39,17 @@ namespace cogrpc {
             });
         }
 
-        void Stop() {
-            this->stop_ = true;
-            StopQueue();
-            wg_.Wait();
-        }
-
     protected:
         static void SStop() {
             DefCliBuilder()->Stop();
+        }
+
+        void Stop() {
+            printf("[cogrpc] try to grpc client\n");
+            this->stop_ = true;
+            StopQueue();
+            wg_.Wait();
+            printf("[cogrpc] stop grpc client successfully\n");
         }
 
         void Loop(uint32_t) {
@@ -62,12 +65,6 @@ namespace cogrpc {
 
         void StopQueue() {
             this->cq_.Shutdown();
-            // 排干事件.
-//            while (true) {
-//                if (!PickMsg()) {
-//                    break;
-//                }
-//            }
         }
 
         bool PickMsg() {

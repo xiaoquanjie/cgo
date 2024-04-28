@@ -100,7 +100,7 @@ protected:
         }
 
         // set header
-        struct curl_slist* curl_headers = 0;
+        struct curl_slist* curl_headers = nullptr;
         curl_headers = curl_slist_append(curl_headers, "connection: keep-alive");
         if (curl_headers) {
             for (const auto& header : headers) {
@@ -134,7 +134,7 @@ protected:
     }
 
     static size_t onWriteCb(void *buffer, size_t size, size_t count, void* param) {
-        std::string* s = static_cast<std::string*>(param);
+        auto s = static_cast<std::string*>(param);
         if (nullptr == s) {
             return 0;
         }
