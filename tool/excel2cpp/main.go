@@ -227,8 +227,9 @@ func parseDataDesc(filename string, sheet *xlsx.Sheet) ([]*dataDesc, error) {
 					field.fieldType = "int64"
 				}
 			} else if nrow == 2 {
-				field.comment = strings.ReplaceAll(cell.Value, "\r", " ")
+				field.comment = strings.ReplaceAll(cell.Value, "\r\n", " ")
 				field.comment = strings.ReplaceAll(field.comment, "\n", " ")
+				field.comment = strings.ReplaceAll(field.comment, "\"", "\\\"")
 			} else {
 			}
 		}
@@ -318,6 +319,9 @@ func parseData(desc *sheetDesc) (string, error) {
 				}
 
 				if field.fieldType == "string" {
+					value = strings.ReplaceAll(value, "\r\n", "\\n")
+					value = strings.ReplaceAll(value, "\n", "\\n")
+					value = strings.ReplaceAll(value, "\"", "\\\"")
 					content += fmt.Sprintf("\"%s\"", value)
 				} else {
 					if field.isenum {
@@ -326,6 +330,8 @@ func parseData(desc *sheetDesc) (string, error) {
 					if len(value) == 0 {
 						value = "0"
 					}
+					// 过滤掉非法字符,因为这是整数
+					value = strings.ReplaceAll(value, ",", "")
 					content += value
 				}
 			}
@@ -536,7 +542,7 @@ func genReaderVariable(descs []*sheetDesc) error {
 		}
 
 		defer file.Close()
-		file.WriteString(fmt.Sprintf("// 文件生成时间: %s\n\n", time.Now().String()))
+		//file.WriteString(fmt.Sprintf("// 文件生成时间: %s\n\n", time.Now().String()))
 		file.WriteString(content)
 		return nil
 	}
