@@ -74,6 +74,22 @@ TEST(cgo_timer_test, 4) {
     auto t = timer::NewTimer([](uint64_t id, uint64_t payload) {
         print_withtime("payload:" + std::to_string(payload));
     });
+
+    for (int i = 0; i < 100; i++) {
+        t->add(1+i, i);
+    }
+    while (t->count() > 0) {
+        t->update();
+    }
+    delete t;
+}
+
+TEST(cgo_timer_test, 5) {
+    print_withtime("begin");
+
+    auto t = timer::NewTimer([](uint64_t id, uint64_t payload) {
+        print_withtime("payload:" + std::to_string(payload));
+    });
     for (int idx = 0; idx < (60*60-1); idx++) {
         assert(t->add((1+idx)*1000, idx+1) > 0);
     }
