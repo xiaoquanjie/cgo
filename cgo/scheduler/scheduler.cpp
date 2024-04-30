@@ -395,7 +395,7 @@ namespace cgo {
         //////////////////////////////////////////////////////////////
         _schedule_base_queue_st_* g_global_tqueue = scheduler_inst()._global_tqueue;
         thread_local _schedule_base_queue_st_* volatile g_local_tqueue = g_global_tqueue;
-        thread_local _co_pool_st_* volatile g_local_cpool = 0;
+        thread_local _co_pool_st_* volatile g_local_cpool = nullptr;
 
         //////////////////////////////////////////////////////////////
 
@@ -490,6 +490,9 @@ namespace cgo {
                             delete ctask;
                             break;
                         }
+                        default:
+                            throw std::runtime_error("invalid cgo task");
+                            break;
                     }
                     if (this->is_stop()) {
                         break;
