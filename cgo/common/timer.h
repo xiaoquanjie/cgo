@@ -11,10 +11,14 @@
 #include <cstdint>
 #include <chrono>
 #include <vector>
+#include <functional>
+#include <atomic>
+#include "concurrentqueue.h"
 
 namespace timer {
     using time_point = std::chrono::time_point<std::chrono::steady_clock>;
 
+    // 非线程安全
     class Timer {
     public:
         struct tnode {
@@ -31,17 +35,17 @@ namespace timer {
             uint64_t _beg;
             uint64_t _now;
             uint32_t _id = 1;
-            uint32_t _count = 0;
-            void (*_notify)(uint64_t, uint64_t) = nullptr;
+            std::atomic_uint32_t _count;
+            std::function<void(uint64_t, uint64_t)> _notify;
         };
 
     protected:
         TimerInfo _info;
 
-        explicit Timer(void (*notify)(uint64_t, uint64_t));
+        explicit Timer(const std::function<void(uint64_t, uint64_t)>& notify);
 
     public:
-        static Timer* NewTimer(void (*notify)(uint64_t, uint64_t));
+        static Timer* NewTimer(const std::function<void(uint64_t, uint64_t)>& notify);
 
         Timer(const Timer&) = delete;
         Timer& operator=(const Timer&) = delete;
@@ -58,6 +62,38 @@ namespace timer {
         void update();
     };
 
-    Timer* NewTimer(void (*notify)(uint64_t, uint64_t));
+    // 线程安全
+    class SafeTimer {
+    protected:
+        struct safenode {
+            uint64_t id = 0;
+            uint64_t payload = 0;
+            uint64_t expire = 0;
+            safenode() = default;
+        };
+
+        Timer::TimerInfo _info;
+        moodycamel::ConcurrentQueue<safenode> _waits;
+
+        explicit SafeTimer(const std::function<void(uint64_t, uint64_t)>& notify);
+
+    public:
+        static SafeTimer* NewSafeTimer(const std::function<void(uint64_t, uint64_t)>& notify);
+
+        SafeTimer(const SafeTimer&) = delete;
+        SafeTimer& operator=(const SafeTimer&) = delete;
+
+        [[nodiscard]]
+        uint32_t count() const;
+
+        // @interval是毫秒
+        // @返回值为定时器id,返回0说明添加定时器失败，原因应该是interval过大，超出最大时间间隔
+        uint64_t add(uint32_t interval, uint64_t payload);
+
+        void update();
+    };
+
+    Timer* NewTimer(const std::function<void(uint64_t, uint64_t)>& notify);
+    SafeTimer* NewSafeTimer(const std::function<void(uint64_t, uint64_t)>& notify);
 }
 

@@ -5,14 +5,41 @@
 #include <gtest/gtest.h>
 #include <atomic>
 #include "print.h"
+#include <event.h>
 #include <cgo/common/timer.h>
 #include <cgo/common/time_pool.h>
 
-int count = 0;
-TEST(cgo_timer_test, 1) {
+TEST(libevent, performance_test) {
+    auto base = event_base_new();
+
     const int total = 1000*1000*10;
+    int count = 0;
     print_withtime("begin");
-    auto t = timer::NewTimer([](uint64_t id, uint64_t payload) {
+
+    for (auto idx = 0; idx < total; idx++) {
+        auto evt = event_new(base, -1, EV_TIMEOUT, [](evutil_socket_t /*fd*/, short /*s*/, void* ctx){
+                auto count = (int*)ctx;
+                *count += 1;
+            }, &count);
+        struct timeval tv;
+        tv.tv_usec = 1000*10;
+        tv.tv_sec = 0;
+        evtimer_add(evt, &tv);
+    }
+
+    while (count < total) {
+        event_base_loop(base, EVLOOP_NONBLOCK);
+    }
+
+    print_withtime("end");
+    EXPECT_TRUE(count == total);
+}
+
+TEST(timer, performance_test) {
+    const int total = 1000*1000*10;
+    int count = 0;
+    print_withtime("begin");
+    auto t = timer::NewTimer([&count](uint64_t id, uint64_t payload) {
         count++;
     });
 
@@ -30,7 +57,29 @@ TEST(cgo_timer_test, 1) {
     delete t;
 }
 
-TEST(cgo_timer_test, 2) {
+TEST(safetimer, performance_test) {
+    const int total = 1000*1000*10;
+    int count = 0;
+    print_withtime("begin");
+    auto t = timer::NewSafeTimer([&count](uint64_t id, uint64_t payload) {
+        count++;
+    });
+
+    for (auto idx = 0; idx < total; idx++) {
+        t->add(10, idx);
+    }
+
+    print_withtime("add end");
+    while (t->count() > 0) {
+        t->update();
+    }
+
+    print_withtime("end");
+    EXPECT_TRUE(count == total);
+    delete t;
+}
+
+TEST(timepool, performance_test) {
     const int total = 1000*1000*10;
     int count = 0;
     print_withtime("begin");
@@ -51,7 +100,7 @@ TEST(cgo_timer_test, 2) {
     EXPECT_TRUE(count == total);
 }
 
-TEST(cgo_timer_test, 3) {
+TEST(timer_correct, correct_test1) {
     print_withtime("begin");
 
     auto t = timer::NewTimer([](uint64_t id, uint64_t payload) {
@@ -68,7 +117,7 @@ TEST(cgo_timer_test, 3) {
     delete t;
 }
 
-TEST(cgo_timer_test, 4) {
+TEST(timer_correct, correct_test2) {
     print_withtime("begin");
 
     auto t = timer::NewTimer([](uint64_t id, uint64_t payload) {
@@ -84,7 +133,7 @@ TEST(cgo_timer_test, 4) {
     delete t;
 }
 
-TEST(cgo_timer_test, 5) {
+TEST(timer_correct, correct_test3) {
     print_withtime("begin");
 
     auto t = timer::NewTimer([](uint64_t id, uint64_t payload) {

@@ -28,8 +28,7 @@ namespace timer {
         *level = d & 0xFFFF;
     }
 
-    bool calcPosLevel(Timer::TimerInfo *info, uint32_t interval, uint16_t *pos, uint8_t *level) {
-        auto now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    bool calcPosLevel(Timer::TimerInfo *info, uint64_t now, uint32_t interval, uint16_t *pos, uint8_t *level) {
         auto future = now + interval;
         auto diff = future - info->_now;
         if (diff >= Timer::TimerInfo::_sWheelLevel * Timer::TimerInfo::_sWheelLen) {
@@ -85,16 +84,7 @@ namespace timer {
         }
     }
 
-    Timer* Timer::NewTimer(void (*notify)(uint64_t, uint64_t)) {
-        auto t = new Timer(notify);
-        return t;
-    }
-
-    Timer* NewTimer(void (*notify)(uint64_t, uint64_t)) {
-        return Timer::NewTimer(notify);
-    }
-
-    Timer::Timer(void (*notify)(uint64_t, uint64_t)) {
+    Timer::Timer(const std::function<void(uint64_t, uint64_t)>& notify) {
         _info._notify = notify;
         _info._now = _info._beg = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
         std::fill(_info._wheel, _info._wheel + TimerInfo::_sWheelLen, nullptr);
@@ -122,9 +112,10 @@ namespace timer {
         if (interval == 0) {
             return false;
         }
+        auto now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
         uint16_t pos = 0;
         uint8_t level = 0;
-        if (!calcPosLevel(&_info, interval, &pos, &level)) {
+        if (!calcPosLevel(&_info, now, interval, &pos, &level)) {
             return 0;
         }
         auto nl = getNodeList(&_info, pos, level);
@@ -136,5 +127,77 @@ namespace timer {
 
     void Timer::update() {
         timer::update(&_info);
+    }
+
+    //////////////////////////////////////////////////
+
+    SafeTimer::SafeTimer(const std::function<void(uint64_t, uint64_t)>& notify) {
+        _info._notify = notify;
+        _info._now = _info._beg = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+        std::fill(_info._wheel, _info._wheel + Timer::TimerInfo::_sWheelLen, nullptr);
+    }
+
+    uint32_t SafeTimer::count() const {
+        return _info._count;
+    }
+
+    uint64_t SafeTimer::add(uint32_t interval, uint64_t payload) {
+        if (interval == 0) {
+            return false;
+        }
+        auto now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+        uint16_t pos = 0;
+        uint8_t level = 0;
+        if (!calcPosLevel(&_info, now, interval, &pos, &level)) {
+            return 0;
+        }
+
+        auto id = allocTimeId(&_info, pos, level);
+        uint64_t expire = interval + now;
+        safenode node = {id, payload, expire};
+        _waits.enqueue(std::move(node));
+        _info._count++;
+        return id;
+    }
+
+    void SafeTimer::update() {
+        for (int i = 0; i < 10000; i++) {
+            safenode node;
+            if (!_waits.try_dequeue(node)) {
+                break;
+            }
+
+            // 判断该节点是否超时了
+            if (_info._now >= node.expire) {
+                _info._notify(node.id, node.payload);
+                _info._count--;
+            } else {
+                uint16_t pos = 0;
+                uint8_t level = 0;
+                decodeTimeId(node.id, &pos, &level);
+                auto nl = getNodeList(&_info, pos, level);
+                nl->push_back(Timer::tnode{node.id, node.payload});
+            }
+        }
+        timer::update(&_info);
+    }
+
+    /////////////////////////////////////////////////////////
+
+    Timer* Timer::NewTimer(const std::function<void(uint64_t, uint64_t)>& notify) {
+        auto t = new Timer(notify);
+        return t;
+    }
+
+    Timer* NewTimer(const std::function<void(uint64_t, uint64_t)>& notify) {
+        return Timer::NewTimer(notify);
+    }
+
+    SafeTimer* SafeTimer::NewSafeTimer(const std::function<void(uint64_t, uint64_t)>& notify) {
+        return new SafeTimer(notify);
+    }
+
+    SafeTimer* NewSafeTimer(const std::function<void(uint64_t, uint64_t)>& notify) {
+        return SafeTimer::NewSafeTimer(notify);
     }
 }
