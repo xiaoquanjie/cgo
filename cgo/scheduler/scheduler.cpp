@@ -9,7 +9,7 @@
 
 #include "scheduler.h"
 #include "common/macro.h"
-#include "common/time_pool.h"
+#include "common/timer.h"
 #include "common/print.h"
 #include "common/concurrentqueue.h"
 #include "common/work_steal_queue.hpp"
@@ -19,6 +19,7 @@
 #include <vector>
 #include <algorithm>
 #include <string>
+#include <list>
 
 void hook_init();
 
@@ -252,8 +253,7 @@ namespace cgo {
             std::atomic_int _thr_cnt = 0;       // current thread count
             std::atomic_uint64_t _task_op_cnt = 0;
 
-            //async_time_pool _time_pool;
-            integer_async_time_pool _time_pool;
+            timer::SafeTimer* _timer;
             std::vector<routine_fn> _loops;
             concurrent_loop_queue_type _loops_buf;
             bool _print_debug_info = false;
@@ -293,8 +293,6 @@ namespace cgo {
             static void work_func(_schedule_thread_st_* st);
 
             static void watch_func();
-
-            static void notify_wait(integer_async_time_pool::Node* node);
         };
 
         _schedule_local_queue_st_::_schedule_local_queue_st_() {
@@ -548,18 +546,22 @@ namespace cgo {
             this->on_release();
         }
 
-        _scheduler_st_::_scheduler_st_() : _watcher(&_scheduler_st_::watch_func), _time_pool(&notify_wait) {
+        _scheduler_st_::_scheduler_st_() : _watcher(&_scheduler_st_::watch_func) {
+            _timer = timer::NewSafeTimer([](uint64_t id, uint64_t payload) {
+                schedule_post_signal(payload, nullptr);
+            });
+
             _max_thr_cnt = (int)(std::thread::hardware_concurrency() * M_MAX_PROCS_FACTOR);
             _core_thr_cnt = (int)(_max_thr_cnt * M_CORE_POOL_FACTOR);
             _global_tqueue = new _schedule_global_queue_st_;
 
             ::hook_init();
-
             std::atexit(cgo::scheduler::cgo_stop);
         }
 
         _scheduler_st_::~_scheduler_st_() {
             this->stop();
+            delete _timer;
             // don't have to delete _global_tasks, cause of the moodycamel::details::ThreadExitNotifier
             //delete _global_tasks;
         }
@@ -592,7 +594,7 @@ namespace cgo {
         }
 
         bool _scheduler_st_::run() {
-            this->_time_pool.update();
+            this->_timer->update();
             for (auto& f : this->_loops) {
                 f();
             }
@@ -932,10 +934,6 @@ namespace cgo {
             }
         }
 
-        void _scheduler_st_::notify_wait(integer_async_time_pool::Node* node) {
-            schedule_post_signal(node->payload, nullptr);
-        }
-
         void set_cgo_procs(int cnt) {
             if (cnt < 1) {
                 cnt = 1;
@@ -1055,7 +1053,7 @@ namespace cgo {
                 return;
             }
 
-            scheduler_inst()._time_pool.add_timer(wait_mil, co_id);
+            scheduler_inst()._timer->add(wait_mil, co_id);
             void* data = nullptr;
             schedule_wait_signal(data);
         }

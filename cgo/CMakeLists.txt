@@ -7,7 +7,6 @@ set(CMAKE_CXX_STANDARD 17)
 add_library(cgo
         common/http_parser.cpp
         common/semaphore.cpp
-        common/time_pool.cpp
         common/timer.cpp
 
         coroutine/coroutine.cpp

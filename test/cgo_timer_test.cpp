@@ -7,7 +7,6 @@
 #include "print.h"
 #include <event.h>
 #include <cgo/common/timer.h>
-#include <cgo/common/time_pool.h>
 
 TEST(libevent, performance_test) {
     auto base = event_base_new();
@@ -77,27 +76,6 @@ TEST(safetimer, performance_test) {
     print_withtime("end");
     EXPECT_TRUE(count == total);
     delete t;
-}
-
-TEST(timepool, performance_test) {
-    const int total = 1000*1000*10;
-    int count = 0;
-    print_withtime("begin");
-    time_pool t;
-
-    for (auto idx = 0; idx < total; idx++) {
-        t.add_timer(10, [&count] {
-            count++;
-        });
-    }
-
-    print_withtime("add end");
-    while (t.timer_count() > 0) {
-        t.update();
-    }
-
-    print_withtime("end");
-    EXPECT_TRUE(count == total);
 }
 
 TEST(timer_correct, correct_test1) {

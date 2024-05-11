@@ -154,8 +154,7 @@ namespace timer {
 
         auto id = allocTimeId(&_info, pos, level);
         uint64_t expire = interval + now;
-        safenode node = {id, payload, expire};
-        _waits.enqueue(std::move(node));
+        _waits.enqueue({id, payload, expire});
         _info._count++;
         return id;
     }
