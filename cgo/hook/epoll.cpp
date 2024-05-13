@@ -27,7 +27,8 @@ namespace cgo {
 
             epoll_event event;
             event.data.fd = fd;
-            event.events = EPOLLIN | EPOLLOUT | EPOLLERR;
+            // 使用水平模式，只需要读事件，不需要写事件
+            event.events = EPOLLIN | EPOLLERR; // EPOLLOUT
             if (epoll_ctl(this->_epoll_fd, EPOLL_CTL_ADD, fd, &event) == -1) {
                 if (errno != EEXIST) {
                     throw std::runtime_error("epoll add fd error");
@@ -38,6 +39,17 @@ namespace cgo {
         void _epoll_iocp_st_::remove_fd(int fd) {
             epoll_ctl(this->_epoll_fd, EPOLL_CTL_DEL, fd, NULL);
             this->_fd_cnt--;
+        }
+
+        void _epoll_iocp_st_::modify_fd(int fd, int ctl) {
+            // 使用水平模式
+            epoll_event event;
+            event.events = ctl;
+            if (epoll_ctl(this->_epoll_fd, EPOLL_CTL_MOD, fd, &event) == -1) {
+                if (errno != EEXIST) {
+                    throw std::runtime_error("epoll add fd error");
+                }
+            }
         }
 
         void _epoll_iocp_st_::setnonblock(int fd) {
@@ -94,6 +106,7 @@ namespace cgo {
                             for (size_t idx = 0; idx < sizeof (fd_out_state) / sizeof (int); idx++) {
                                 if (state->flag & fd_out_state[idx]) {
                                     state->flag ^= fd_out_state[idx];
+                                    state->epoll_iocp->modify_fd(fd, EPOLLIN | EPOLLERR);
                                     if (fd_out_state[idx] == fd_state::connect) {
                                         int error = 0;
                                         socklen_t len = sizeof(error);

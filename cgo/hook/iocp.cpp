@@ -29,6 +29,11 @@ namespace cgo::hook {
 
     void _epoll_iocp_st_::remove_fd(int fd) {
         this->_fd_cnt--;
+        // 不需要有什么与iocp解绑的动作
+    }
+
+    void _epoll_iocp_st_::modify_fd(int fd, int ctl) {
+        // nothing to do
     }
 
     void _epoll_iocp_st_::setnonblock(int fd) {

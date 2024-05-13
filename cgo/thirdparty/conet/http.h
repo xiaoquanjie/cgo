@@ -93,21 +93,25 @@ namespace conet {
 
     protected:
         void finishRequest() {
-            std::string data;
-            data.reserve(data_.size() + 1024);
-            const int bufLen = 1024;
-            char buf[bufLen];
-            int len = sprintf(buf, "HTTP/1.1 %d OK\\r\\n", status_);
-            data.append(buf, len);
+            // for Content-Length
+            int guess = 50 + data_.size();
             for (auto& kv : header_) {
-                len = sprintf(buf, "%s: %s\\r\\n", kv.first.data(), kv.second.data());
-                data.append(buf, len);
+                guess += kv.second.size();
+                guess += kv.first.size();
+                guess += 4;
             }
-            sprintf(buf, "Content-Length: %d\\r\\n", (int)data_.size());
-            data.append(buf, len);
-            data.append("\\r\\n");
-            data.append(data_.data(), data_.size());
-            conn_->Write(data.c_str(), (int)data.size());
+
+            char* buf = (char*) ::malloc(guess);
+            int len = sprintf(buf, "HTTP/1.1 %d OK\r\n", status_);
+            for (auto& kv : header_) {
+                len += sprintf(buf + len, "%s: %s\r\n", kv.first.data(), kv.second.data());
+            }
+
+            len += sprintf(buf+len, "Content-Length: %d\r\n", (int)data_.size());
+            len += sprintf(buf+len, "\r\n");
+            len += sprintf(buf+len, "%s", data_.c_str());
+            conn_->Write(buf, len);
+            ::free(buf);
         }
     };
 

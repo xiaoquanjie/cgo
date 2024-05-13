@@ -82,7 +82,7 @@ namespace cgo::hook {
 
         volatile uint64_t co_id = -1;
         std::atomic_char flag = 0;
-        _epoll_iocp_st_* volatile epoll_iocp = 0;
+        _epoll_iocp_st_* volatile epoll_iocp = nullptr;
     };
 
     fd_state* get_fd_state(int fd);
@@ -90,6 +90,7 @@ namespace cgo::hook {
     fd_state* check_fd_state(int fd, int fs);
     bool canhook(int fd);
     bool canhook_poll_select();
+
     ///////////////////////////////////////////
 
     struct _epoll_iocp_st_ {
@@ -104,6 +105,8 @@ namespace cgo::hook {
         void add_fd(int fd);
 
         void remove_fd(int fd);
+
+        void modify_fd(int fd, int ctl);
 
         void setnonblock(int fd);
 

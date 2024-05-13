@@ -4,7 +4,19 @@
 #include "common/macro.h"
 #include <stdexcept>
 
-#define M_SET_STATE(data, state) data->co_id = cgo::scheduler::cur_coid(); data->flag |= cgo::hook::state;
+#define M_SET_STATE(fd, data, state) set_state(fd, data, cgo::hook::state)
+
+void set_state(int fd, cgo::hook::fd_state* data, char state) {
+    data->co_id = cgo::scheduler::cur_coid();
+    data->flag |= state;
+
+#ifdef __GNUC__
+    if (state == cgo::hook::fd_state::write
+        || state == cgo::hook::fd_state::connect) {
+        data->epoll_iocp->modify_fd(fd, EPOLLIN | EPOLLOUT | EPOLLERR);
+    }
+#endif
+}
 
 #ifdef __GNUC__
 
@@ -33,7 +45,7 @@ int accept(int fd, struct sockaddr *addr, socklen_t *addrlen) {
     if (EAGAIN == errno
         || EWOULDBLOCK == errno) {
         for (;;) {
-            M_SET_STATE(state, fd_state::accept);
+            M_SET_STATE(fd, state, fd_state::accept);
             cgo::scheduler::schedule_wait_signal();
             ret = accept_hook(fd, addr, addrlen);
             if (ret > 0) {
@@ -69,7 +81,7 @@ int connect(int fd, const struct sockaddr *address, socklen_t addrlen) {
         || EAGAIN == errno
         || EINTR == errno) {
         for (;;) {
-            M_SET_STATE(state, fd_state::connect);
+            M_SET_STATE(fd, state, fd_state::connect);
             cgo::scheduler::schedule_wait_signal();
             if (state->flag & cgo::hook::fd_state::connecok) {
                 state->flag ^= cgo::hook::fd_state::connecok;
@@ -115,7 +127,7 @@ ssize_t read(int fd, void *buf, size_t bytes) {
         || EWOULDBLOCK == errno) {
         for (;;) {
             //hook_debug("read wait");
-            M_SET_STATE(state, fd_state::read);
+            M_SET_STATE(fd, state, fd_state::read);
             cgo::scheduler::schedule_wait_signal();
             ret = read_hook(fd, buf, bytes);
             if (ret >= 0) {
@@ -150,7 +162,7 @@ ssize_t recv(int fd, void *buf, size_t len, int flags) {
     if (EAGAIN == errno
         || EWOULDBLOCK == errno) {
         for (;;) {
-            M_SET_STATE(state, fd_state::read);
+            M_SET_STATE(fd, state, fd_state::read);
             cgo::scheduler::schedule_wait_signal();
             ret = recv_hook(fd, buf, len, flags);
             if (ret >= 0) {
@@ -185,7 +197,7 @@ ssize_t send(int fd, const void *buf, size_t len, int flags) {
     if (EAGAIN == errno
         || EWOULDBLOCK == errno) {
         for (;;) {
-            M_SET_STATE(state, fd_state::write);
+            M_SET_STATE(fd, state, fd_state::write);
             cgo::scheduler::schedule_wait_signal();
             ret = send_hook(fd, buf, len, flags);
             if (ret >= 0) {
@@ -220,7 +232,7 @@ ssize_t write(int fd, const void *buf, size_t bytes) {
     if (EAGAIN == errno
         || EWOULDBLOCK == errno) {
         for (;;) {
-            M_SET_STATE(state, fd_state::write);
+            M_SET_STATE(fd, state, fd_state::write);
             cgo::scheduler::schedule_wait_signal();
             ret = write_hook(fd, buf, bytes);
             if (ret >= 0) {
@@ -255,7 +267,7 @@ ssize_t sendto(int fd, const void *buf, size_t len, int flags, const struct sock
     if (EAGAIN == errno
         || EWOULDBLOCK == errno) {
         for (;;) {
-            M_SET_STATE(state, fd_state::write);
+            M_SET_STATE(fd, state, fd_state::write);
             cgo::scheduler::schedule_wait_signal();
             ret = sendto_hook(fd, buf, len, flags, dstaddr, addrlen);
             if (ret >= 0) {
@@ -290,7 +302,7 @@ ssize_t recvfrom(int fd, void *buf, size_t len, int flags, struct sockaddr *srca
     if (EAGAIN == errno
         || EWOULDBLOCK == errno) {
         for (;;) {
-            M_SET_STATE(state, fd_state::read);
+            M_SET_STATE(fd, state, fd_state::read);
             cgo::scheduler::schedule_wait_signal();
             ret = recvfrom_hook(fd, buf, len, flags, srcaddr, addrlen);
             if (ret >= 0) {
@@ -543,7 +555,7 @@ SOCKET PASCAL FAR hook_accept (
         ov->c_fd = c_fd;
 
         auto state = cgo::hook::check_fd_state((int)s, cgo::hook::fd_state::accept);
-        M_SET_STATE(state, fd_state::accept);
+        M_SET_STATE(s, state, fd_state::accept);
 
         int ret = AcceptEx(ov->l_fd,
             ov->c_fd,
@@ -616,7 +628,7 @@ int PASCAL FAR hook_connect (
         ov->namelen = namelen;
 
         auto state = cgo::hook::check_fd_state((int)s, cgo::hook::fd_state::connect);
-        M_SET_STATE(state, fd_state::connect);
+        M_SET_STATE(s, state, fd_state::connect);
 
         auto ret = lpfnConn(s, ov->name, ov->namelen, nullptr, 0, nullptr, (LPOVERLAPPED)ov);
         int err = ERROR_SUCCESS;
@@ -687,7 +699,7 @@ int PASCAL FAR hook_sendto (
         ov->namelen = tolen;
 
         auto state = cgo::hook::check_fd_state((int)s, cgo::hook::fd_state::write);
-        M_SET_STATE(state, fd_state::write);
+        M_SET_STATE(s, state, fd_state::write);
 
         int ret = WSASendTo(s, ov->buf, 1, &ov->bytes, flags, ov->name, ov->namelen, (LPOVERLAPPED)ov, nullptr);
         int err = ERROR_SUCCESS;
@@ -747,7 +759,7 @@ int PASCAL FAR hook_recvfrom (
         ov->namelen = fromlen;
 
         auto state = cgo::hook::check_fd_state((int)s, cgo::hook::fd_state::read);
-        M_SET_STATE(state, fd_state::read);
+        M_SET_STATE(s, state, fd_state::read);
 
         DWORD flag = 0;
         int ret = WSARecvFrom(s, ov->buf, 1, &ov->bytes, &flag, ov->name, ov->namelen, (LPOVERLAPPED)ov, nullptr);
@@ -803,7 +815,7 @@ int PASCAL FAR hook_send (
         ov->buf[0].len = len;
 
         auto state = cgo::hook::check_fd_state((int)s, cgo::hook::fd_state::write);
-        M_SET_STATE(state, fd_state::write);
+        M_SET_STATE(s, state, fd_state::write);
 
         int ret = WSASend(s, ov->buf, 1, &ov->bytes, 0, (LPOVERLAPPED)ov, nullptr);
         int err = ERROR_SUCCESS;
@@ -858,7 +870,7 @@ int PASCAL FAR hook_recv (
         ov->buf[0].len = len;
 
         auto state = cgo::hook::check_fd_state((int)s, cgo::hook::fd_state::read);
-        M_SET_STATE(state, fd_state::read);
+        M_SET_STATE(s, state, fd_state::read);
 
         DWORD flag = 0;
         int ret = WSARecv(s, ov->buf, 1, &ov->bytes, &flag, (LPOVERLAPPED)ov, nullptr);

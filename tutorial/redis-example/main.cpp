@@ -30,5 +30,6 @@ int main() {
     }
 
     wg.Wait();
+    msleep(100000);
     return 0;
 }
