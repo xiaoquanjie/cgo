@@ -37,8 +37,9 @@ TEST(standard_mutex_test, 1) {
 
     std::mutex mu;
     std::list<std::thread> thrs;
-    for (int i = 0; i < std::thread::hardware_concurrency(); i++) {
+    for (int i = 0; i < std::thread::hardware_concurrency()*4; i++) {
         thrs.push_back(std::move(std::thread([&mu, &count, loop_count]{
+            msleep(2);
             while (true) {
                 mu.lock();
                 if (count == loop_count) {
@@ -65,7 +66,7 @@ TEST(cgo_mutex_test, 2) {
     cgo::mutex mu;
     cgo::WaitGroup wg;
 
-    for (int i = 0; i < std::thread::hardware_concurrency(); i++) {
+    for (int i = 0; i < std::thread::hardware_concurrency()*4; i++) {
         wg.Add(1);
         go [&mu, &count, loop_count, &wg] {
             while (true) {

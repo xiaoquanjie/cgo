@@ -9,6 +9,9 @@
 #include <cgo/common/http_parser.h>
 
 namespace conet {
+    struct HttpResponse;
+    inline void finishRequest(HttpResponse* rsp);
+
     struct HttpRequest {
         bool complete_ = false;
         std::string_view tmp_field_;
@@ -16,7 +19,7 @@ namespace conet {
         std::string_view url_;
         std::string_view body_;
         std::string_view method_;
-        std::unordered_map<std::string_view, std::string_view> header_;
+        std::unordered_multimap<std::string_view, std::string_view> header_;
 
         [[nodiscard]]
         const std::string_view& Url() const {
@@ -32,7 +35,7 @@ namespace conet {
         }
 
         [[nodiscard]]
-        const std::unordered_map<std::string_view, std::string_view>& Header() const {
+        const std::unordered_multimap<std::string_view, std::string_view>& Header() const {
             return header_;
         }
 
@@ -54,13 +57,57 @@ namespace conet {
     };
 
     struct HttpResponse {
+        friend void finishRequest(HttpResponse*);
     protected:
         TcpConn* conn_;
+        std::unordered_map<std::string_view, std::string_view> header_;
+        std::string data_;
+        int status_ = http_status::HTTP_STATUS_OK;
+
     public:
         explicit HttpResponse(TcpConn* c) : conn_(c) {}
 
+        // 默认会调用WriteHeader
         size_t Write(const char* buf, int len) {
-            return conn_->Write(buf, len);
+            data_.append(buf, len);
+            return len;
+        }
+
+        void AddHeader(const std::string_view& key, const std::string_view& value) {
+            header_.insert(std::make_pair(key, value));
+        }
+
+        void SetHeader(const std::string_view& key, const std::string_view& value) {
+            auto iter = header_.find(key);
+            if (iter == header_.end()) {
+                header_.insert(std::make_pair(key, value));
+            } else {
+                iter->second = value;
+            }
+        }
+
+        // 回复
+        void WriteHeader(int statusCode) {
+            status_ = statusCode;
+        }
+
+    protected:
+        void finishRequest() {
+            std::string data;
+            data.reserve(data_.size() + 1024);
+            const int bufLen = 1024;
+            char buf[bufLen];
+            int len = sprintf(buf, "HTTP/1.1 %d OK\\r\\n", status_);
+            data.append(buf, len);
+            for (auto& kv : header_) {
+                len = sprintf(buf, "%s: %s\\r\\n", kv.first.data(), kv.second.data());
+                data.append(buf, len);
+            }
+            sprintf(buf, "Content-Length: %d\\r\\n", (int)data_.size());
+            data.append(buf, len);
+            data.append("\\r\\n");
+            data.append(data_.data(), data_.size());
+            conn_->Write(data.c_str(), (int)data.size());
         }
     };
 
@@ -91,17 +138,22 @@ namespace conet {
             }
 
             handler_ = handler;
+            cgo::WaitGroup wg;
+            wg.Add(1);
 
-            go [this] {
+            go [this, &wg] {
                 for (;;) {
                     auto c = this->listener_.Accept();
                     if (!c) {
-                        continue;
+                        break;
                     }
                     HttpListener::NewConn(c, this->handler_);
                 }
                 delete this;
+                wg.Done();
             };
+
+            wg.Wait();
             return true;
         }
 
@@ -176,6 +228,7 @@ parser_finish:
                     mehtod = http_method_str((http_method)parser.method);
                     request.method_ = std::string_view(mehtod, strlen(mehtod));
                     handler(&response, &request);
+                    finishRequest(&response);
                 }
 parser_failed:
                 //std::cout << "close http connection\n";
@@ -197,7 +250,7 @@ parser_failed:
         static int on_header_field(http_parser* parser, const char* at, size_t length) {
             auto request = (HttpRequest*)(parser->data);
             if (request->tmp_value_.data() != nullptr) {
-                request->header_[request->tmp_field_] = request->tmp_value_;
+                request->header_.insert(std::make_pair(request->tmp_field_, request->tmp_value_));
                 request->tmp_value_ = request->tmp_field_ = std::string_view();
             }
 
@@ -224,7 +277,7 @@ parser_failed:
         static int on_header_complete(http_parser* parser) {
             auto request = (HttpRequest*)(parser->data);
             if (!request->tmp_field_.empty()) {
-                request->header_[request->tmp_field_] = request->tmp_value_;
+                request->header_.insert(std::make_pair(request->tmp_field_, request->tmp_value_));
                 request->tmp_value_ = request->tmp_field_ = std::string_view();
             }
             return 0;
@@ -246,4 +299,8 @@ parser_failed:
             return 0;
         }
     };
+
+    inline void finishRequest(HttpResponse* rsp) {
+        rsp->finishRequest();
+    }
 }
