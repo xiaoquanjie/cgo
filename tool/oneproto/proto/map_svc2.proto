@@ -1,0 +1,14 @@
+syntax = "proto3";
+package protocol;
+
+message Request2 {}
+
+message Respond2 {
+}
+
+service service2 {
+  rpc method1(Request2) returns (Respond2) {}
+  rpc method2(stream Request2) returns (Respond2) {}
+  rpc method3(Request2) returns (stream Respond2) {}
+  rpc method4(stream Request2) returns (stream Respond2) {}
+}
